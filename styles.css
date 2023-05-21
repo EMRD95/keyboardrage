@@ -221,3 +221,49 @@ button#play-again:hover {
     background-color: #6272a4;
     cursor: pointer;
 }
+
+.header-container {
+  display: flex;
+  justify-content: space-between;
+  padding: 20px;
+  width: 90%;
+  margin: 0 auto;
+}
+
+#home-icon-link, #github-icon-link, #faq-link {
+  color: #f8f8f2;
+  font-size: 24px;
+  text-decoration: none;
+}
+
+#home-icon-link:hover, #github-icon-link:hover, #faq-link:hover {
+  color: #6272a4;
+}
+
+/* Existing styles */
+
+.faq-content {
+  margin: 0 auto;
+  width: 90%;
+  max-width: 800px;
+  color: #f8f8f2;
+}
+
+.faq-content h2 {
+  margin-top: 30px;
+  font-size: 1.5rem;
+}
+
+.faq-content p {
+  font-size: 1.2rem;
+  line-height: 1.5;
+}
+
+.faq-content a {
+  color: #f8f8f2;
+  text-decoration: underline;
+}
+
+.faq-content a:hover {
+  color: #6272a4;
+}
