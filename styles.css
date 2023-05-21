@@ -1,0 +1,223 @@
+body {
+  margin: 0;
+  padding: 0;
+  font-family: 'Courier New', Courier, monospace;
+  background-color: #1e1e1e;
+  color: #f8f8f2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+#main-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;  /* This will space out the game and leaderboard */
+  height: 100vh;  /* Takes the full viewport height */
+  padding: 2rem;  /* Optional: Adds some space on the top and bottom */
+}
+
+#game-container {
+  position: relative;
+  margin: 0;
+  flex-grow: 1;
+  width: 100%;
+  max-width: 800px;
+  height: 90vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}
+
+#score-board {
+  position: absolute;
+  top: 2rem;
+  right: 2rem;
+  font-size: 1.5rem;
+  color: #f8f8f2;
+}
+
+#game {
+  border: 1px solid #f8f8f2;
+  background-color: #1e1e1e;
+  font-size: 2rem;
+  width: 100%;
+  height: 90vh;
+  max-height: 600px;
+  max-width: 800px;
+}
+
+#game-overlay {
+  /* Existing styles */
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  position: absolute;
+  top: calc(50% - 1.55rem); /* Adjust the value as needed */
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.5);
+  color: #f8f8f2;
+  font-size: 3rem;
+  font-weight: bold;
+  text-align: center;
+  visibility: hidden;
+
+  /* New styles for the black box */
+  box-sizing: border-box;
+  padding: 50px;
+  border: 1px solid #f8f8f2;
+  max-width: 800px;
+  max-height: 600px;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+}
+
+#score-board, #wpm-container, #language-container {
+  position: absolute;
+  font-size: 1.5rem;
+  color: #f8f8f2;
+}
+
+#score-board {
+  top: 2rem;
+  left: 2rem;
+}
+
+#wpm-container {
+    position: absolute;
+    top: 2rem;
+    left: 2rem;
+    display: flex;
+    align-items: center;
+    color: #f8f8f2;
+}
+
+#wpm-container label {
+    font-size: 1.2rem;
+    margin-right: 10px;
+}
+
+#wpm-container select {
+    background-color: #44475a;
+    color: #f8f8f2;
+    padding: 5px;
+    border: none;
+    border-radius: 4px;
+    font-size: 1rem;
+    font-family: 'Courier New', Courier, monospace;
+}
+
+#wpm-container select:focus {
+    outline: none;
+}
+
+#language-container {
+    position: absolute;
+    top: 2rem;
+    right: 2rem; /* Changed from left to right for better layout */
+    display: flex;
+    align-items: center;
+    color: #f8f8f2;
+}
+
+#language-container label {
+    font-size: 1.2rem;
+    margin-right: 10px;
+}
+
+#language-container select {
+    background-color: #44475a;
+    color: #f8f8f2;
+    padding: 5px;
+    border: none;
+    border-radius: 4px;
+    font-size: 1rem;
+    font-family: 'Courier New', Courier, monospace;
+}
+
+#language-container select:focus {
+    outline: none;
+}
+
+@media screen and (max-width: 600px) {
+  #score-board, #wpm-container, #language-container {
+    position: static;
+    margin: 1rem auto;
+    width: 90%;
+    text-align: center;
+  }
+}
+
+    #leaderboard {
+      width: 80%;
+      max-width: 500px;
+      margin-top: 20px;
+      border-collapse: collapse;
+    }
+
+    #leaderboard th, #leaderboard td {
+      border: 1px solid #ccc;
+      padding: 10px;
+      text-align: left;
+    }
+
+    #leaderboard tr:nth-child(even) {
+      background-color: #000ff;
+    }
+
+    @media screen and (max-width: 600px) {
+      #leaderboard, #leaderboard th, #leaderboard td {
+        width: 100%;
+        display: block;
+      }
+    }
+	
+#player-name-container {
+    display: flex;
+    align-items: center;
+    color: #f8f8f2;
+}
+
+#player-name-container label {
+    font-size: 1.2rem;
+    margin-right: 10px;
+}
+
+#player-name-container input {
+    background-color: #44475a;
+    color: #f8f8f2;
+    padding: 5px;
+    border: none;
+    border-radius: 4px;
+    font-size: 1rem;
+    font-family: 'Courier New', Courier, monospace;
+    outline-color: red;  /* Add this line */
+}
+
+#player-name-container input:valid {
+    outline-color: initial;  /* Add this line */
+}
+
+
+button#play-again {
+    background-color: #44475a;
+    color: #f8f8f2;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 4px;
+    font-size: 1rem;
+    font-family: 'Courier New', Courier, monospace;
+    margin-top: 20px;
+}
+
+button#play-again:hover {
+    background-color: #6272a4;
+    cursor: pointer;
+}
