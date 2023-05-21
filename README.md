@@ -2,6 +2,8 @@
 
 Repository for the source code of the keyboardrage.com game.
 
+![image](https://github.com/EMRD95/keyboardrage/assets/114953576/1b3ff146-6591-4e8b-a383-6d8f711c7d55)
+
 ## Installation
 
 Clone the repository:
