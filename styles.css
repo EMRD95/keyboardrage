@@ -175,7 +175,6 @@ body {
     @media screen and (max-width: 600px) {
       #leaderboard, #leaderboard th, #leaderboard td {
         width: 100%;
-        display: block;
       }
     }
 	
