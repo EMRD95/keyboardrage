@@ -1,24 +1,47 @@
 # keyboardrage
-keyboardrage.com repo
 
-To install git clone the repo
+Repository for the source code of the keyboardrage.com game.
 
-Tested and working on Ubuntu 22.04
-which node
+## Installation
+
+Clone the repository:
+
+```shell
+git clone https://github.com/EMRD95/keyboardrage
+```
+
+The game has been tested and found to be working on Ubuntu 22.04 with the following requirements:
+
+```shell
 node v20.2.0
-mongod --version
-db version v6.0.6
+mongod db version v6.0.6
+```
 
+Next, install the required packages:
+
+```shell
 npm install -g typescript
 npm install express mongoose body-parser
 npm install
+```
 
-To build the game.ts and create game.js, run tsc
+To build the TypeScript file `game.ts` and create `game.js`, run:
 
-Tu run, node server.js
+```shell
+tsc
+```
 
-To make a service
+To run the application, execute:
 
+```shell
+node server.js
+```
+
+## Setting Up a Service
+
+Create a service file with the following content:
+
+```shell
 [Unit]
 Description=Keyboardrage Node.js Application
 After=network.target
@@ -34,9 +57,13 @@ WorkingDirectory=/home/game/game/
 
 [Install]
 WantedBy=multi-user.target
+```
 
-Nginx server
+## NGINX Configuration
 
+Set up an NGINX server with the following configuration:
+
+```shell
 server {
     listen 80;
     server_name domainname.com www.domainname.com;
@@ -50,5 +77,8 @@ server {
         proxy_cache_bypass $http_upgrade;
     }
 }
+```
 
-Language pack from https://github.com/monkeytypegame/monkeytype
+## Language Pack
+
+The language pack can be sourced from [monkeytypegame/monkeytype](https://github.com/monkeytypegame/monkeytype) on GitHub.
