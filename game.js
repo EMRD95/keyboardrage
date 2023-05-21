@@ -9,6 +9,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 };
 class Game {
     constructor(canvas, playerName, WPM = 60, language = 'english') {
+        this.isGameOver = false;
         this.canvas = canvas;
         this.context = this.canvas.getContext("2d");
         this.WPM = localStorage.getItem('WPM') ? parseInt(localStorage.getItem('WPM')) : WPM;
@@ -143,6 +144,9 @@ class Game {
     }
     gameOver() {
         return __awaiter(this, void 0, void 0, function* () {
+            if (this.isGameOver)
+                return; // prevent gameOver from running twice
+            this.isGameOver = true; // set flag to true to mark the game as over
             // Send the score to the server
             const response = yield fetch('/score', {
                 method: 'POST',
@@ -181,7 +185,34 @@ class Game {
 // Here's your list of languages
 const languages = [
     "english",
-    "french"
+    "french",
+    "albanian",
+    "bulgarian",
+    "catalan",
+    "croatian",
+    "czech",
+    "danish",
+    "dutch",
+    "esperanto",
+    "estonian",
+    "finnish",
+    "german",
+    "hungarian",
+    "irish",
+    "italian",
+    "latin",
+    "latvian",
+    "lithuanian",
+    "macedonian",
+    "polish",
+    "portuguese",
+    "romanian",
+    "russian",
+    "slovenian",
+    "spanish",
+    "swedish",
+    "swiss_german",
+    "welsh"
 ];
 // Get a reference to your dropdown
 const languageInput = document.getElementById('language');

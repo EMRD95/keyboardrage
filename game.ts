@@ -17,6 +17,7 @@ class Game {
     private originalWPM: number;
     private playerName: string;  // Add this line to store the player name
 	private pause: boolean;
+	private isGameOver = false;
 
 	private constructor(canvas: HTMLCanvasElement, playerName: string, WPM: number = 60, language: string = 'english') {
 		this.canvas = canvas;
@@ -171,6 +172,9 @@ class Game {
     }
 
 		async gameOver() {
+		  if (this.isGameOver) return;  // prevent gameOver from running twice
+
+		  this.isGameOver = true;  // set flag to true to mark the game as over
 		  // Send the score to the server
 		  const response = await fetch('/score', {
 			method: 'POST',
@@ -218,8 +222,36 @@ class Game {
 // Here's your list of languages
 const languages = [
     "english",
-    "french"
+    "french",
+    "albanian",
+    "bulgarian",
+    "catalan",
+    "croatian",
+    "czech",
+    "danish",
+    "dutch",
+    "esperanto",
+    "estonian",
+    "finnish",
+    "german",
+    "hungarian",
+    "irish",
+    "italian",
+    "latin",
+    "latvian",
+    "lithuanian",
+    "macedonian",
+    "polish",
+    "portuguese",
+    "romanian",
+    "russian",
+    "slovenian",
+    "spanish",
+    "swedish",
+    "swiss_german",
+    "welsh"
 ];
+
 
 // Get a reference to your dropdown
 const languageInput = document.getElementById('language') as HTMLSelectElement;
