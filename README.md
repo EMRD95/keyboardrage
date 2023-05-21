@@ -1,4 +1,4 @@
-# keyboardrage
+# KeyboardRage
 
 Repository for the source code of the https://keyboardrage.com/ game.
 
