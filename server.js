@@ -28,6 +28,13 @@ mongoose.connect('mongodb://127.0.0.1:27017/typing_game', {
   console.error('Failed to connect to MongoDB', err)
 });
 
+let tokens = [];
+app.get('/token', (req, res) => {
+  const token = Math.random().toString(36).substring(2);
+  tokens.push(token);
+  res.send({ token });
+});
+
 
 const ScoreSchema = new mongoose.Schema({
   name: String,
@@ -42,14 +49,21 @@ const Score = mongoose.model('Score', ScoreSchema);
 
 // POST /score endpoint to save a new score
 app.post('/score', async (req, res) => {
-  const newScore = new Score(req.body);
+  const { token, ...scoreData } = req.body;
+  if (!tokens.includes(token)) {
+    return res.status(403).send('Invalid token');
+  }
+
+  const newScore = new Score(scoreData);
   try {
     const score = await newScore.save();
+    tokens = tokens.filter(t => t !== token);  // Remove the used token
     return res.status(200).send(score);
   } catch (err) {
     return res.status(500).send(err);
   }
 });
+
 
 
 // GET /leaderboard/:language/:WPM endpoint to retrieve the leaderboard

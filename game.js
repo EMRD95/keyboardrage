@@ -20,12 +20,21 @@ class Game {
         this.originalWPM = this.WPM;
         this.playerName = localStorage.getItem('playerName') || playerName; // Retrieve player name from localStorage
         this.pause = false;
+        this.token = null;
     }
     static create(canvas, playerName, WPM = 60, language = 'english') {
         return __awaiter(this, void 0, void 0, function* () {
             const game = new Game(canvas, playerName, WPM, language);
+            yield game.fetchToken();
             yield game.fetchWords();
             return game;
+        });
+    }
+    fetchToken() {
+        return __awaiter(this, void 0, void 0, function* () {
+            const response = yield fetch('/token');
+            const data = yield response.json();
+            this.token = data.token;
         });
     }
     fetchWords() {
@@ -151,7 +160,7 @@ class Game {
             const response = yield fetch('/score', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name: this.playerName, score: this.score, language: this.language, WPM: this.WPM })
+                body: JSON.stringify({ token: this.token, name: this.playerName, score: this.score, language: this.language, WPM: this.WPM })
             });
             if (!response.ok) {
                 console.error('Failed to send score to server');

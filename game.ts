@@ -18,6 +18,7 @@ class Game {
     private playerName: string;  // Add this line to store the player name
 	private pause: boolean;
 	private isGameOver = false;
+	private token: string | null;
 
 	private constructor(canvas: HTMLCanvasElement, playerName: string, WPM: number = 60, language: string = 'english') {
 		this.canvas = canvas;
@@ -30,12 +31,20 @@ class Game {
 		this.originalWPM = this.WPM;
 		this.playerName = localStorage.getItem('playerName') || playerName;  // Retrieve player name from localStorage
 		this.pause = false;
+		this.token = null;
 	}
 
 	static async create(canvas: HTMLCanvasElement, playerName: string, WPM: number = 60, language: string = 'english') {
 		const game = new Game(canvas, playerName, WPM, language);
+		await game.fetchToken();
 		await game.fetchWords();
 		return game;
+	}
+
+	async fetchToken() {
+	  const response = await fetch('/token');
+	  const data = await response.json();
+	  this.token = data.token;
 	}
 
 
@@ -176,11 +185,12 @@ class Game {
 
 		  this.isGameOver = true;  // set flag to true to mark the game as over
 		  // Send the score to the server
-		  const response = await fetch('/score', {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ name: this.playerName, score: this.score, language: this.language, WPM: this.WPM })
-		  });
+			const response = await fetch('/score', {
+			  method: 'POST',
+			  headers: { 'Content-Type': 'application/json' },
+			  body: JSON.stringify({ token: this.token, name: this.playerName, score: this.score, language: this.language, WPM: this.WPM })
+			});
+
 
 		  if (!response.ok) {
 			console.error('Failed to send score to server');
@@ -213,10 +223,6 @@ class Game {
             throw new Error("Player name must be between 3 and 30 characters.");
         }
     }
-	
-
-
-
 }
 
 // Here's your list of languages
