@@ -4,6 +4,8 @@ interface Word {
     y: number;
     speed: number;
     originalSpeed: number;
+    color: string; 
+    currentIndex: number; // Add this line
 }
 
 class Game {
@@ -19,6 +21,7 @@ class Game {
 	private pause: boolean;
 	private isGameOver = false;
 	private token: string | null;
+	private timeElapsed: number; // Add this line to store elapsed time
 
 	private constructor(canvas: HTMLCanvasElement, playerName: string, WPM: number = 60, language: string = 'english') {
 		this.canvas = canvas;
@@ -32,6 +35,7 @@ class Game {
 		this.playerName = localStorage.getItem('playerName') || playerName;  // Retrieve player name from localStorage
 		this.pause = false;
 		this.token = null;
+		this.timeElapsed = 0;
 	}
 
 	static async create(canvas: HTMLCanvasElement, playerName: string, WPM: number = 60, language: string = 'english') {
@@ -79,6 +83,7 @@ class Game {
 		this.score = 0;
 		this.words = [];
 		this.originalWPM = currentWPM;
+		this.timeElapsed = 0;
 		this.fetchWords().then(() => {
 			this.generateWords();
 		});
@@ -90,22 +95,31 @@ class Game {
         this.generateWords();
 		this.animate(); // start the game loop here
 
-        window.addEventListener('keydown', (event) => {
-            if (this.words.length === 0) return;
+		window.addEventListener('keydown', (event) => {
+			if (this.words.length === 0) return;
 
-            const firstWord = this.words[0];
-            if (firstWord.text.startsWith(event.key)) {
-                firstWord.text = firstWord.text.slice(1);
+			const firstWord = this.words[0];
+			if (firstWord.text.startsWith(event.key)) {
+				firstWord.text = firstWord.text.slice(1);
+				firstWord.color = '#f8f8f2';  // reset color to default
+				firstWord.currentIndex++; // Increase the current index
 
-                if (firstWord.text.length === 0) {
-                    this.words.shift();
-                    this.score++;
-                    if (this.words.length === 0) {
-                        this.generateWords();
-                    }
-                }
-            }
-        });
+				if (firstWord.text.length === 0) {
+					this.words.shift();
+					this.score++;
+					if (this.words.length === 0) {
+						this.generateWords();
+					}
+				}
+			} else { // if the key doesn't match the first letter of the word
+				firstWord.speed *= 1.1; // increase the speed of the word by 10%
+				firstWord.color = '#FF0000';  // change color to red
+				firstWord.currentIndex = firstWord.text[0] === ' ' ? 0 : firstWord.currentIndex; // Save the index of the character that should have been typed
+			}
+
+		});
+
+
     }
 
 	generateWords() {
@@ -121,36 +135,48 @@ class Game {
 				x: Math.random() * maxWordX,
 				y: -index * 80,
 				speed: speed,
-				originalSpeed: speed
+				originalSpeed: speed,
+				color: '#f8f8f2',  // default color
+				currentIndex: 0  // Add this line
 			};
+
 			this.words.push(word);
 		});
 	}
 
-
-
-
-	animate() {
-		if (this.pause) {  // If the game is paused, don't update anything
-			requestAnimationFrame(() => this.animate());
-			return;
-		}
+		animate() {
+			if (this.pause) {
+				requestAnimationFrame(() => this.animate());
+				return;
+			}
+			
+			this.timeElapsed++;
+			
+			if (this.WPM === 30) {
+				this.words.forEach(word => {
+					word.speed += this.timeElapsed / 100000000; // Increase speed over time, tweak the denominator as needed
+				});
+			}
 		this.context.clearRect(0, 0, this.canvas.width, this.canvas.height);
 		this.context.fillStyle = '#f8f8f2'; 
 		this.words.forEach(word => {
 			let offsetX = 0;
-			for (let char of word.text) {
-				if (char === ' ') {  // or you can check for the ⎵ character directly if your words already have it
-					this.context.fillStyle = '#404040';  // Change this to the desired color for ⎵ character
-					this.context.fillText('⎵', word.x + offsetX, word.y);  // Replace space with ⎵ character
-					this.context.fillStyle = '#f8f8f2';  // Reset color back to the normal one
-				} else {
-					this.context.fillText(char, word.x + offsetX, word.y);
-				}
-				offsetX += this.context.measureText(char).width;  // Increase the X-offset by the width of the current character
+			this.context.fillStyle = word.color;  // use word's color
+		for (let i = 0; i < word.text.length; i++) {
+			const char = word.text[i];
+			if (char === ' ') {  // or you can check for the ⎵ character directly if your words already have it
+				this.context.fillStyle = i === word.currentIndex && word.color === '#FF0000' ? '#FF0000' : '#777777';  // Change the color if the space character was supposed to be typed
+				this.context.fillText('⎵', word.x + offsetX, word.y);  // Replace space with ⎵ character
+			} else {
+				this.context.fillStyle = i === word.currentIndex && word.color === '#FF0000' ? '#FF0000' : word.color;  // Change the color if this character was supposed to be typed
+				this.context.fillText(char, word.x + offsetX, word.y);
 			}
+			offsetX += this.context.measureText(char).width;  // Increase the X-offset by the width of the current character
+		}
+
 			word.y += word.speed;
 		});
+
 
 		const currentScoreElement = document.getElementById('current-score') as HTMLElement;
 		currentScoreElement.textContent = `${this.score}`;
@@ -201,18 +227,32 @@ class Game {
 		}
 
 
-    displayLeaderboard(leaderboard: any[]) {
-        // Clear out the existing leaderboard
-        const leaderboardElement = document.getElementById('leaderboard') as HTMLElement;
-        leaderboardElement.innerHTML = '';
+	displayLeaderboard(leaderboard: any[]) {
+		// Clear out the existing leaderboard
+		const leaderboardElement = document.getElementById('leaderboard') as HTMLElement;
+		leaderboardElement.innerHTML = '';
 
-        // Add each score to the leaderboard
-        leaderboard.forEach(score => {
-            const scoreElement = document.createElement('div');
-            scoreElement.textContent = `${score.name}: ${score.score}`;
-            leaderboardElement.appendChild(scoreElement);
-        });
-    }
+		// Add each score to the leaderboard
+		leaderboard.forEach(score => {
+			const scoreRow = document.createElement('tr');
+
+			const nameCell = document.createElement('td');
+			nameCell.textContent = score.name;
+			scoreRow.appendChild(nameCell);
+
+			const scoreCell = document.createElement('td');
+			scoreCell.textContent = score.score.toString();
+			scoreRow.appendChild(scoreCell);
+
+			const dateCell = document.createElement('td');
+			const date = new Date(score.timestamp);
+			dateCell.textContent = date.toDateString(); // convert the date to a human-readable string
+			scoreRow.appendChild(dateCell);
+
+			leaderboardElement.appendChild(scoreRow);
+		});
+	}
+
 
     // Add a method to update the player name
     setPlayerName(newName: string) {

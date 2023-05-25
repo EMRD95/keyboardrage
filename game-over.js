@@ -1,44 +1,66 @@
-    // Retrieve the score, language, and WPM from the URL
-    const urlParams = new URLSearchParams(window.location.search);
-    const score = urlParams.get('score');
-    const language = urlParams.get('language');
-    const WPM = urlParams.get('WPM');
+// Retrieve the score, language, and WPM from the URL
+const urlParams = new URLSearchParams(window.location.search);
+const score = urlParams.get('score');
+const language = urlParams.get('language');
+const WPM = urlParams.get('WPM');
 
-    // Display the score, language, and WPM on the page
-    const scoreElement = document.getElementById('score');
-    scoreElement.textContent = `Score: ${score}`;
+// Display the score, language, and WPM on the page
+const scoreElement = document.getElementById('score');
+scoreElement.textContent = `Score: ${score}`;
 
-    const languageElement = document.getElementById('language');
-    languageElement.textContent = `Language: ${language}`;
+const languageElement = document.getElementById('language');
+languageElement.textContent = `Language: ${language}`;
 
-    const WPMElement = document.getElementById('WPM');
-    WPMElement.textContent = `WPM: ${WPM}`;
+const WPMElement = document.getElementById('WPM');
+WPMElement.textContent = `WPM: ${WPM}`;
 
-    // Fetch the leaderboard data from the server
-    fetch(`/leaderboard/${language}/${WPM}`)
-      .then(response => response.json())
-      .then(data => {
-        const leaderboardElement = document.getElementById('leaderboard');
-        leaderboardElement.innerHTML = '';
+// Fetch the leaderboard data from the server
+fetch(`/leaderboard/${language}/${WPM}`)
+  .then(response => response.json())
+  .then(data => {
+    const leaderboardElement = document.getElementById('leaderboard');
+    leaderboardElement.innerHTML = '';
 
-        // Add each score to the leaderboard
-        data.forEach(score => {
-          const row = document.createElement('tr');
-          const playerNameCell = document.createElement('td');
-          playerNameCell.textContent = score.name;
-          row.appendChild(playerNameCell);
+    // Add header row
+    const headerRow = document.createElement('tr');
+    const nameHeader = document.createElement('th');
+    nameHeader.textContent = 'Name';
+    headerRow.appendChild(nameHeader);
 
-          const scoreCell = document.createElement('td');
-          scoreCell.textContent = score.score;
-          row.appendChild(scoreCell);
+    const scoreHeader = document.createElement('th');
+    scoreHeader.textContent = 'Score';
+    headerRow.appendChild(scoreHeader);
 
-          leaderboardElement.appendChild(row);
-        });
-      })
-      .catch(error => {
-        console.error('Failed to fetch leaderboard:', error);
-      });
-	  
-	    document.getElementById('play-again').addEventListener('click', () => {
-    window.location.href = '/index.html'; // this should point back to your game's page
+    const dateHeader = document.createElement('th');
+    dateHeader.textContent = 'Date';
+    headerRow.appendChild(dateHeader);
+
+    leaderboardElement.appendChild(headerRow);
+
+    // Add each score to the leaderboard
+    data.forEach(score => {
+      const row = document.createElement('tr');
+
+      const playerNameCell = document.createElement('td');
+      playerNameCell.textContent = score.name;
+      row.appendChild(playerNameCell);
+
+      const scoreCell = document.createElement('td');
+      scoreCell.textContent = score.score;
+      row.appendChild(scoreCell);
+
+      const dateCell = document.createElement('td');
+      const date = new Date(score.timestamp);
+      dateCell.textContent = date.toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: '2-digit' }); // mo/da/ye
+      row.appendChild(dateCell);
+
+      leaderboardElement.appendChild(row);
+    });
+  })
+  .catch(error => {
+    console.error('Failed to fetch leaderboard:', error);
   });
+
+document.getElementById('play-again').addEventListener('click', () => {
+  window.location.href = '/index.html'; // this should point back to your game's page
+});
