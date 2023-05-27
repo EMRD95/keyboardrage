@@ -145,7 +145,7 @@ class Game {
         this.timeElapsed++;
         if (this.WPM === 30) {
             this.words.forEach(word => {
-                word.speed += this.timeElapsed / 1000000;
+                word.speed += this.timeElapsed / 10000000;
             });
         }
         this.context.clearRect(0, 0, this.canvas.width, this.canvas.height);
