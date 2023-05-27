@@ -1,7 +1,6 @@
 {
   "name": "latvian",
-  "ligatures": false,
-  "bcp47": "lv",
+  "charLength": 4.9,
   "words": [
     "kā ",
     "es ",

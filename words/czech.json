@@ -1,6 +1,6 @@
 {
   "name": "czech",
-  "bcp47": "cs-CZ",
+  "charLength": 4.2,
   "words": [
     "být ",
     "a ",

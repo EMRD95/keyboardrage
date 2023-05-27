@@ -1,6 +1,6 @@
 {
   "name": "estonian",
-  "bcp47": "et-EE",
+  "charLength": 4.5,
   "words": [
     "on ",
     "ja ",

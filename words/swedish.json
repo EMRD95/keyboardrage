@@ -1,6 +1,6 @@
 {
   "name": "swedish",
-  "bcp47": "sv-SE",
+  "charLength": 3.8,
   "words": [
     "jag ",
     "det ",

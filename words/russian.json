@@ -1,6 +1,6 @@
 {
   "name": "russian",
-  "bcp47": "ru-RU",
+  "charLength": 4.5,
   "words": [
     "о ",
     "у ",

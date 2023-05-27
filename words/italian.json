@@ -1,6 +1,6 @@
 {
   "name": "italian",
-  "bcp47": "it-IT",
+  "charLength": 6.1,
   "words": [
     "come ",
     "io ",

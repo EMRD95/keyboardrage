@@ -6,18 +6,14 @@ const mongoose = require('mongoose');
 const bodyParser = require('body-parser');
 const path = require('path');
 
-// Initialize express app
 const app = express();
 
-// Set up body parser to parse JSON body data
 app.use(bodyParser.json());
 
 app.listen(3000, () => console.log('Server listening on port 3000'));
 
-// Serve static files from the current directory
 app.use(express.static(__dirname));
 
-// Connect to MongoDB
 mongoose.connect('mongodb://127.0.0.1:27017/typing_game', {
   useNewUrlParser: true,
   useUnifiedTopology: true
@@ -44,23 +40,31 @@ const ScoreSchema = new mongoose.Schema({
   },
   score: { 
     type: Number,
-    max: 9999 // Score should be no larger than 9999
+    max: 300000 // Score should be no larger than 300000
   },
   language: String,
   WPM: Number,
+  keystrokes: Number,
+  timeElapsed: Number, // Add this line
   timestamp: { type: Date, default: Date.now, expires: '30d' } 
 });
+
+
 
 const Score = mongoose.model('Score', ScoreSchema);
 
 
-// POST /score endpoint to save a new score
 app.post('/score', async (req, res) => {
-  const { token, ...scoreData } = req.body;
+	const { token, keystrokes, timeElapsed, ...scoreData } = req.body;
 
   // Token validation
   if (!tokens.includes(token)) {
     return res.status(403).send('Invalid token');
+  }
+
+  // Score validation
+  if (!validateScore(scoreData.score, keystrokes, timeElapsed)) {
+    return res.status(400).send('Invalid score');
   }
 
   // Additional input validations
@@ -75,6 +79,7 @@ app.post('/score', async (req, res) => {
   const supportedLanguages = [
     "english",
     "french",
+	"english_450k",
     "albanian",
     "bulgarian",
     "catalan",
@@ -112,16 +117,36 @@ app.post('/score', async (req, res) => {
     return res.status(400).send('Invalid WPM');
   }
 
-  // Count the scores for the given name, WPM, and language
-  const count = await Score.countDocuments({ name: scoreData.name, WPM: scoreData.WPM, language: scoreData.language });
+  // Create new scoreData including keystrokes and timeElapsed
+  const newScoreData = {
+    ...scoreData,
+    keystrokes,
+    timeElapsed,
+  };
 
-  if (count >= 100) {
-    // Delete the oldest score if there are already 100 scores
-    const oldestScore = await Score.findOne({ name: scoreData.name, WPM: scoreData.WPM, language: scoreData.language }).sort({ timestamp: 1 });
-    if (oldestScore) await oldestScore.remove();
+  // Find the highest score for the given name, WPM, and language
+  const highestScoreEntry = await Score.findOne({ name: scoreData.name, WPM: scoreData.WPM, language: scoreData.language }).sort({ score: -1 });
+
+  if (highestScoreEntry) {
+    const highestScore = highestScoreEntry.score;
+
+    // If the new score is less than or equal to the highest score, return a response saying the new score should be higher.
+    if (scoreData.score <= highestScore) {
+      return res.status(400).send('Score should be higher than the previous best score');
+    }
+
+    // If the new score is higher, delete all scores with the same name, language, and WPM but with a score lower than the previous highest score
+    await Score.deleteMany({ 
+      name: scoreData.name, 
+      WPM: scoreData.WPM, 
+      language: scoreData.language, 
+      score: { $lte: highestScore } // note that I've changed $lt to $lte
+    });
   }
 
-  const newScore = new Score(scoreData);
+  
+
+  const newScore = new Score(newScoreData);
   try {
     const score = await newScore.save();
     tokens = tokens.filter(t => t !== token);  // Remove the used token
@@ -131,7 +156,14 @@ app.post('/score', async (req, res) => {
   }
 });
 
+function validateScore(score, keystrokes, timeElapsed) {
+	// A simple rule might be that each score point requires at least 5 keystrokes
+	// and takes at least 1 second (1000 ms)
+	const minimumKeystrokes = score * 4;
+	const minimumTimeElapsed = score * 140; // in milliseconds
 
+	return keystrokes >= minimumKeystrokes && timeElapsed >= minimumTimeElapsed;
+}
 
 // GET /leaderboard/:language/:WPM endpoint to retrieve the leaderboard
 app.get('/leaderboard/:language/:WPM', async (req, res) => {

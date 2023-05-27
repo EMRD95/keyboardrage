@@ -1,7 +1,7 @@
 {
   "name": "dutch",
+  "charLength": 4.8,
   "noLazyMode": true,
-  "bcp47": "nl-NL",
   "words": [
     "als ",
     "zijn ",

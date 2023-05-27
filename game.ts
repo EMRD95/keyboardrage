@@ -5,7 +5,7 @@ interface Word {
     speed: number;
     originalSpeed: number;
     color: string; 
-    currentIndex: number; // Add this line
+    currentIndex: number;
 }
 
 class Game {
@@ -17,11 +17,17 @@ class Game {
     private WPM: number;
     private language: string;
     private originalWPM: number;
-    private playerName: string;  // Add this line to store the player name
+    private playerName: string;  
 	private pause: boolean;
 	private isGameOver = false;
 	private token: string | null;
-	private timeElapsed: number; // Add this line to store elapsed time
+	private timeElapsed: number; 
+	private keystrokes: number;
+	private startTime: number;
+    private allWords: string[];
+    private readonly batchSize = 100;
+    private wordIndex = 0;
+	private averageCharLength: number;
 
 	private constructor(canvas: HTMLCanvasElement, playerName: string, WPM: number = 60, language: string = 'english') {
 		this.canvas = canvas;
@@ -32,12 +38,14 @@ class Game {
 		this.score = 0;
 		this.language = localStorage.getItem('language') || language;
 		this.originalWPM = this.WPM;
-		this.playerName = localStorage.getItem('playerName') || playerName;  // Retrieve player name from localStorage
+		this.playerName = localStorage.getItem('playerName') || playerName;  
 		this.pause = false;
 		this.token = null;
 		this.timeElapsed = 0;
+		this.keystrokes = 0;
+		this.startTime = Date.now();
 	}
-
+	
 	static async create(canvas: HTMLCanvasElement, playerName: string, WPM: number = 60, language: string = 'english') {
 		const game = new Game(canvas, playerName, WPM, language);
 		await game.fetchToken();
@@ -52,25 +60,38 @@ class Game {
 	}
 
 
-    async fetchWords() {
-        const response = await fetch(`/words/${this.language}.json`);
-        const data = await response.json();
-        this.wordList = data.words;
-    }
+async fetchWords() {
+    const response = await fetch(`/words/${this.language}.json`);
+    const data = await response.json();
+    this.allWords = this.shuffleArray(data.words);
+    this.averageCharLength = data.charLength;
+    this.nextBatch();
+}
 
-	setLanguage(newLanguage: string) {
-		if (newLanguage !== this.language) { // Check if the language has actually changed
-			localStorage.setItem('language', newLanguage);
-			this.language = newLanguage;
-			this.words = [];
-			this.fetchWords().then(() => {
-				this.restart(this.WPM);
-			});
-		}
-	}
+
+nextBatch() {
+    if (this.wordIndex + this.batchSize > this.allWords.length) {
+        this.wordIndex = 0; // Loop back to start
+    }
+    this.wordList = this.allWords.slice(this.wordIndex, this.wordIndex + this.batchSize);
+    this.wordIndex += this.batchSize;
+}
+
+
+setLanguage(newLanguage: string) {
+    if (newLanguage !== this.language) { 
+        localStorage.setItem('language', newLanguage);
+        this.language = newLanguage;
+        this.words = [];
+        this.wordIndex = 0; // Reset wordIndex when language changes
+        this.fetchWords().then(() => {
+            this.restart(this.WPM);
+        });
+    }
+}
 
 	setWPM(newWPM: number) {
-		if (newWPM !== this.WPM) { // Check if the WPM has actually changed
+		if (newWPM !== this.WPM) { 
 			localStorage.setItem('WPM', newWPM.toString());
 			this.WPM = newWPM;
 			this.originalWPM = newWPM;
@@ -89,20 +110,20 @@ class Game {
 		});
 	}
 
-
     initialize() {
         this.context.font = "48px 'Courier New', Courier, monospace";
         this.generateWords();
-		this.animate(); // start the game loop here
+		this.animate(); 
 
 		window.addEventListener('keydown', (event) => {
+			this.keystrokes++;
 			if (this.words.length === 0) return;
 
 			const firstWord = this.words[0];
 			if (firstWord.text.startsWith(event.key)) {
 				firstWord.text = firstWord.text.slice(1);
-				firstWord.color = '#f8f8f2';  // reset color to default
-				firstWord.currentIndex++; // Increase the current index
+				firstWord.color = '#f8f8f2'; 
+				firstWord.currentIndex++; 
 
 				if (firstWord.text.length === 0) {
 					this.words.shift();
@@ -111,39 +132,39 @@ class Game {
 						this.generateWords();
 					}
 				}
-			} else { // if the key doesn't match the first letter of the word
-				firstWord.speed *= 1.1; // increase the speed of the word by 10%
-				firstWord.color = '#FF0000';  // change color to red
-				firstWord.currentIndex = firstWord.text[0] === ' ' ? 0 : firstWord.currentIndex; // Save the index of the character that should have been typed
+			} else { 
+				firstWord.speed *= 1.1; 
+				firstWord.color = '#FF0000';  
+				firstWord.currentIndex = firstWord.text[0] === ' ' ? 0 : firstWord.currentIndex; 
 			}
-
 		});
-
-
     }
 
-	generateWords() {
-		const shuffledList = this.shuffleArray(this.wordList);
-		shuffledList.forEach((wordText, index) => {
-			const textWidth = this.context.measureText(wordText).width;
-			const maxWordX = this.canvas.width - textWidth;
-			const charsPerFrame = (this.WPM * 5) / 60 / 60;
-			const charLength = 7;  // You can adjust this
-			const speed = charsPerFrame * charLength;
-			const word: Word = {
-				text: wordText,
-				x: Math.random() * maxWordX,
-				y: -index * 80,
-				speed: speed,
-				originalSpeed: speed,
-				color: '#f8f8f2',  // default color
-				currentIndex: 0  // Add this line
-			};
+generateWords() {
+    // Fetch more words if the wordList is empty
+    if (this.wordList.length === 0) {
+        this.nextBatch();
+    }
 
-			this.words.push(word);
-		});
-	}
+    const shuffledList = this.shuffleArray(this.wordList);
+    shuffledList.forEach((wordText, index) => {
+        const textWidth = this.context.measureText(wordText).width;
+        const maxWordX = this.canvas.width - textWidth;
+        const charsPerFrame = (this.WPM * 180) / 60 / 60; // 5 is the average character length of English words
+        const speed = charsPerFrame / this.averageCharLength; 
+        const word: Word = {
+            text: wordText,
+            x: Math.random() * maxWordX,
+            y: -index * 80,
+            speed: speed,
+            originalSpeed: speed,
+            color: '#f8f8f2',  
+            currentIndex: 0  
+        };
 
+        this.words.push(word);
+    });
+}
 		animate() {
 			if (this.pause) {
 				requestAnimationFrame(() => this.animate());
@@ -154,24 +175,24 @@ class Game {
 			
 			if (this.WPM === 30) {
 				this.words.forEach(word => {
-					word.speed += this.timeElapsed / 100000000; // Increase speed over time, tweak the denominator as needed
+					word.speed += this.timeElapsed / 1000000; 
 				});
 			}
 		this.context.clearRect(0, 0, this.canvas.width, this.canvas.height);
 		this.context.fillStyle = '#f8f8f2'; 
 		this.words.forEach(word => {
 			let offsetX = 0;
-			this.context.fillStyle = word.color;  // use word's color
+			this.context.fillStyle = word.color;  
 		for (let i = 0; i < word.text.length; i++) {
 			const char = word.text[i];
-			if (char === ' ') {  // or you can check for the ⎵ character directly if your words already have it
-				this.context.fillStyle = i === word.currentIndex && word.color === '#FF0000' ? '#FF0000' : '#777777';  // Change the color if the space character was supposed to be typed
-				this.context.fillText('⎵', word.x + offsetX, word.y);  // Replace space with ⎵ character
+			if (char === ' ') {  
+				this.context.fillStyle = i === word.currentIndex && word.color === '#FF0000' ? '#FF0000' : '#777777';  
+				this.context.fillText('⎵', word.x + offsetX, word.y);  
 			} else {
-				this.context.fillStyle = i === word.currentIndex && word.color === '#FF0000' ? '#FF0000' : word.color;  // Change the color if this character was supposed to be typed
+				this.context.fillStyle = i === word.currentIndex && word.color === '#FF0000' ? '#FF0000' : word.color;  
 				this.context.fillText(char, word.x + offsetX, word.y);
 			}
-			offsetX += this.context.measureText(char).width;  // Increase the X-offset by the width of the current character
+			offsetX += this.context.measureText(char).width; 
 		}
 
 			word.y += word.speed;
@@ -205,16 +226,25 @@ class Game {
         }
         return array;
     }
-
+	
 		async gameOver() {
-		  if (this.isGameOver) return;  // prevent gameOver from running twice
+		const endTime = Date.now();
+		const timeElapsed = endTime - this.startTime; // in milliseconds
+		  if (this.isGameOver) return;  
 
-		  this.isGameOver = true;  // set flag to true to mark the game as over
-		  // Send the score to the server
+		  this.isGameOver = true;  
 			const response = await fetch('/score', {
-			  method: 'POST',
-			  headers: { 'Content-Type': 'application/json' },
-			  body: JSON.stringify({ token: this.token, name: this.playerName, score: this.score, language: this.language, WPM: this.WPM })
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					token: this.token,
+					name: this.playerName,
+					score: this.score,
+					language: this.language,
+					WPM: this.WPM,
+					keystrokes: this.keystrokes, // Include keystrokes in sent data
+					timeElapsed: timeElapsed
+				})
 			});
 
 
@@ -222,42 +252,33 @@ class Game {
 			console.error('Failed to send score to server');
 		  }
 
-		  // Navigate to the game over page
 		  window.location.href = `/game-over.html?score=${this.score}&language=${this.language}&WPM=${this.WPM}`;
 		}
 
-
 	displayLeaderboard(leaderboard: any[]) {
-		// Clear out the existing leaderboard
+
 		const leaderboardElement = document.getElementById('leaderboard') as HTMLElement;
 		leaderboardElement.innerHTML = '';
 
-		// Add each score to the leaderboard
 		leaderboard.forEach(score => {
 			const scoreRow = document.createElement('tr');
-
 			const nameCell = document.createElement('td');
 			nameCell.textContent = score.name;
 			scoreRow.appendChild(nameCell);
-
 			const scoreCell = document.createElement('td');
 			scoreCell.textContent = score.score.toString();
 			scoreRow.appendChild(scoreCell);
-
 			const dateCell = document.createElement('td');
 			const date = new Date(score.timestamp);
-			dateCell.textContent = date.toDateString(); // convert the date to a human-readable string
+			dateCell.textContent = date.toDateString(); 
 			scoreRow.appendChild(dateCell);
-
 			leaderboardElement.appendChild(scoreRow);
 		});
 	}
 
-
-    // Add a method to update the player name
     setPlayerName(newName: string) {
         if (newName.length >= 3 && newName.length <= 30) {
-            localStorage.setItem('playerName', newName); // Save player name to localStorage
+            localStorage.setItem('playerName', newName); 
             this.playerName = newName;
         } else {
             throw new Error("Player name must be between 3 and 30 characters.");
@@ -265,10 +286,10 @@ class Game {
     }
 }
 
-// Here's your list of languages
 const languages = [
     "english",
     "french",
+	"english_450k",
     "albanian",
     "bulgarian",
     "catalan",
@@ -298,11 +319,8 @@ const languages = [
     "welsh"
 ];
 
-
-// Get a reference to your dropdown
 const languageInput = document.getElementById('language') as HTMLSelectElement;
 
-// Fill it with options
 languages.forEach((language) => {
     const option = document.createElement('option');
     option.value = language;
@@ -310,16 +328,14 @@ languages.forEach((language) => {
     languageInput.appendChild(option);
 });
 
-// Get a reference to the canvas and the WPM input
 const canvas = document.getElementById('game') as HTMLCanvasElement;
 const wpmInput = document.getElementById('wpm') as HTMLSelectElement;
 
-// Create the game instance
-Game.create(canvas, "Player", 30, 'english').then(game => { // "Player" is a default name
+Game.create(canvas, "Player", 30, 'english').then(game => { 
     game.initialize();
     game.animate();
 
-    wpmInput.value = localStorage.getItem('WPM') || '30'; // Read the WPM from localStorage
+    wpmInput.value = localStorage.getItem('WPM') || '30'; 
     wpmInput.addEventListener('change', () => {
         const newWPM = Number(wpmInput.value);
         game.setWPM(newWPM);
@@ -333,7 +349,7 @@ Game.create(canvas, "Player", 30, 'english').then(game => { // "Player" is a def
 		game.setWPM(newWPM);
 	});
 
-    languageInput.value = localStorage.getItem('language') || 'english'; // Read the language from localStorage
+    languageInput.value = localStorage.getItem('language') || 'english'; 
     languageInput.addEventListener('change', () => {
         game.setLanguage(languageInput.value);
     });
@@ -356,7 +372,7 @@ Game.create(canvas, "Player", 30, 'english').then(game => { // "Player" is a def
 	playerNameInput.addEventListener('blur', () => {
 		game.resumeGame();
 	});
-    playerNameInput.value = localStorage.getItem('playerName') || 'Player'; // Retrieve the player name from localStorage
+    playerNameInput.value = localStorage.getItem('playerName') || 'Player'; 
     playerNameInput.addEventListener('change', () => {
         game.setPlayerName(playerNameInput.value);
     });

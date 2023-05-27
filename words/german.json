@@ -1,6 +1,6 @@
 {
   "name": "german",
-  "bcp47": "de-DE",
+  "charLength": 4.6,
   "words": [
     "der ",
     "die ",

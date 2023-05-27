@@ -1,6 +1,6 @@
 {
   "name": "danish",
-  "bcp47": "da-DK",
+  "charLength": 4.0,
   "words": [
     "ville ",
     "ud ",

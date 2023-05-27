@@ -1,6 +1,6 @@
 {
   "name": "hungarian",
-  "bcp47": "hu-HU",
+  "charLength": 6.1,
   "words": [
     "lapát ",
     "vödör ",

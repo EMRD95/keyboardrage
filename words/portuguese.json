@@ -1,8 +1,6 @@
 {
   "name": "portuguese",
-  "_comment": "Sourced from: https://www.wordandphrase.info/port",
-
-  "bcp47": "pt-PT",
+  "charLength": 5.2,
   "words": [
     "o ",
     "de ",

@@ -1,6 +1,6 @@
 {
   "name": "romanian",
-  "bcp47": "ro-RO",
+  "charLength": 4.6,
   "words": [
     "acasă ",
     "același ",

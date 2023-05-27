@@ -1,5 +1,6 @@
 {
   "name": "bulgarian",
+  "charLength": 4.2,
   "noLazyMode": true,
   "words": [
     "а ",

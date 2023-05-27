@@ -1,6 +1,6 @@
 {
   "name": "swiss_german",
-  "bcp47": "de-CH",
+  "charLength": 4.9,
   "words": [
     "ich ",
     "seine ",
