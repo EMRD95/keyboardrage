@@ -10,7 +10,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 class Game {
     constructor(canvas, playerName, WPM = 60, language = 'english') {
         this.isGameOver = false;
-        this.batchSize = 100;
+        this.batchSize = 10;
         this.wordIndex = 0;
         this.canvas = canvas;
         this.context = this.canvas.getContext("2d");
@@ -26,6 +26,7 @@ class Game {
         this.timeElapsed = 0;
         this.keystrokes = 0;
         this.startTime = Date.now();
+        this.lastTimestamp = 0;
     }
     static create(canvas, playerName, WPM = 60, language = 'english') {
         return __awaiter(this, void 0, void 0, function* () {
@@ -102,7 +103,7 @@ class Game {
                 if (firstWord.text.length === 0) {
                     this.words.shift();
                     this.score++;
-                    if (this.words.length === 0) {
+                    if (this.words.length < this.batchSize) {
                         this.generateWords();
                     }
                 }
@@ -115,71 +116,73 @@ class Game {
         });
     }
     generateWords() {
-        // Fetch more words if the wordList is empty
-        if (this.wordList.length === 0) {
-            this.nextBatch();
-        }
+        // Fetch a new batch of words
+        this.nextBatch();
         const shuffledList = this.shuffleArray(this.wordList);
+        const offset = this.words.length > 0 ? this.words[this.words.length - 1].y - 80 : 0; // Calculate the offset based on the last word of the previous batch
+        const lastWordSpeed = this.words.length > 0 ? this.words[this.words.length - 1].speed : (this.WPM * 20) / 60 / 60 / this.averageCharLength; // Get the speed of the last word in the current batch
         shuffledList.forEach((wordText, index) => {
             const textWidth = this.context.measureText(wordText).width;
             const maxWordX = this.canvas.width - textWidth;
-            const charsPerFrame = (this.WPM * 180) / 60 / 60; // 5 is the average character length of English words
-            const speed = charsPerFrame / this.averageCharLength;
             const word = {
                 text: wordText,
                 x: Math.random() * maxWordX,
-                y: -index * 80,
-                speed: speed,
-                originalSpeed: speed,
+                y: offset - index * 80,
+                speed: lastWordSpeed,
+                originalSpeed: lastWordSpeed,
                 color: '#f8f8f2',
                 currentIndex: 0
             };
             this.words.push(word);
         });
     }
-    animate() {
-        if (this.pause) {
-            requestAnimationFrame(() => this.animate());
-            return;
-        }
-        this.timeElapsed++;
-        if (this.WPM === 30) {
-            this.words.forEach(word => {
-                word.speed += this.timeElapsed / 10000000;
-            });
-        }
-        this.context.clearRect(0, 0, this.canvas.width, this.canvas.height);
-        this.context.fillStyle = '#f8f8f2';
-        this.words.forEach(word => {
-            let offsetX = 0;
-            this.context.fillStyle = word.color;
-            for (let i = 0; i < word.text.length; i++) {
-                const char = word.text[i];
-                if (char === ' ') {
-                    this.context.fillStyle = i === word.currentIndex && word.color === '#FF0000' ? '#FF0000' : '#777777';
-                    this.context.fillText('⎵', word.x + offsetX, word.y);
-                }
-                else {
-                    this.context.fillStyle = i === word.currentIndex && word.color === '#FF0000' ? '#FF0000' : word.color;
-                    this.context.fillText(char, word.x + offsetX, word.y);
-                }
-                offsetX += this.context.measureText(char).width;
+    animate(timestamp = 0) {
+        const deltaTime = timestamp - this.lastTimestamp;
+        this.lastTimestamp = timestamp;
+        if (!this.pause) {
+            this.timeElapsed += deltaTime;
+            if (this.WPM === 30) {
+                const speedIncrease = this.timeElapsed / 1000000000;
+                this.words.forEach(word => {
+                    word.speed += speedIncrease;
+                });
             }
-            word.y += word.speed;
-        });
-        const currentScoreElement = document.getElementById('current-score');
-        currentScoreElement.textContent = `${this.score}`;
-        if (this.words.length > 0 && this.words[0].y > this.canvas.height) {
-            this.gameOver();
-            return;
+            this.context.clearRect(0, 0, this.canvas.width, this.canvas.height);
+            this.context.fillStyle = '#f8f8f2';
+            this.words.forEach(word => {
+                let offsetX = 0;
+                this.context.fillStyle = word.color;
+                for (let i = 0; i < word.text.length; i++) {
+                    const char = word.text[i];
+                    if (char === ' ') {
+                        this.context.fillStyle = i === word.currentIndex && word.color === '#FF0000' ? '#FF0000' : '#777777';
+                        this.context.fillText('⎵', word.x + offsetX, word.y);
+                    }
+                    else {
+                        this.context.fillStyle = i === word.currentIndex && word.color === '#FF0000' ? '#FF0000' : word.color;
+                        this.context.fillText(char, word.x + offsetX, word.y);
+                    }
+                    offsetX += this.context.measureText(char).width;
+                }
+                word.y += word.speed * deltaTime;
+            });
+            const currentScoreElement = document.getElementById('current-score');
+            currentScoreElement.textContent = `${this.score}`;
+            if (this.words.length > 0 && this.words[0].y > this.canvas.height) {
+                this.gameOver();
+                return;
+            }
+            // Move this inside the condition
+            requestAnimationFrame(this.animate.bind(this));
         }
-        requestAnimationFrame(() => this.animate());
     }
     pauseGame() {
         this.pause = true;
     }
     resumeGame() {
         this.pause = false;
+        this.lastTimestamp = performance.now();
+        this.animate(this.lastTimestamp);
     }
     shuffleArray(array) {
         for (let i = array.length - 1; i > 0; i--) {

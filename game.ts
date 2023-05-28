@@ -25,9 +25,10 @@ class Game {
 	private keystrokes: number;
 	private startTime: number;
     private allWords: string[];
-    private readonly batchSize = 100;
+    private readonly batchSize = 10;
     private wordIndex = 0;
 	private averageCharLength: number;
+	private lastTimestamp: number;
 
 	private constructor(canvas: HTMLCanvasElement, playerName: string, WPM: number = 60, language: string = 'english') {
 		this.canvas = canvas;
@@ -44,6 +45,7 @@ class Game {
 		this.timeElapsed = 0;
 		this.keystrokes = 0;
 		this.startTime = Date.now();
+		this.lastTimestamp = 0;
 	}
 	
 	static async create(canvas: HTMLCanvasElement, playerName: string, WPM: number = 60, language: string = 'english') {
@@ -115,49 +117,48 @@ setLanguage(newLanguage: string) {
         this.generateWords();
 		this.animate(); 
 
-		window.addEventListener('keydown', (event) => {
-			this.keystrokes++;
-			if (this.words.length === 0) return;
+window.addEventListener('keydown', (event) => {
+    this.keystrokes++;
+    if (this.words.length === 0) return;
 
-			const firstWord = this.words[0];
-			if (firstWord.text.startsWith(event.key)) {
-				firstWord.text = firstWord.text.slice(1);
-				firstWord.color = '#f8f8f2'; 
-				firstWord.currentIndex++; 
+    const firstWord = this.words[0];
+    if (firstWord.text.startsWith(event.key)) {
+        firstWord.text = firstWord.text.slice(1);
+        firstWord.color = '#f8f8f2'; 
+        firstWord.currentIndex++; 
 
-				if (firstWord.text.length === 0) {
-					this.words.shift();
-					this.score++;
-					if (this.words.length === 0) {
-						this.generateWords();
-					}
-				}
-			} else { 
-				firstWord.speed *= 1.1; 
-				firstWord.color = '#FF0000';  
-				firstWord.currentIndex = firstWord.text[0] === ' ' ? 0 : firstWord.currentIndex; 
-			}
-		});
+        if (firstWord.text.length === 0) {
+            this.words.shift();
+            this.score++;
+            if (this.words.length < this.batchSize) {
+                this.generateWords();
+            }
+        }
+    } else { 
+        firstWord.speed *= 1.1; 
+        firstWord.color = '#FF0000';  
+        firstWord.currentIndex = firstWord.text[0] === ' ' ? 0 : firstWord.currentIndex; 
+    }
+});
+
     }
 
 generateWords() {
-    // Fetch more words if the wordList is empty
-    if (this.wordList.length === 0) {
-        this.nextBatch();
-    }
+    // Fetch a new batch of words
+    this.nextBatch();
 
     const shuffledList = this.shuffleArray(this.wordList);
+    const offset = this.words.length > 0 ? this.words[this.words.length - 1].y - 80 : 0; // Calculate the offset based on the last word of the previous batch
+    const lastWordSpeed = this.words.length > 0 ? this.words[this.words.length - 1].speed : (this.WPM * 20) / 60 / 60 / this.averageCharLength; // Get the speed of the last word in the current batch
     shuffledList.forEach((wordText, index) => {
         const textWidth = this.context.measureText(wordText).width;
         const maxWordX = this.canvas.width - textWidth;
-        const charsPerFrame = (this.WPM * 180) / 60 / 60; // 5 is the average character length of English words
-        const speed = charsPerFrame / this.averageCharLength; 
         const word: Word = {
             text: wordText,
             x: Math.random() * maxWordX,
-            y: -index * 80,
-            speed: speed,
-            originalSpeed: speed,
+            y: offset - index * 80, // Use the offset to position the words of the new batch
+            speed: lastWordSpeed, // Use the speed of the last word in the current batch
+            originalSpeed: lastWordSpeed,
             color: '#f8f8f2',  
             currentIndex: 0  
         };
@@ -165,58 +166,69 @@ generateWords() {
         this.words.push(word);
     });
 }
-		animate() {
-			if (this.pause) {
-				requestAnimationFrame(() => this.animate());
-				return;
-			}
-			
-			this.timeElapsed++;
-			
-			if (this.WPM === 30) {
-				this.words.forEach(word => {
-					word.speed += this.timeElapsed / 10000000; 
-				});
-			}
-		this.context.clearRect(0, 0, this.canvas.width, this.canvas.height);
-		this.context.fillStyle = '#f8f8f2'; 
-		this.words.forEach(word => {
-			let offsetX = 0;
-			this.context.fillStyle = word.color;  
-		for (let i = 0; i < word.text.length; i++) {
-			const char = word.text[i];
-			if (char === ' ') {  
-				this.context.fillStyle = i === word.currentIndex && word.color === '#FF0000' ? '#FF0000' : '#777777';  
-				this.context.fillText('⎵', word.x + offsetX, word.y);  
-			} else {
-				this.context.fillStyle = i === word.currentIndex && word.color === '#FF0000' ? '#FF0000' : word.color;  
-				this.context.fillText(char, word.x + offsetX, word.y);
-			}
-			offsetX += this.context.measureText(char).width; 
-		}
-
-			word.y += word.speed;
-		});
 
 
-		const currentScoreElement = document.getElementById('current-score') as HTMLElement;
-		currentScoreElement.textContent = `${this.score}`;
 
-		if (this.words.length > 0 && this.words[0].y > this.canvas.height) {
-			this.gameOver();
-			return;
-		}
-		requestAnimationFrame(() => this.animate());
-	}
+animate(timestamp = 0) {
+    const deltaTime = timestamp - this.lastTimestamp;
+    this.lastTimestamp = timestamp;
+
+    if (!this.pause) {
+        this.timeElapsed += deltaTime;
+
+        if (this.WPM === 30) {
+            const speedIncrease = this.timeElapsed / 1000000000; 
+            this.words.forEach(word => {
+                word.speed += speedIncrease; 
+            });
+        }
+
+        this.context.clearRect(0, 0, this.canvas.width, this.canvas.height);
+        this.context.fillStyle = '#f8f8f2'; 
+        this.words.forEach(word => {
+            let offsetX = 0;
+            this.context.fillStyle = word.color;  
+            for (let i = 0; i < word.text.length; i++) {
+                const char = word.text[i];
+                if (char === ' ') {  
+                    this.context.fillStyle = i === word.currentIndex && word.color === '#FF0000' ? '#FF0000' : '#777777';  
+                    this.context.fillText('⎵', word.x + offsetX, word.y);  
+                } else {
+                    this.context.fillStyle = i === word.currentIndex && word.color === '#FF0000' ? '#FF0000' : word.color;  
+                    this.context.fillText(char, word.x + offsetX, word.y);
+                }
+                offsetX += this.context.measureText(char).width; 
+            }
+
+            word.y += word.speed * deltaTime;
+        });
+
+        const currentScoreElement = document.getElementById('current-score') as HTMLElement;
+        currentScoreElement.textContent = `${this.score}`;
+
+        if (this.words.length > 0 && this.words[0].y > this.canvas.height) {
+            this.gameOver();
+            return;
+        }
+
+        // Move this inside the condition
+        requestAnimationFrame(this.animate.bind(this));
+    }
+}
 
 
-	pauseGame() {
-		this.pause = true;
-	}
 
-	resumeGame() {
-		this.pause = false;
-	}
+
+pauseGame() {
+    this.pause = true;
+}
+
+resumeGame() {
+    this.pause = false;
+    this.lastTimestamp = performance.now();
+    this.animate(this.lastTimestamp);
+}
+
 
 
     shuffleArray(array: any[]) {
