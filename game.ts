@@ -329,6 +329,7 @@ const languages = [
 
 const languageInput = document.getElementById('language') as HTMLSelectElement;
 
+
 languages.forEach((language) => {
     const option = document.createElement('option');
     option.value = language;
