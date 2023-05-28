@@ -84,13 +84,18 @@ class Game {
         this.originalWPM = currentWPM;
         this.timeElapsed = 0;
         this.fetchWords().then(() => {
-            this.generateWords();
+            // Wait for 1 second before generating words and starting the game
+            setTimeout(() => {
+                this.generateWords();
+            }, 500); // delay of 1 second
         });
     }
     initialize() {
         this.context.font = "48px 'Courier New', Courier, monospace";
-        this.generateWords();
-        this.animate();
+        setTimeout(() => {
+            this.generateWords();
+            this.animate();
+        }, 500);
         window.addEventListener('keydown', (event) => {
             this.keystrokes++;
             if (this.words.length === 0)
