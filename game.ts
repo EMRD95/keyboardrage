@@ -288,8 +288,16 @@ generateWords() {
 
 const languages = [
     "english",
-    "french",
+	"english_1k",
+	"english_5k",
+	"english_10k",
+	"english_25k",
 	"english_450k",
+    "french",
+	"french_1k",
+	"french_2k",
+	"french_10k",
+	"french_600k",
     "albanian",
     "bulgarian",
     "catalan",
