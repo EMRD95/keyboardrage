@@ -1,22 +1,34 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
   <head>
     <meta charset="utf-8">
-    <title>Keyboard Rage</title>
+    <title>Keyboard Rage - Improve your Typing Skills</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="Keyboard Rage is an exciting typing game designed to improve your typing skills while having fun. Choose your WPM and challenge yourself to score higher!">
+    <meta name="keywords" content="Typing game, Keyboard Rage, Learn Typing, Improve typing speed, Fun typing game, Learn keyboard skills">
+    <meta name="author" content="EMRD95">
+    
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://keyboardrage.com/">
+    <meta property="og:title" content="Keyboard Rage - Improve your Typing Skills">
+    <meta property="og:description" content="Keyboard Rage is an exciting typing game designed to improve your typing skills while having fun. Choose your WPM and challenge yourself to score higher!">
+    <meta property="og:image" content="https://keyboardrage.com/logo.png">
+
+    <!-- Twitter -->
+    <meta property="twitter:card" content="summary_large_image">
+    <meta property="twitter:url" content="https://keyboardrage.com/">
+    <meta property="twitter:title" content="Keyboard Rage - Improve your Typing Skills">
+    <meta property="twitter:description" content="Keyboard Rage is an exciting typing game designed to improve your typing skills while having fun. Choose your WPM and challenge yourself to score higher!">
+    <meta property="twitter:image" content="https://keyboardrage.com/logo.png">
+    
     <link rel="stylesheet" type="text/css" href="styles.css">
-    <style>
-        #firefox-warning {
-            text-align: center;
-        }
-    </style>
   </head>
   <body>
     <input id="hidden-input" style="opacity: 0; position: absolute;" />
 
 	<div id="game-container">
 	<canvas id="game" width="800" height="600"></canvas>
-	  <!-- <canvas id="game" width="800" height="600" onclick="document.getElementById('hidden-input').focus()"></canvas> -->
 	  <div id="game-overlay">
 		<p>Game Over! Final Score: <span id="final-score"></span></p>
 		<button id="play-again">Play Again</button>

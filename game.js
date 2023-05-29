@@ -97,6 +97,11 @@ class Game {
             this.animate();
         }, 500);
         window.addEventListener('keydown', (event) => {
+            // Add a check for special keys here
+            if (["Shift", "Control", "Alt", "Meta", "Tab", "Backspace", "CapsLock", "Escape", "Dead"].includes(event.key)
+                || (event.key >= 'F1' && event.key <= 'F12')) {
+                return; // ignore special keys
+            }
             this.keystrokes++;
             if (this.words.length === 0)
                 return;
