@@ -152,7 +152,7 @@ class Game {
         if (!this.pause) {
             this.timeElapsed += deltaTime;
             if (this.WPM === 30) {
-                const speedIncrease = this.timeElapsed / 1000000000;
+                const speedIncrease = 0.00001; // Adjust this value to control the rate of speed increase
                 this.words.forEach(word => {
                     word.speed += speedIncrease;
                 });
