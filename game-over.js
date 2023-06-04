@@ -64,3 +64,9 @@ fetch(`/leaderboard/${language}/${WPM}`)
 document.getElementById('play-again').addEventListener('click', () => {
   window.location.href = '/index.html'; // this should point back to your game's page
 });
+
+document.body.addEventListener('keydown', (event) => {
+  if (event.code === 'Space') {
+    window.location.href = '/index.html'; // this should point back to your game's page
+  }
+});
