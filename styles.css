@@ -7,6 +7,7 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: space-evenly; /* evenly distribute items along the vertical axis */
 }
 
 #main-wrapper {
@@ -29,6 +30,10 @@ body {
   flex-direction: column;
   justify-content: center;
   align-items: center;
+}
+
+p#score {
+	margin-top: 0px;
 }
 
 #score-board {
@@ -118,21 +123,21 @@ body {
     outline: none;
 }
 
-#language-container {
-    position: absolute;
-    top: 2rem;
-    right: 2rem; /* Changed from left to right for better layout */
+#language-container, #mode-container {
+    position: relative;
     display: flex;
-    align-items: center;
+    flex-direction: column;
+    align-items: flex-start;
     color: #f8f8f2;
+    margin-bottom: 20px;
 }
 
-#language-container label {
+#language-container label, #mode-container label {
     font-size: 1.2rem;
-    margin-right: 10px;
+    margin-bottom: 10px;
 }
 
-#language-container select {
+#language-container select, #mode-container select {
     background-color: #44475a;
     color: #f8f8f2;
     padding: 5px;
@@ -142,9 +147,44 @@ body {
     font-family: 'Courier New', Courier, monospace;
 }
 
-#language-container select:focus {
+#language-container select:focus, #mode-container select:focus {
     outline: none;
 }
+
+
+#settings-menu {
+    display: none;
+    background-color: #1e1e1e; /* Make the background black */
+    border: 1px solid #f8f8f2; /* Optional: Add a border */
+    padding: 10px;
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    z-index: 1;
+}
+
+#settings-button {
+    position: absolute;
+    top: 2rem;
+    right: 2rem;
+    background-color: #44475a;
+    color: #f8f8f2;
+    padding: 10px;
+    border: none;
+    border-radius: 4px;
+    font-size: 1rem;
+    font-family: 'Courier New', Courier, monospace;
+}
+
+#settings-button:focus {
+    outline: none;
+}
+
+#settings-button:hover {
+    background-color: #6272a4;
+    cursor: pointer;
+}
+
 
 @media screen and (max-width: 600px) {
   #score-board, #wpm-container, #language-container {

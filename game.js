@@ -12,6 +12,7 @@ class Game {
         this.isGameOver = false;
         this.batchSize = 10;
         this.wordIndex = 0;
+        this.mode = localStorage.getItem('mode') || 'rage';
         this.canvas = canvas;
         this.context = this.canvas.getContext("2d");
         this.WPM = localStorage.getItem('WPM') ? parseInt(localStorage.getItem('WPM')) : WPM;
@@ -27,6 +28,31 @@ class Game {
         this.keystrokes = 0;
         this.startTime = Date.now();
         this.lastTimestamp = 0;
+        this.settingsButton = document.getElementById('settings-button');
+        this.settingsMenu = document.getElementById('settings-menu');
+        this.settingsButton.addEventListener('click', this.toggleSettingsMenu.bind(this));
+        document.addEventListener('click', this.closeSettingsMenuIfClickedOutside.bind(this));
+    }
+    closeSettingsMenuIfClickedOutside(event) {
+        const path = event.composedPath();
+        const inputFields = ["player-name", "wpm", "mode", "language"];
+        if (this.settingsMenu.style.display !== "none" && !path.includes(this.settingsMenu) && !path.includes(this.settingsButton)) {
+            const clickedOnInputField = path.some((element) => element.id && inputFields.includes(element.id));
+            if (!clickedOnInputField) {
+                this.settingsMenu.style.display = "none";
+                this.resumeGame(); // Resume game when settings are closed
+            }
+        }
+    }
+    toggleSettingsMenu() {
+        if (this.settingsMenu.style.display === "none") {
+            this.settingsMenu.style.display = "block";
+            this.pauseGame(); // Pause game when settings are open
+        }
+        else {
+            this.settingsMenu.style.display = "none";
+            this.resumeGame(); // Resume game when settings are closed
+        }
     }
     static create(canvas, playerName, WPM = 60, language = 'english') {
         return __awaiter(this, void 0, void 0, function* () {
@@ -58,6 +84,13 @@ class Game {
         }
         this.wordList = this.allWords.slice(this.wordIndex, this.wordIndex + this.batchSize);
         this.wordIndex += this.batchSize;
+    }
+    setMode(newMode) {
+        if (newMode !== this.mode) {
+            localStorage.setItem('mode', newMode);
+            this.mode = newMode;
+            this.restart(this.WPM);
+        }
     }
     setLanguage(newLanguage) {
         if (newLanguage !== this.language) {
@@ -119,8 +152,19 @@ class Game {
                 }
             }
             else {
-                firstWord.speed *= 1.1;
-                firstWord.color = '#FF0000';
+                if (this.mode === 'rage') {
+                    firstWord.speed *= 1.1;
+                    firstWord.color = '#FF0000';
+                }
+                else if (this.mode === 'precision') {
+                    firstWord.text = firstWord.originalText;
+                    firstWord.color = '#FF0000';
+                    firstWord.currentIndex = 0;
+                    // After 0.5 seconds, reset the color to original
+                    setTimeout(() => {
+                        firstWord.color = '#f8f8f2';
+                    }, 500);
+                }
                 firstWord.currentIndex = firstWord.text[0] === ' ' ? 0 : firstWord.currentIndex;
             }
         });
@@ -136,6 +180,7 @@ class Game {
             const maxWordX = this.canvas.width - textWidth;
             const word = {
                 text: wordText,
+                originalText: wordText,
                 x: Math.random() * maxWordX,
                 y: offset - index * 80,
                 speed: lastWordSpeed,
@@ -182,7 +227,6 @@ class Game {
                 this.gameOver();
                 return;
             }
-            // Move this inside the condition
             requestAnimationFrame(this.animate.bind(this));
         }
     }
@@ -304,9 +348,21 @@ languages.forEach((language) => {
 });
 const canvas = document.getElementById('game');
 const wpmInput = document.getElementById('wpm');
+const modeInput = document.getElementById('mode');
 Game.create(canvas, "Player", 30, 'english').then(game => {
     game.initialize();
     game.animate();
+    modeInput.value = localStorage.getItem('mode') || 'rage';
+    modeInput.addEventListener('change', () => {
+        game.setMode(modeInput.value);
+    });
+    modeInput.addEventListener('focus', () => {
+        game.pauseGame();
+    });
+    modeInput.addEventListener('blur', () => {
+        game.resumeGame();
+        game.setMode(modeInput.value);
+    });
     wpmInput.value = localStorage.getItem('WPM') || '30';
     wpmInput.addEventListener('change', () => {
         const newWPM = Number(wpmInput.value);
