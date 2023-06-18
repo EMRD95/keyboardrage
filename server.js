@@ -45,8 +45,13 @@ const ScoreSchema = new mongoose.Schema({
   language: String,
   WPM: Number,
   keystrokes: Number,
+  typos: Number, // Add this line
+  mode: String, // Add this line
+  precision: Number, // Add this line
   timeElapsed: Number, // Add this line
   timestamp: { type: Date, default: Date.now, expires: '30d' } 
+  
+
 });
 
 
@@ -55,7 +60,7 @@ const Score = mongoose.model('Score', ScoreSchema);
 
 
 app.post('/score', async (req, res) => {
-	const { token, keystrokes, timeElapsed, ...scoreData } = req.body;
+  const { token, keystrokes, timeElapsed, typos, mode, ...scoreData } = req.body; // Include typos and mode in destructuring
 
   // Token validation
   if (!tokens.includes(token)) {
@@ -70,6 +75,24 @@ app.post('/score', async (req, res) => {
   // Additional input validations
   if (typeof scoreData.name !== 'string' || scoreData.name.length === 0 || scoreData.name.length > 30) {
     return res.status(400).send('Invalid name');
+  }
+  
+  // Typos validation
+  if (typeof typos !== 'number' || !Number.isInteger(typos) || typos < 0 || typos > keystrokes) {
+    return res.status(400).send('Invalid typos');
+  }
+
+  // Mode validation
+  if (typeof mode !== 'string' || !['rage', 'precision'].includes(mode)) {
+    return res.status(400).send('Invalid mode');
+  }
+  
+  // Calculate precision
+  const precision = ((keystrokes - typos) / keystrokes) * 100;
+  
+  // Validate precision
+  if (typeof precision !== 'number' || precision < 0 || precision > 100) {
+    return res.status(400).send('Invalid precision');
   }
   
   if (typeof scoreData.score !== 'number' || !Number.isInteger(scoreData.score) || scoreData.score < 0 || scoreData.score > 9999) {
@@ -130,6 +153,9 @@ app.post('/score', async (req, res) => {
     ...scoreData,
     keystrokes,
     timeElapsed,
+    typos, // Include typos in newScoreData
+    mode, // Include mode in newScoreData
+    precision, // Include precision in newScoreData
   };
 
   // Find the highest score for the given name, WPM, and language
@@ -175,6 +201,10 @@ function validateScore(score, keystrokes, timeElapsed) {
 
 // GET /leaderboard/:language/:WPM endpoint to retrieve the leaderboard
 app.get('/leaderboard/:language/:WPM', async (req, res) => {
+  const page = parseInt(req.query.page) || 1;
+  const limit = parseInt(req.query.limit) || 10;
+  const skip = (page - 1) * limit;
+
   try {
     const scores = await Score.aggregate([
       {
@@ -187,12 +217,14 @@ app.get('/leaderboard/:language/:WPM', async (req, res) => {
         $group: {
           _id: "$name",  // Group by name
           maxScore: { $max: "$score" },  // Get maximum score
+          maxPrecision: { $max: "$precision" },  // Get maximum precision
           doc: { $first: "$$ROOT" }  // Keep the whole document of the first entry
         }
       },
       {
         $addFields: {
-          "doc.score": "$maxScore"  // Replace the score in the document with the maximum score
+          "doc.score": "$maxScore",  // Replace the score in the document with the maximum score
+          "doc.precision": "$maxPrecision"  // Replace the precision in the document with the maximum precision
         }
       },
       {
@@ -202,11 +234,15 @@ app.get('/leaderboard/:language/:WPM', async (req, res) => {
       },
       {
         $sort: {
-          score: -1  // Sort by score in descending order
+          score: -1,  // Sort by score in descending order
+          precision: -1  // Sort by precision in descending order
         }
       },
       {
-        $limit: 100  // Limit to 100 results
+        $skip: skip
+      },
+      {
+        $limit: limit
       }
     ]);
 

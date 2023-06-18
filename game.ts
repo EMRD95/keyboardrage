@@ -33,6 +33,7 @@ class Game {
 	private mode: 'rage' | 'precision' = (localStorage.getItem('mode') as 'rage' | 'precision') || 'rage';
     private settingsButton: HTMLElement;
     private settingsMenu: HTMLElement;
+	private typos: number;
 
 
 	private constructor(canvas: HTMLCanvasElement, playerName: string, WPM: number = 60, language: string = 'english') {
@@ -55,6 +56,7 @@ class Game {
 		this.settingsMenu = document.getElementById('settings-menu')!;
 		this.settingsButton.addEventListener('click', this.toggleSettingsMenu.bind(this));
 		document.addEventListener('click', this.closeSettingsMenuIfClickedOutside.bind(this));
+		this.typos = 0;
 	}
 
 	closeSettingsMenuIfClickedOutside(event: MouseEvent) {
@@ -191,6 +193,7 @@ if (firstWord.text.startsWith(event.key)) {
         }
     }
 } else { 
+	this.typos++;
     if (this.mode === 'rage') {
         firstWord.speed *= 1.1; 
         firstWord.color = '#FF0000'; 
@@ -312,20 +315,35 @@ resumeGame() {
 		const timeElapsed = endTime - this.startTime; // in milliseconds
 		  if (this.isGameOver) return;  
 
+  // Calculate precision and store it in localStorage
+  const precision = ((this.keystrokes - this.typos) / this.keystrokes) * 100;
+  localStorage.setItem('precision', precision.toString());
+
+  // Store mode in localStorage
+  localStorage.setItem('mode', this.mode);
+  
+  // Store playerName in localStorage
+  localStorage.setItem('playerName', this.playerName);
+
+  // Store timeElapsed in localStorage
+  localStorage.setItem('timeElapsed', this.timeElapsed.toString());
+
 		  this.isGameOver = true;  
-			const response = await fetch('/score', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({
-					token: this.token,
-					name: this.playerName,
-					score: this.score,
-					language: this.language,
-					WPM: this.WPM,
-					keystrokes: this.keystrokes, // Include keystrokes in sent data
-					timeElapsed: timeElapsed
-				})
-			});
+    const response = await fetch('/score', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            token: this.token,
+            name: this.playerName,
+            score: this.score,
+            language: this.language,
+            WPM: this.WPM,
+            keystrokes: this.keystrokes,
+            timeElapsed: timeElapsed,
+            typos: this.typos, // Include typos in sent data
+            mode: this.mode // Include mode in sent data
+        })
+    });
 
 
 		  if (!response.ok) {

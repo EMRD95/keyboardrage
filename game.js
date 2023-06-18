@@ -32,6 +32,7 @@ class Game {
         this.settingsMenu = document.getElementById('settings-menu');
         this.settingsButton.addEventListener('click', this.toggleSettingsMenu.bind(this));
         document.addEventListener('click', this.closeSettingsMenuIfClickedOutside.bind(this));
+        this.typos = 0;
     }
     closeSettingsMenuIfClickedOutside(event) {
         const path = event.composedPath();
@@ -156,6 +157,7 @@ class Game {
                 }
             }
             else {
+                this.typos++;
                 if (this.mode === 'rage') {
                     firstWord.speed *= 1.1;
                     firstWord.color = '#FF0000';
@@ -255,6 +257,15 @@ class Game {
             const timeElapsed = endTime - this.startTime; // in milliseconds
             if (this.isGameOver)
                 return;
+            // Calculate precision and store it in localStorage
+            const precision = ((this.keystrokes - this.typos) / this.keystrokes) * 100;
+            localStorage.setItem('precision', precision.toString());
+            // Store mode in localStorage
+            localStorage.setItem('mode', this.mode);
+            // Store playerName in localStorage
+            localStorage.setItem('playerName', this.playerName);
+            // Store timeElapsed in localStorage
+            localStorage.setItem('timeElapsed', this.timeElapsed.toString());
             this.isGameOver = true;
             const response = yield fetch('/score', {
                 method: 'POST',
@@ -266,7 +277,9 @@ class Game {
                     language: this.language,
                     WPM: this.WPM,
                     keystrokes: this.keystrokes,
-                    timeElapsed: timeElapsed
+                    timeElapsed: timeElapsed,
+                    typos: this.typos,
+                    mode: this.mode // Include mode in sent data
                 })
             });
             if (!response.ok) {

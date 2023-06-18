@@ -185,6 +185,68 @@ p#score {
     cursor: pointer;
 }
 
+#gameOverContainer {
+  text-align: center;
+}
+
+#gameOverContainer #playerName,
+#gameOverContainer #score,
+#gameOverContainer #language,
+#gameOverContainer #WPM,
+#gameOverContainer #mode,
+#gameOverContainer #precision,
+#gameOverContainer #timeElapsed {
+  color: #ffffff; /* Set text color to white */
+  text-shadow: 0 0 5px #7DF9FF, 0 0 10px #7DF9FF, 0 0 20px #7DF9FF; /* Add the desired blue glow effect */
+}
+
+#gameOverContainer #playerName {
+  font-size: 2rem;
+}
+
+#gameOverContainer #score {
+  font-size: 1.5rem;
+}
+
+#gameOverContainer #language,
+#gameOverContainer #WPM,
+#gameOverContainer #mode,
+#gameOverContainer #precision,
+#gameOverContainer #timeElapsed {
+  font-size: 1rem;
+}
+
+
+
+
+#pagination {
+  display: flex;
+  justify-content: center;
+  margin: 20px 0;
+}
+
+#previous-page, #next-page {
+  background-color: #44475a;
+  color: #f8f8f2;
+  padding: 10px 20px;
+  border: none;
+  border-radius: 4px;
+  font-size: 1rem;
+  font-family: 'Courier New', Courier, monospace;
+  margin: 0 10px;
+}
+
+#previous-page:hover, #next-page:hover {
+  background-color: #6272a4;
+  cursor: pointer;
+}
+
+#previous-page:disabled, #next-page:disabled {
+  background-color: #44475a;
+  color: #666;
+  cursor: not-allowed;
+}
+
 
 @media screen and (max-width: 600px) {
   #score-board, #wpm-container, #language-container {
@@ -195,28 +257,40 @@ p#score {
   }
 }
 
-    #leaderboard {
-      width: 80%;
-      max-width: 500px;
-      margin-top: 20px;
-      border-collapse: collapse;
-    }
+#leaderboard {
+  width: 100%;
+  max-width: 400px;
+  margin: 0 auto; /* Add this line to center the leaderboard */
+  border-collapse: collapse;
+  font-size: 1rem;
+}
 
-    #leaderboard th, #leaderboard td {
-      border: 1px solid #ccc;
-      padding: 10px;
-      text-align: left;
-    }
+#leaderboard th,
+#leaderboard td {
+  border: 1px solid #ccc;
+  padding: 5px;
+  text-align: left;
+}
 
-    #leaderboard tr:nth-child(even) {
-      background-color: #000ff;
-    }
+#leaderboard tr:nth-child(even) {
+  background-color: #282a36;
+}
 
-    @media screen and (max-width: 600px) {
-      #leaderboard, #leaderboard th, #leaderboard td {
-        width: 100%;
-      }
-    }
+@media screen and (max-width: 600px) {
+  #leaderboard,
+  #leaderboard th,
+  #leaderboard td {
+    width: 100%;
+  }
+}
+
+@media screen and (max-width: 400px) {
+  #leaderboard th,
+  #leaderboard td {
+    font-size: 0.7rem;
+  }
+}
+
 	
 #player-name-container {
     display: flex;

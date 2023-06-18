@@ -23,21 +23,38 @@
     </div>
   </header>
   
+<div id="gameOverContainer">
   <h1>Game Over</h1>
+  <div id="playerName"></div>
   <div id="score"></div>
   <div id="language"></div>
   <div id="WPM"></div>
+  <div id="mode"></div>
+  <div id="precision"></div>
+  <div id="timeElapsed"></div>
+</div>
+
   
   <button id="play-again">Play Again <br> ⎵</button>
 
-	<h2>Top Score 24h</h2>
-	<table id="leaderboard">
-	  <tr>
-		<th>Player</th>
-		<th>Score</th>
-		<th>Date</th> <!-- Add this line for the date column header -->
-	  </tr>
-	</table>
+	<h2>Top Score 30 days</h2>
+<table id="leaderboard">
+  <tr>
+    <th>Rank</th> 
+    <th>Player</th>
+    <th>Score</th>
+    <th>Mode</th>
+    <th>Precision</th>
+    <th>Date</th>
+  </tr>
+</table>
+
+
+<div id="pagination">
+  <button id="previous-page">Previous</button>
+  <button id="next-page">Next</button>
+</div>
+
 
   <script src="game-over.js"></script>
 </body>
