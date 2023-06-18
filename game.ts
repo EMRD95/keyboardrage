@@ -164,6 +164,11 @@ initialize() {
     }, 500);
 
 window.addEventListener('keydown', (event) => {
+    // If the game is paused, ignore the keystroke
+    if (this.pause) {
+        return;
+    }
+
     // Add a check for special keys here
     if (["Shift", "Control", "Alt", "Meta", "Tab", "Backspace", "CapsLock", "Escape", "Dead"].includes(event.key) 
         || (event.key >= 'F1' && event.key <= 'F12')) {
