@@ -1,6 +1,6 @@
 interface Word {
     text: string;
-    originalText: string; // Add this line
+    originalText: string;
     x: number;
     y: number;
     speed: number;
@@ -68,7 +68,7 @@ class Game {
 			);
 			if(!clickedOnInputField) {
 				this.settingsMenu.style.display = "none";
-				this.resumeGame(); // Resume game when settings are closed
+				this.resumeGame(); 
 			}
 		}
 	}
@@ -153,7 +153,7 @@ restart(currentWPM: number) {
         // Wait for 1 second before generating words and starting the game
         setTimeout(() => {
             this.generateWords();
-        }, 500);  // delay of 1 second
+        }, 500);  // delay of 0.5 second
     });
 }
 
@@ -171,10 +171,15 @@ window.addEventListener('keydown', (event) => {
         return;
     }
 
-    // Add a check for special keys here
+    // Add a check for special keys
     if (["Shift", "Control", "Alt", "Meta", "Tab", "Backspace", "CapsLock", "Escape", "Dead"].includes(event.key) 
         || (event.key >= 'F1' && event.key <= 'F12')) {
         return; // ignore special keys
+    }
+
+    // Prevent default action for the single quote key
+    if (event.key === "'") {
+        event.preventDefault();
     }
     this.keystrokes++;
 if (this.words.length === 0) return;
@@ -226,7 +231,7 @@ generateWords() {
         const maxWordX = this.canvas.width - textWidth;
 const word: Word = {
     text: wordText,
-    originalText: wordText, // Add this line
+    originalText: wordText,
     x: Math.random() * maxWordX,
     y: offset - index * 80,
     speed: lastWordSpeed,
@@ -340,8 +345,8 @@ resumeGame() {
             WPM: this.WPM,
             keystrokes: this.keystrokes,
             timeElapsed: timeElapsed,
-            typos: this.typos, // Include typos in sent data
-            mode: this.mode // Include mode in sent data
+            typos: this.typos,
+            mode: this.mode
         })
     });
 

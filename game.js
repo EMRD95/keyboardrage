@@ -41,7 +41,7 @@ class Game {
             const clickedOnInputField = path.some((element) => element.id && inputFields.includes(element.id));
             if (!clickedOnInputField) {
                 this.settingsMenu.style.display = "none";
-                this.resumeGame(); // Resume game when settings are closed
+                this.resumeGame();
             }
         }
     }
@@ -121,7 +121,7 @@ class Game {
             // Wait for 1 second before generating words and starting the game
             setTimeout(() => {
                 this.generateWords();
-            }, 500); // delay of 1 second
+            }, 500); // delay of 0.5 second
         });
     }
     initialize() {
@@ -135,10 +135,14 @@ class Game {
             if (this.pause) {
                 return;
             }
-            // Add a check for special keys here
+            // Add a check for special keys
             if (["Shift", "Control", "Alt", "Meta", "Tab", "Backspace", "CapsLock", "Escape", "Dead"].includes(event.key)
                 || (event.key >= 'F1' && event.key <= 'F12')) {
                 return; // ignore special keys
+            }
+            // Prevent default action for the single quote key
+            if (event.key === "'") {
+                event.preventDefault();
             }
             this.keystrokes++;
             if (this.words.length === 0)
@@ -279,7 +283,7 @@ class Game {
                     keystrokes: this.keystrokes,
                     timeElapsed: timeElapsed,
                     typos: this.typos,
-                    mode: this.mode // Include mode in sent data
+                    mode: this.mode
                 })
             });
             if (!response.ok) {

@@ -45,10 +45,10 @@ const ScoreSchema = new mongoose.Schema({
   language: String,
   WPM: Number,
   keystrokes: Number,
-  typos: Number, // Add this line
-  mode: String, // Add this line
-  precision: Number, // Add this line
-  timeElapsed: Number, // Add this line
+  typos: Number, 
+  mode: String, 
+  precision: Number, 
+  timeElapsed: Number, 
   timestamp: { type: Date, default: Date.now, expires: '30d' } 
   
 
@@ -153,9 +153,9 @@ app.post('/score', async (req, res) => {
     ...scoreData,
     keystrokes,
     timeElapsed,
-    typos, // Include typos in newScoreData
-    mode, // Include mode in newScoreData
-    precision, // Include precision in newScoreData
+    typos,
+    mode,
+    precision,
   };
 
   // Find the highest score for the given name, WPM, and language
@@ -174,7 +174,7 @@ app.post('/score', async (req, res) => {
       name: scoreData.name, 
       WPM: scoreData.WPM, 
       language: scoreData.language, 
-      score: { $lte: highestScore } // note that I've changed $lt to $lte
+      score: { $lte: highestScore }
     });
   }
 
