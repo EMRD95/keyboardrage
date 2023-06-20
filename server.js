@@ -5,6 +5,7 @@ const express = require('express');
 const mongoose = require('mongoose');
 const bodyParser = require('body-parser');
 const path = require('path');
+const fs = require('fs');
 
 const app = express();
 
@@ -56,6 +57,17 @@ const ScoreSchema = new mongoose.Schema({
 
 
 
+let supportedLanguages;
+try {
+  supportedLanguages = JSON.parse(fs.readFileSync('./words/languagelist.json', 'utf8'));
+} catch (err) {
+  console.error('Failed to load languages.json', err);
+}
+
+app.get('/languages', (req, res) => {
+  res.send(supportedLanguages);
+});
+
 const Score = mongoose.model('Score', ScoreSchema);
 
 
@@ -67,10 +79,10 @@ app.post('/score', async (req, res) => {
     return res.status(403).send('Invalid token');
   }
 
-  // Score validation
-  if (!validateScore(scoreData.score, keystrokes, timeElapsed)) {
-    return res.status(400).send('Invalid score');
-  }
+    // Score validation
+    if (!validateScore(scoreData.score, keystrokes, timeElapsed)) {
+        return res.status(400).send('Invalid score');
+    }
 
   // Additional input validations
   if (typeof scoreData.name !== 'string' || scoreData.name.length === 0 || scoreData.name.length > 30) {
@@ -95,50 +107,10 @@ app.post('/score', async (req, res) => {
     return res.status(400).send('Invalid precision');
   }
   
-  if (typeof scoreData.score !== 'number' || !Number.isInteger(scoreData.score) || scoreData.score < 0 || scoreData.score > 9999) {
+  if (typeof scoreData.score !== 'number' || !Number.isInteger(scoreData.score) || scoreData.score < 0 || scoreData.score > 300000) {
     return res.status(400).send('Invalid score');
   }
 
-  const supportedLanguages = [
-    "english",
-	"english_1k",
-	"english_5k",
-	"english_10k",
-	"english_25k",
-	"english_450k",
-    "french",
-	"french_1k",
-	"french_2k",
-	"french_10k",
-	"french_600k",
-    "albanian",
-    "bulgarian",
-    "catalan",
-    "croatian",
-    "czech",
-    "danish",
-    "dutch",
-    "esperanto",
-    "estonian",
-    "finnish",
-    "german",
-    "hungarian",
-    "irish",
-    "italian",
-    "latin",
-    "latvian",
-    "lithuanian",
-    "macedonian",
-    "polish",
-    "portuguese",
-    "romanian",
-    "russian",
-    "slovenian",
-    "spanish",
-    "swedish",
-    "swiss_german",
-    "welsh"
-  ];
   if (!supportedLanguages.includes(scoreData.language)) {
     return res.status(400).send('Invalid language');
   }
@@ -190,13 +162,14 @@ app.post('/score', async (req, res) => {
   }
 });
 
-function validateScore(score, keystrokes, timeElapsed) {
-	// A simple rule might be that each score point requires at least 5 keystrokes
-	// and takes at least 1 second (1000 ms)
-	const minimumKeystrokes = score * 4;
-	const minimumTimeElapsed = score * 140; // in milliseconds
 
-	return keystrokes >= minimumKeystrokes && timeElapsed >= minimumTimeElapsed;
+try {
+    var validateScore = require('./scoreValidator');
+} catch (err) {
+    console.warn('Score validator not found, score validation will be bypassed in this environment.');
+
+    // Define a placeholder function that always returns true
+    validateScore = () => true;
 }
 
 // GET /leaderboard/:language/:WPM endpoint to retrieve the leaderboard

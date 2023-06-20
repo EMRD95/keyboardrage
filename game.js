@@ -320,53 +320,18 @@ class Game {
         }
     }
 }
-const languages = [
-    "english",
-    "english_1k",
-    "english_5k",
-    "english_10k",
-    "english_25k",
-    "english_450k",
-    "french",
-    "french_1k",
-    "french_2k",
-    "french_10k",
-    "french_600k",
-    "albanian",
-    "bulgarian",
-    "catalan",
-    "croatian",
-    "czech",
-    "danish",
-    "dutch",
-    "esperanto",
-    "estonian",
-    "finnish",
-    "german",
-    "hungarian",
-    "irish",
-    "italian",
-    "latin",
-    "latvian",
-    "lithuanian",
-    "macedonian",
-    "polish",
-    "portuguese",
-    "romanian",
-    "russian",
-    "slovenian",
-    "spanish",
-    "swedish",
-    "swiss_german",
-    "welsh"
-];
 const languageInput = document.getElementById('language');
-languages.forEach((language) => {
-    const option = document.createElement('option');
-    option.value = language;
-    option.text = language;
-    languageInput.appendChild(option);
-});
+fetch('/languages')
+    .then(response => response.json())
+    .then(languages => {
+    languages.forEach((language) => {
+        const option = document.createElement('option');
+        option.value = language;
+        option.text = language;
+        languageInput.appendChild(option);
+    });
+})
+    .catch(error => console.error('Error:', error));
 const canvas = document.getElementById('game');
 const wpmInput = document.getElementById('wpm');
 const modeInput = document.getElementById('mode');
