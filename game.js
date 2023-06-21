@@ -87,30 +87,24 @@ class Game {
         this.wordIndex += this.batchSize;
     }
     setMode(newMode) {
-        if (newMode !== this.mode) {
-            localStorage.setItem('mode', newMode);
-            this.mode = newMode;
-            this.restart(this.WPM);
-        }
+        localStorage.setItem('mode', newMode);
+        this.mode = newMode;
+        this.restart(this.WPM);
     }
     setLanguage(newLanguage) {
-        if (newLanguage !== this.language) {
-            localStorage.setItem('language', newLanguage);
-            this.language = newLanguage;
-            this.words = [];
-            this.wordIndex = 0; // Reset wordIndex when language changes
-            this.fetchWords().then(() => {
-                this.restart(this.WPM);
-            });
-        }
+        localStorage.setItem('language', newLanguage);
+        this.language = newLanguage;
+        this.words = [];
+        this.wordIndex = 0; // Reset wordIndex when language changes
+        this.fetchWords().then(() => {
+            this.restart(this.WPM);
+        });
     }
     setWPM(newWPM) {
-        if (newWPM !== this.WPM) {
-            localStorage.setItem('WPM', newWPM.toString());
-            this.WPM = newWPM;
-            this.originalWPM = newWPM;
-            this.restart(this.WPM);
-        }
+        localStorage.setItem('WPM', newWPM.toString());
+        this.WPM = newWPM;
+        this.originalWPM = newWPM;
+        this.restart(this.WPM);
     }
     restart(currentWPM) {
         this.score = 0;

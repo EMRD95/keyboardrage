@@ -114,34 +114,29 @@ nextBatch() {
     this.wordIndex += this.batchSize;
 }
 
-    setMode(newMode: 'rage' | 'precision') {
-        if (newMode !== this.mode) { 
-            localStorage.setItem('mode', newMode);
-            this.mode = newMode;
-            this.restart(this.WPM);
-        }
-    }
-
-setLanguage(newLanguage: string) {
-    if (newLanguage !== this.language) { 
-        localStorage.setItem('language', newLanguage);
-        this.language = newLanguage;
-        this.words = [];
-        this.wordIndex = 0; // Reset wordIndex when language changes
-        this.fetchWords().then(() => {
-            this.restart(this.WPM);
-        });
-    }
+setMode(newMode: 'rage' | 'precision') {
+    localStorage.setItem('mode', newMode);
+    this.mode = newMode;
+    this.restart(this.WPM);
 }
 
-	setWPM(newWPM: number) {
-		if (newWPM !== this.WPM) { 
-			localStorage.setItem('WPM', newWPM.toString());
-			this.WPM = newWPM;
-			this.originalWPM = newWPM;
-			this.restart(this.WPM);
-		}
-	}
+setLanguage(newLanguage: string) {
+    localStorage.setItem('language', newLanguage);
+    this.language = newLanguage;
+    this.words = [];
+    this.wordIndex = 0; // Reset wordIndex when language changes
+    this.fetchWords().then(() => {
+        this.restart(this.WPM);
+    });
+}
+
+setWPM(newWPM: number) {
+    localStorage.setItem('WPM', newWPM.toString());
+    this.WPM = newWPM;
+    this.originalWPM = newWPM;
+    this.restart(this.WPM);
+}
+
 
 
 restart(currentWPM: number) {
