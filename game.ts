@@ -167,10 +167,8 @@ restart(currentWPM: number) {
 			event.preventDefault();
 			if (this.pause) {
 				this.resumeGame();
-				document.getElementById('GamePaused').style.display = 'none';
 			} else {
 				this.pauseGame();
-				document.getElementById('GamePaused').style.display = 'block';
 			}
 		}
 				
@@ -309,12 +307,14 @@ animate(timestamp = 0) {
 
 pauseGame() {
     this.pause = true;
+	document.getElementById('GamePaused').style.display = 'block';
 }
 
 resumeGame() {
     this.pause = false;
     this.lastTimestamp = performance.now();
     this.animate(this.lastTimestamp);
+	document.getElementById('GamePaused').style.display = 'none';
 }
 
 
