@@ -153,66 +153,83 @@ restart(currentWPM: number) {
 }
 
 
-initialize() {
-    this.context.font = "48px 'Courier New', Courier, monospace";
-    setTimeout(() => {
-        this.generateWords();
-        this.animate();
-    }, 500);
+	initialize() {
+		this.context.font = "48px 'Courier New', Courier, monospace";
+		setTimeout(() => {
+			this.generateWords();
+			this.animate();
+		}, 500);
 
-window.addEventListener('keydown', (event) => {
-    // If the game is paused, ignore the keystroke
-    if (this.pause) {
-        return;
-    }
+		window.addEventListener('keydown', (event) => {
 
-    // Add a check for special keys
-    if (["Shift", "Control", "Alt", "Meta", "Tab", "Backspace", "CapsLock", "Escape", "Dead"].includes(event.key) 
-        || (event.key >= 'F1' && event.key <= 'F12')) {
-        return; // ignore special keys
-    }
+		// If TAB is pressed, toggle pause status
+		if (event.key === 'Tab') {
+			event.preventDefault();
+			if (this.pause) {
+				this.resumeGame();
+				document.getElementById('GamePaused').style.display = 'none';
+			} else {
+				this.pauseGame();
+				document.getElementById('GamePaused').style.display = 'block';
+			}
+		}
+				
+		// If the game is paused, ignore the keystroke
+		if (this.pause) {
+			return;
+		}
 
-    // Prevent default action for the single quote key
-    if (event.key === "'") {
-        event.preventDefault();
-    }
-    this.keystrokes++;
-if (this.words.length === 0) return;
+		if (event.getModifierState("CapsLock")) {
+			document.getElementById('capsLockIndicator').style.display = 'block';
+		} else {
+			document.getElementById('capsLockIndicator').style.display = 'none';
+		}
 
-const firstWord = this.words[0];
-if (firstWord.text.startsWith(event.key)) {
-    firstWord.text = firstWord.text.slice(1);
-    firstWord.color = '#f8f8f2'; 
-    firstWord.currentIndex++; 
+			// Add a check for special keys
+			if (["Shift", "Control", "Alt", "Meta", "Tab", "Backspace", "CapsLock", "Escape", "Dead"].includes(event.key) 
+				|| (event.key >= 'F1' && event.key <= 'F12')) {
+				return; // ignore special keys
+			}
 
-    if (firstWord.text.length === 0) {
-        this.words.shift();
-        this.score++;
-        if (this.words.length < this.batchSize) {
-            this.generateWords();
-        }
-    }
-} else { 
-	this.typos++;
-    if (this.mode === 'rage') {
-        firstWord.speed *= 1.1; 
-        firstWord.color = '#FF0000'; 
-    } else if (this.mode === 'precision') {
-        firstWord.text = firstWord.originalText; 
-        firstWord.color = '#FF0000'; 
-        firstWord.currentIndex = 0;
+			// Prevent default action for the single quote key
+			if (event.key === "'") {
+				event.preventDefault();
+			}
+			this.keystrokes++;
+		if (this.words.length === 0) return;
 
-        // After 0.5 seconds, reset the color to original
-        setTimeout(() => {
-            firstWord.color = '#f8f8f2';
-        }, 500);
-    }
-    firstWord.currentIndex = firstWord.text[0] === ' ' ? 0 : firstWord.currentIndex; 
-}
-    });
+		const firstWord = this.words[0];
+		if (firstWord.text.startsWith(event.key)) {
+			firstWord.text = firstWord.text.slice(1);
+			firstWord.color = '#f8f8f2'; 
+			firstWord.currentIndex++; 
 
+			if (firstWord.text.length === 0) {
+				this.words.shift();
+				this.score++;
+				if (this.words.length < this.batchSize) {
+					this.generateWords();
+				}
+			}
+		} else { 
+			this.typos++;
+			if (this.mode === 'rage') {
+				firstWord.speed *= 1.1; 
+				firstWord.color = '#FF0000'; 
+			} else if (this.mode === 'precision') {
+				firstWord.text = firstWord.originalText; 
+				firstWord.color = '#FF0000'; 
+				firstWord.currentIndex = 0;
 
-    }
+				// After 0.5 seconds, reset the color to original
+				setTimeout(() => {
+					firstWord.color = '#f8f8f2';
+				}, 500);
+			}
+			firstWord.currentIndex = firstWord.text[0] === ' ' ? 0 : firstWord.currentIndex; 
+		}
+			});
+		}
 
 generateWords() {
     // Fetch a new batch of words

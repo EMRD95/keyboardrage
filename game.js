@@ -125,9 +125,27 @@ class Game {
             this.animate();
         }, 500);
         window.addEventListener('keydown', (event) => {
+            // If TAB is pressed, toggle pause status
+            if (event.key === 'Tab') {
+                event.preventDefault();
+                if (this.pause) {
+                    this.resumeGame();
+                    document.getElementById('GamePaused').style.display = 'none';
+                }
+                else {
+                    this.pauseGame();
+                    document.getElementById('GamePaused').style.display = 'block';
+                }
+            }
             // If the game is paused, ignore the keystroke
             if (this.pause) {
                 return;
+            }
+            if (event.getModifierState("CapsLock")) {
+                document.getElementById('capsLockIndicator').style.display = 'block';
+            }
+            else {
+                document.getElementById('capsLockIndicator').style.display = 'none';
             }
             // Add a check for special keys
             if (["Shift", "Control", "Alt", "Meta", "Tab", "Backspace", "CapsLock", "Escape", "Dead"].includes(event.key)

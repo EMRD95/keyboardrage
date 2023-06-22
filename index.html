@@ -34,29 +34,52 @@
 		<button id="play-again">Play Again</button>
 	  </div>
 	  <p id="score">Score: <span id="current-score"></span></p>
+	  <div id="capsLockIndicator" style="display:none;">CAPS LOCK IS ON</div>
+	  <div id="GamePaused" style="display:none;">Game Paused</div>
+
 	</div>
 
 	<div id="wpm-container">
 		<label for="wpm">WPM:</label>
 		<select id="wpm">
-		  <option value="30" selected>30⇢∞</option>
-		  <option value="50">50</option>
-		  <option value="60">60</option>
-		  <option value="70">70</option>
-		  <option value="80">80</option>
-		  <option value="100">100</option>
-		  <option value="120">120</option>
-		  <option value="130">130</option>
-		  <option value="150">150</option>
-		  <option value="180">180</option>
-		  <option value="200">200</option>
-		  <option value="220">220</option>
-		  <option value="230">230</option>
-		  <option value="250">250</option>
-		  <option value="280">280</option>
-		  <option value="300">300</option>
-		  <option value="350">350</option>
-		  <option value="400">400</option>
+		<option value="30" selected>30⇢∞</option>
+		<option value="40">40</option>
+		<option value="50">50</option>
+		<option value="60">60</option>
+		<option value="70">70</option>
+		<option value="80">80</option>
+		<option value="90">90</option>
+		<option value="100">100</option>
+		<option value="110">110</option>
+		<option value="120">120</option>
+		<option value="130">130</option>
+		<option value="140">140</option>
+		<option value="150">150</option>
+		<option value="160">160</option>
+		<option value="170">170</option>
+		<option value="180">180</option>
+		<option value="190">190</option>
+		<option value="200">200</option>
+		<option value="210">210</option>
+		<option value="220">220</option>
+		<option value="230">230</option>
+		<option value="240">240</option>
+		<option value="250">250</option>
+		<option value="260">260</option>
+		<option value="270">270</option>
+		<option value="280">280</option>
+		<option value="290">290</option>
+		<option value="300">300</option>
+		<option value="310">310</option>
+		<option value="320">320</option>
+		<option value="330">330</option>
+		<option value="340">340</option>
+		<option value="350">350</option>
+		<option value="360">360</option>
+		<option value="370">370</option>
+		<option value="380">380</option>
+		<option value="390">390</option>
+		<option value="400">400</option>
 		</select>
 	  </div>
 	  
@@ -81,15 +104,10 @@
 
 <button id="settings-button">Settings</button>
 
-
-
-
 <div id="player-name-container">
 <label for="player-name">Player Name:</label>
   <input type="text" id="player-name" required minlength="3" maxlength="30" pattern=".{3,}">
 </div>
-
-
 
     <script type="module" src="game.js"></script>
 
