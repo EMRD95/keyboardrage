@@ -70,7 +70,7 @@ app.get('/languages', (req, res) => {
 
 const Score = mongoose.model('Score', ScoreSchema);
 
-
+let supportedWPMs = [30, 50, 100, 150, 200, 250, 300, 350, 400];
 app.post('/score', async (req, res) => {
   const { token, keystrokes, timeElapsed, typos, mode, ...scoreData } = req.body; // Include typos and mode in destructuring
 
@@ -114,8 +114,6 @@ app.post('/score', async (req, res) => {
   if (!supportedLanguages.includes(scoreData.language)) {
     return res.status(400).send('Invalid language');
   }
-  
-const supportedWPMs = [30, 40, 50, 60, 70, 80, 90, 100, 110, 120, 130, 140, 150, 160, 170, 180, 190, 200, 210, 220, 230, 240, 250, 260, 270, 280, 290, 300, 310, 320, 330, 340, 350, 360, 370, 380, 390, 400];
 
   if (!supportedWPMs.includes(scoreData.WPM)) {
     return res.status(400).send('Invalid WPM');
@@ -173,8 +171,21 @@ try {
     validateScore = () => true;
 }
 
-// GET /leaderboard/:language/:WPM endpoint to retrieve the leaderboard
+// import motivation.json
+let motivationalMessages;
+try {
+  motivationalMessages = JSON.parse(fs.readFileSync('./words/motivation.json', 'utf8'));
+} catch (err) {
+  console.error('Failed to load motivation.json', err);
+}
+
+// modified leaderboard endpoint
 app.get('/leaderboard/:language/:WPM', async (req, res) => {
+  const WPM = Number(req.params.WPM);  // Ensure WPM is a number for matching
+  if (!supportedWPMs.includes(WPM)) {
+    const randomIndex = Math.floor(Math.random() * motivationalMessages.length);
+    return res.status(200).send({ message: motivationalMessages[randomIndex] });
+  }
   const page = parseInt(req.query.page) || 1;
   const limit = parseInt(req.query.limit) || 10;
   const skip = (page - 1) * limit;

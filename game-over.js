@@ -1,10 +1,9 @@
-// Retrieve the score, language, and WPM from the URL
+
 const urlParams = new URLSearchParams(window.location.search);
 const score = urlParams.get('score');
 const language = urlParams.get('language');
 const WPM = urlParams.get('WPM');
 
-// Display the score, language, and WPM on the page
 const scoreElement = document.getElementById('score');
 scoreElement.textContent = `Score: ${score}`;
 
@@ -14,46 +13,36 @@ languageElement.textContent = `Language: ${language}`;
 const WPMElement = document.getElementById('WPM');
 WPMElement.textContent = `WPM: ${WPM}`;
 
-// Retrieve the mode and precision from localStorage
 const mode = localStorage.getItem('mode');
 const precision = localStorage.getItem('precision');
 
-// Convert precision to a number and format it with two decimals
 const precisionFormatted = parseFloat(precision).toFixed(2);
 
-// Display the mode and precision on the page
 const modeElement = document.getElementById('mode');
 modeElement.textContent = `Mode: ${mode}`;
 
 const precisionElement = document.getElementById('precision');
 precisionElement.textContent = `Precision: ${precisionFormatted}%`;
 
-// Retrieve the playerName from localStorage
 const playerName = localStorage.getItem('playerName');
 
-// Display the playerName on the page
 const playerNameElement = document.getElementById('playerName');
 playerNameElement.textContent = `Name: ${playerName}`;
 
-// Retrieve the timeElapsed from localStorage
 const timeElapsed = localStorage.getItem('timeElapsed');
 
-// Convert timeElapsed from milliseconds to seconds
 let timeElapsedInSeconds = Math.round(Number(timeElapsed) / 1000);
 
 let timeElapsedDisplay;
 if (timeElapsedInSeconds < 60) {
-  // If less than 60 seconds, display in seconds
   timeElapsedDisplay = `${timeElapsedInSeconds} seconds`;
 } else {
-  // If 60 seconds or more, convert to minutes and display
   let timeElapsedInMinutes = Math.floor(timeElapsedInSeconds / 60);
   let remainingSeconds = timeElapsedInSeconds % 60;
-  let minuteWord = timeElapsedInMinutes === 1 ? "minute" : "minutes"; // Choose the correct word based on the number of minutes
+  let minuteWord = timeElapsedInMinutes === 1 ? "minute" : "minutes";
   timeElapsedDisplay = `${timeElapsedInMinutes} ${minuteWord} ${remainingSeconds} seconds`;
 }
 
-// Display the timeElapsed on the page
 const timeElapsedElement = document.getElementById('timeElapsed');
 timeElapsedElement.textContent = `Time Elapsed: ${timeElapsedDisplay}`;
 
@@ -78,20 +67,37 @@ function fetchLeaderboard() {
   fetch(`/leaderboard/${language}/${WPM}?page=${currentPage}`)
     .then(response => response.json())
     .then(data => {
-      // If there's no more data, go back to the previous page and stop the execution of the function
       if (data.length === 0) {
         currentPage--;
         return;
       }
 
+      // Check if it is a motivational message
+      if (data.message) {
+        const motivationalMessageElement = document.getElementById('motivationalMessage');
+        motivationalMessageElement.textContent = `Pro tip: ${data.message}`;
+
+        // Hide the elements
+        document.getElementById('leaderboard').style.display = 'none';
+        document.getElementById('pagination').style.display = 'none';
+        document.getElementById('ScoreTitle').style.display = 'none';
+
+        return;
+      }
+
+      // If not a motivational message
+      document.getElementById('leaderboard').style.display = 'table';
+      document.getElementById('pagination').style.display = 'block';
+      document.getElementById('ScoreTitle').style.display = 'block';
+	  document.getElementById('MotivationMessage').style.display = 'none';
+
       const leaderboardElement = document.getElementById('leaderboard');
       leaderboardElement.innerHTML = '';
 
-      // Add header row
       const headerRow = document.createElement('tr');
-      const rankHeader = document.createElement('th'); // Add this line
-      rankHeader.textContent = 'Rank'; // Add this line
-      headerRow.appendChild(rankHeader); // Add this line
+      const rankHeader = document.createElement('th');
+      rankHeader.textContent = 'Rank';
+      headerRow.appendChild(rankHeader);
       const nameHeader = document.createElement('th');
       nameHeader.textContent = 'Name';
       headerRow.appendChild(nameHeader);
@@ -113,9 +119,9 @@ function fetchLeaderboard() {
       data.forEach((score, index) => {
         const row = document.createElement('tr');
 
-        const rankCell = document.createElement('td'); // Add this line
-        rankCell.textContent = ((currentPage - 1) * 10) + index + 1; // Add this line
-        row.appendChild(rankCell); // Add this line
+        const rankCell = document.createElement('td');
+        rankCell.textContent = ((currentPage - 1) * 10) + index + 1;
+        row.appendChild(rankCell);
 
         const playerNameCell = document.createElement('td');
         playerNameCell.textContent = score.name;
@@ -130,12 +136,12 @@ function fetchLeaderboard() {
         row.appendChild(modeCell); 
 
         const precisionCell = document.createElement('td'); 
-        precisionCell.textContent = parseFloat(score.precision).toFixed(2); // Format precision to two decimal places
+        precisionCell.textContent = parseFloat(score.precision).toFixed(2);
         row.appendChild(precisionCell); 
 
         const dateCell = document.createElement('td');
         const date = new Date(score.timestamp);
-        dateCell.textContent = date.toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: '2-digit' }); // mo/da/ye
+        dateCell.textContent = date.toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: '2-digit' });
         row.appendChild(dateCell);
 
         leaderboardElement.appendChild(row);
@@ -151,11 +157,11 @@ fetchLeaderboard();
 
 
 document.getElementById('play-again').addEventListener('click', () => {
-  window.location.href = '/index.html'; // this should point back to your game's page
+  window.location.href = '/index.html';
 });
 
 document.body.addEventListener('keydown', (event) => {
   if (event.code === 'Space') {
-    window.location.href = '/index.html'; // this should point back to your game's page
+    window.location.href = '/index.html';
   }
 });
