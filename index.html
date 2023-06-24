@@ -25,7 +25,17 @@
     <link rel="stylesheet" type="text/css" href="styles.css">
   </head>
   <body>
-    <input id="hidden-input" style="opacity: 0; position: absolute;" />
+	<input id="hidden-input" type="text" style="opacity: 0; position: absolute;" 
+		   autocomplete="off"
+		   autocapitalize="off"
+		   autocorrect="off"
+		   data-gramm="false"
+		   data-gramm_editor="false"
+		   data-enable-grammarly="false"
+		   list="autocompleteOff"
+		   spellcheck="false"
+		   autocapitalize="none">
+
 
 	<div id="game-container">
 	<canvas id="game" width="800" height="600"></canvas>
@@ -39,90 +49,117 @@
 
 	</div>
 
-<div id="wpm-container">
-  <label for="wpm">WPM:</label>
-  <select id="wpm">
-    <option value="30" selected title="Ranked">30⇢∞ &#9733;</option>
-    <option value="40" title="Practice">40</option>
-    <option value="50" title="Ranked">50 &#9733;</option>
-    <option value="60" title="Practice">60</option>
-    <option value="70" title="Practice">70</option>
-    <option value="80" title="Practice">80</option>
-    <option value="90" title="Practice">90</option>
-    <option value="100" title="Ranked">100 &#9733;</option>
-    <option value="110" title="Practice">110</option>
-    <option value="120" title="Practice">120</option>
-    <option value="130" title="Practice">130</option>
-    <option value="140" title="Practice">140</option>
-    <option value="150" title="Ranked">150 &#9733;</option>
-    <option value="160" title="Practice">160</option>
-    <option value="170" title="Practice">170</option>
-    <option value="180" title="Practice">180</option>
-    <option value="190" title="Practice">190</option>
-    <option value="200" title="Ranked">200 &#9733;</option>
-    <option value="210" title="Practice">210</option>
-    <option value="220" title="Practice">220</option>
-    <option value="230" title="Practice">230</option>
-    <option value="240" title="Practice">240</option>
-    <option value="250" title="Ranked">250 &#9733;</option>
-    <option value="260" title="Practice">260</option>
-    <option value="270" title="Practice">270</option>
-    <option value="280" title="Practice">280</option>
-    <option value="290" title="Practice">290</option>
-    <option value="300" title="Ranked">300 &#9733;</option>
-    <option value="310" title="Practice">310</option>
-    <option value="320" title="Practice">320</option>
-    <option value="330" title="Practice">330</option>
-    <option value="340" title="Practice">340</option>
-    <option value="350" title="Ranked">350 &#9733;</option>
-    <option value="360" title="Practice">360</option>
-    <option value="370" title="Practice">370</option>
-    <option value="380" title="Practice">380</option>
-    <option value="390" title="Practice">390</option>
-    <option value="400" title="Ranked">400 &#9733;</option>
-  </select>
-</div>
+	<div id="wpm-container">
+	  <label for="wpm">WPM:</label>
+	  <select id="wpm">
+		<option value="30" selected title="Ranked">30⇢∞ &#9733;</option>
+		<option value="40" title="Practice">40</option>
+		<option value="50" title="Ranked">50 &#9733;</option>
+		<option value="60" title="Practice">60</option>
+		<option value="70" title="Practice">70</option>
+		<option value="80" title="Practice">80</option>
+		<option value="90" title="Practice">90</option>
+		<option value="100" title="Ranked">100 &#9733;</option>
+		<option value="110" title="Practice">110</option>
+		<option value="120" title="Practice">120</option>
+		<option value="130" title="Practice">130</option>
+		<option value="140" title="Practice">140</option>
+		<option value="150" title="Ranked">150 &#9733;</option>
+		<option value="160" title="Practice">160</option>
+		<option value="170" title="Practice">170</option>
+		<option value="180" title="Practice">180</option>
+		<option value="190" title="Practice">190</option>
+		<option value="200" title="Ranked">200 &#9733;</option>
+		<option value="210" title="Practice">210</option>
+		<option value="220" title="Practice">220</option>
+		<option value="230" title="Practice">230</option>
+		<option value="240" title="Practice">240</option>
+		<option value="250" title="Ranked">250 &#9733;</option>
+		<option value="260" title="Practice">260</option>
+		<option value="270" title="Practice">270</option>
+		<option value="280" title="Practice">280</option>
+		<option value="290" title="Practice">290</option>
+		<option value="300" title="Ranked">300 &#9733;</option>
+		<option value="310" title="Practice">310</option>
+		<option value="320" title="Practice">320</option>
+		<option value="330" title="Practice">330</option>
+		<option value="340" title="Practice">340</option>
+		<option value="350" title="Ranked">350 &#9733;</option>
+		<option value="360" title="Practice">360</option>
+		<option value="370" title="Practice">370</option>
+		<option value="380" title="Practice">380</option>
+		<option value="390" title="Practice">390</option>
+		<option value="400" title="Ranked">400 &#9733;</option>
+	  </select>
+	</div>
 
 
 	  
-<div id="settings-menu" style="display: none">
-    <div id="language-container">
-        <label for="language" title="Change language">Language</label>
-        <select id="language">
-          <!-- options will be filled by script -->
-        </select>
-    </div>
+	<div id="settings-menu" style="display: none">
+		<div id="language-container">
+			<label for="language" title="Change language">Language</label>
+			<select id="language">
+			  <!-- options will be filled by script -->
+			</select>
+		</div>
 
 
-<div id="mode-container">
-    <label for="mode" title="Change game mode">Mode</label>
-    <select id="mode">
-        <option value="rage" title="Typo increases word speed">Rage Mode</option>
-        <option value="precision" title="Word resets on typo">Precision Mode</option>
-    </select>
-</div>
+	<div id="mode-container">
+		<label for="mode" title="Change game mode">Mode</label>
+		<select id="mode">
+			<option value="rage" title="Typo increases word speed">Rage Mode</option>
+			<option value="precision" title="Word resets on typo">Precision Mode</option>
+		</select>
+	</div>
 
-<div>
-<input type="checkbox" id="grammar" name="grammar">
-<label for="grammar">Punctuation</label>
-</div>
+	<div>
+	<input type="checkbox" id="grammar" name="grammar">
+	<label for="grammar">Punctuation</label>
+	</div>
 
-<div>
-<input type="checkbox" id="addNumbers" name="addNumbers">
-<label for="addNumbers">Numbers</label>
-</div>
+	<div>
+	<input type="checkbox" id="addNumbers" name="addNumbers">
+	<label for="addNumbers">Numbers</label>
+	</div>
 
 
-</div>
+	</div>
 
-<button id="settings-button">Settings</button>
+	<button id="settings-button">Settings</button>
 
-<div id="player-name-container">
-<label for="player-name">Player Name:</label>
-  <input type="text" id="player-name" required minlength="3" maxlength="30" pattern=".{3,}">
-</div>
+	<div id="player-name-container">
+	<label for="player-name">Player Name:</label>
+	  <input type="text" id="player-name" required minlength="3" maxlength="30" pattern=".{3,}">
+	</div>
 
     <script type="module" src="game.js"></script>
+	<script>
+	const gameCanvas = document.querySelector('#game');
+	const hiddenInput = document.querySelector('#hidden-input');
+
+	gameCanvas.addEventListener('click', () => {
+		// Check if on mobile
+		if (navigator.userAgentData && navigator.userAgentData.mobile) {
+			hiddenInput.focus();
+		} else if (/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)) {
+			hiddenInput.focus();
+		}
+	});
+
+
+	hiddenInput.addEventListener('input', (event) => {
+		const inputValue = event.target.value;
+		if (inputValue.length > 0) {
+			// Generate a keydown event
+			const keyEvent = new KeyboardEvent('keydown', {key: inputValue});
+			window.dispatchEvent(keyEvent);
+			// Reset the hidden input
+			event.target.value = '';
+		}
+		// Prevent the original event from propagating
+		event.stopImmediatePropagation();
+	});
+	</script>
 
   </body>
 </html>

@@ -32,6 +32,15 @@ body {
   align-items: center;
 }
 
+/* Adjust the width and height when the screen size is small */
+@media screen and (max-width: 800px) {
+  #game-container {
+    height: 90vw;
+    max-height: 90vh;
+  }
+}
+
+
 p#score {
 	margin-top: 0px;
 }
@@ -175,6 +184,29 @@ p#score {
     font-size: 1rem;
     font-family: 'Courier New', Courier, monospace;
 }
+
+@media screen and (max-width: 600px) {
+  #settings-menu {
+    padding: 5px;
+    top: 10px;
+    left: 10px;
+  }
+
+  #settings-button {
+    top: 1rem;
+    left: 1rem;
+    padding: 5px;
+    font-size: 0.8rem;
+  }
+
+  #settings-button, #settings-menu {
+    position: static;
+    margin: 1rem auto;
+    text-align: center;
+  }
+}
+
+
 
 #settings-button:focus {
     outline: none;
@@ -390,8 +422,6 @@ button#play-again:hover {
 #home-icon-link:hover, #github-icon-link:hover, #faq-link:hover {
   color: #6272a4;
 }
-
-/* Existing styles */
 
 .faq-content {
   margin: 0 auto;

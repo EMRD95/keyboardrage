@@ -305,6 +305,10 @@ restart(currentWPM: number) {
 		}, 500);
 
 		window.addEventListener('keydown', (event) => {
+    // Ignore keydown events from the hidden input field
+    if (event.target === document.getElementById('hidden-input')) {
+        return;
+    }
 
 		// If TAB is pressed, toggle pause status
 		if (event.key === 'Tab') {
