@@ -165,8 +165,22 @@ applyGrammar(word: string): string {
             if (this.language.startsWith('french')) {
                 switch (word.charAt(0).toLowerCase()) {
                     case 'é': word = 'E' + word.slice(1); break;
-                    case 'ç': word = 'C' + word.slice(1); break;
+                    case 'è': word = 'E' + word.slice(1); break;
+                    case 'ê': word = 'E' + word.slice(1); break;
+                    case 'ë': word = 'E' + word.slice(1); break;
                     case 'à': word = 'A' + word.slice(1); break;
+                    case 'â': word = 'A' + word.slice(1); break;
+                    case 'ä': word = 'A' + word.slice(1); break;
+                    case 'î': word = 'I' + word.slice(1); break;
+                    case 'ï': word = 'I' + word.slice(1); break;
+                    case 'ô': word = 'O' + word.slice(1); break;
+                    case 'ö': word = 'O' + word.slice(1); break;
+                    case 'ù': word = 'U' + word.slice(1); break;
+                    case 'û': word = 'U' + word.slice(1); break;
+                    case 'ü': word = 'U' + word.slice(1); break;
+                    case 'ç': word = 'C' + word.slice(1); break;
+                    case 'œ': word = 'OE' + word.slice(1); break;
+                    case 'æ': word = 'AE' + word.slice(1); break;
                     default:  word = word.charAt(0).toUpperCase() + word.slice(1);
                 }
             } else {
