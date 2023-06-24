@@ -194,6 +194,7 @@ p#score {
 #gameOverContainer #language,
 #gameOverContainer #WPM,
 #gameOverContainer #mode,
+#gameOverContainer #options,
 #gameOverContainer #precision,
 #gameOverContainer #timeElapsed {
   color: #ffffff; /* Set text color to white */
@@ -211,6 +212,7 @@ p#score {
 #gameOverContainer #language,
 #gameOverContainer #WPM,
 #gameOverContainer #mode,
+#gameOverContainer #options,
 #gameOverContainer #precision,
 #gameOverContainer #timeElapsed {
   font-size: 1rem;

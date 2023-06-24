@@ -34,6 +34,11 @@ class Game {
     private settingsButton: HTMLElement;
     private settingsMenu: HTMLElement;
 	private typos: number;
+	private applyGrammarSetting: boolean = localStorage.getItem('applyGrammar') === 'true';
+	private grammarCheckbox: HTMLInputElement;
+	private addNumbersSetting: boolean = localStorage.getItem('addNumbers') === 'true';
+	private addNumbersCheckbox: HTMLInputElement;
+
 
 
 	private constructor(canvas: HTMLCanvasElement, playerName: string, WPM: number = 60, language: string = 'english') {
@@ -57,6 +62,13 @@ class Game {
 		this.settingsButton.addEventListener('click', this.toggleSettingsMenu.bind(this));
 		document.addEventListener('click', this.closeSettingsMenuIfClickedOutside.bind(this));
 		this.typos = 0;
+		this.grammarCheckbox = document.getElementById('grammar') as HTMLInputElement;
+		this.grammarCheckbox.checked = this.applyGrammarSetting;
+		this.grammarCheckbox.addEventListener('change', this.toggleApplyGrammar.bind(this));
+		this.addNumbersCheckbox = document.getElementById('addNumbers') as HTMLInputElement;
+		this.addNumbersCheckbox.checked = this.addNumbersSetting;
+		this.addNumbersCheckbox.addEventListener('change', this.toggleAddNumbers.bind(this));
+
 	}
 
 	closeSettingsMenuIfClickedOutside(event: MouseEvent) {
@@ -96,14 +108,126 @@ class Game {
 	  this.token = data.token;
 	}
 
+	toggleAddNumbers() {
+		this.addNumbersSetting = this.addNumbersCheckbox.checked;
+		localStorage.setItem('addNumbers', this.addNumbersSetting.toString());
+		this.restart(this.WPM); // Restart the game to apply changes
+	}
+
+
+	toggleApplyGrammar() {
+		this.applyGrammarSetting = this.grammarCheckbox.checked;
+		localStorage.setItem('applyGrammar', this.applyGrammarSetting.toString());
+		this.restart(this.WPM); // Restart the game to apply changes
+	}
+
+addRandomNumbers(word: string): string {
+    if (this.addNumbersSetting) {
+        const shouldAddNumber = Math.random() < 0.2; // Adjust this value to control the likelihood of adding a number
+        if (shouldAddNumber) {
+            const numbersToAdd = Math.floor(Math.random() * 4) + 1; // Decide how many numbers to add
+            let numberString = "";
+            for(let i=0; i<numbersToAdd; i++) {
+                const randomNumber = Math.floor(Math.random() * 10); // Generate a random number between 0 and 9
+                numberString += randomNumber.toString(); // Add the number to the word
+            }
+            
+            // Currency symbol addition
+            const shouldAddCurrencySymbol = Math.random() < 0.1;
+            if (shouldAddCurrencySymbol) {
+                if (this.language.startsWith('french')) {
+                    numberString += "€"; // add Euro symbol at the end if the language is French
+                } else {
+                    numberString = "$" + numberString; // add Dollar symbol at the beginning for other languages
+                }
+            }
+
+            word += numberString + " "; // Add the number to the word and then a space
+        }
+    }
+    // Adding a space at the end of every word
+    return word;
+}
+
+
+
+applyGrammar(word: string): string {
+    if (this.applyGrammarSetting) {
+        const shouldCapitalize = Math.random() < 0.2; 
+        const shouldAddPunctuation = Math.random() < 0.2; 
+        const shouldAddParentheses = Math.random() < 0.02; 
+        const shouldAddHyphen = Math.random() < 0.02; 
+        const shouldAddSquareBrackets = Math.random() < 0.015;
+        const shouldAddEllipsis = Math.random() < 0.05; 
+        const shouldAddQuotes = Math.random() < 0.02;
+
+        if (shouldCapitalize && !this.language.startsWith('code')) {
+            if (this.language.startsWith('french')) {
+                switch (word.charAt(0).toLowerCase()) {
+                    case 'é': word = 'E' + word.slice(1); break;
+                    case 'ç': word = 'C' + word.slice(1); break;
+                    case 'à': word = 'A' + word.slice(1); break;
+                    default:  word = word.charAt(0).toUpperCase() + word.slice(1);
+                }
+            } else {
+                word = word.charAt(0).toUpperCase() + word.slice(1);
+            }
+        } else if (shouldAddPunctuation) {
+            let punctuation = ['.', '?', '!', ',', ';'];
+            if (this.language.startsWith('french')) {
+                punctuation = ['.', ' ?', ' !', ';', ' :'];
+            } else if (this.language.startsWith('code_bash')) {
+                punctuation = [';', ' &&', ' ||', ' >', ' <', ' |', ' >>', ' <<', '*', '$', './', '='];
+			} else if (this.language.startsWith('code')) {
+				punctuation = ['.', '?', '!', ',', ';', '(', ')', '[', ']', '"', '-', '...', ':', '=', '+', '-', '*', '/', '//', '%', '**', '+=', '-=', '*=', '/=', '//=', '%=', '**='];
+			}
+            word += punctuation[Math.floor(Math.random() * punctuation.length)];
+        } else if (shouldAddEllipsis && !this.language.startsWith('code')) {
+            word += '...';
+        } else if (shouldAddParentheses) {
+            word = '(' + word + ')';
+        } else if (shouldAddSquareBrackets) {
+            word = '[' + word + ']';
+        } else if (shouldAddQuotes) {
+            word = '"' + word + '"';
+        } else if (shouldAddHyphen) {
+            word = '-' + word;
+        }
+    }
+
+    // Adding a space at the end of every word
+    word += " ";
+    return word;
+}
+
+
+
+
+
+
 
 async fetchWords() {
     const response = await fetch(`/words/${this.language}.json`);
     const data = await response.json();
-    this.allWords = this.shuffleArray(data.words);
+    this.allWords = this.shuffleArray(data.words)
+        .map(this.applyGrammar.bind(this))
+        .map(this.addRandomNumbers.bind(this));
+
+    // Start with the original average character length
     this.averageCharLength = data.charLength;
+
+    // Add one to the average character length for each setting that is enabled
+    if (this.applyGrammarSetting) {
+        this.averageCharLength += 1;
+    }
+    if (this.addNumbersSetting) {
+        this.averageCharLength += 1;
+    }
+
     this.nextBatch();
 }
+
+
 
 
 nextBatch() {
@@ -189,11 +313,12 @@ restart(currentWPM: number) {
 			document.getElementById('capsLockIndicator').style.display = 'none';
 		}
 
-			// Add a check for special keys
-			if (["Shift", "Control", "Alt", "Meta", "Tab", "Backspace", "CapsLock", "Escape", "Dead"].includes(event.key) 
-				|| (event.key >= 'F1' && event.key <= 'F12')) {
-				return; // ignore special keys
-			}
+		// Add a check for special keys
+		if (["Shift", "Control", "Alt", "AltGraph", "Meta", "Tab", "Backspace", "CapsLock", "Escape", "Dead"].includes(event.key) 
+			|| (event.key >= 'F1' && event.key <= 'F12')) {
+			return; // ignore special keys
+		}
+
 
 			// Prevent default action for the single quote key
 			if (event.key === "'") {
@@ -353,22 +478,26 @@ resumeGame() {
   // Store timeElapsed in localStorage
   localStorage.setItem('timeElapsed', this.timeElapsed.toString());
 
-		  this.isGameOver = true;  
-    const response = await fetch('/score', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            token: this.token,
-            name: this.playerName,
-            score: this.score,
-            language: this.language,
-            WPM: this.WPM,
-            keystrokes: this.keystrokes,
-            timeElapsed: timeElapsed,
-            typos: this.typos,
-            mode: this.mode
-        })
-    });
+this.isGameOver = true;  
+const response = await fetch('/score', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+        token: this.token,
+        name: this.playerName,
+        score: this.score,
+        language: this.language,
+        WPM: this.WPM,
+        keystrokes: this.keystrokes,
+        timeElapsed: timeElapsed,
+        typos: this.typos,
+        mode: this.mode 
+            + (this.addNumbersSetting ? "+N" : "") // append "+N" to the mode if addNumbersSetting is true
+            + (this.applyGrammarSetting ? "+P" : "") // append "+P" to the mode if applyGrammarSetting is true
+    })
+});
+
+
 
 
 		  if (!response.ok) {

@@ -21,6 +21,25 @@ const precisionFormatted = parseFloat(precision).toFixed(2);
 const modeElement = document.getElementById('mode');
 modeElement.textContent = `Mode: ${mode}`;
 
+// get options from local storage
+const addNumbersSetting = localStorage.getItem('addNumbers') === 'true';
+const applyGrammarSetting = localStorage.getItem('applyGrammar') === 'true';
+
+let optionsText = 'Options: ';
+if (addNumbersSetting && applyGrammarSetting) {
+    optionsText += "Number + Punctuation";
+} else if (addNumbersSetting) {
+    optionsText += "Number";
+} else if (applyGrammarSetting) {
+    optionsText += "Punctuation";
+} else {
+    optionsText += "None";
+}
+
+const optionsElement = document.getElementById('options');
+optionsElement.textContent = optionsText;
+
+
 const precisionElement = document.getElementById('precision');
 precisionElement.textContent = `Precision: ${precisionFormatted}%`;
 

@@ -94,10 +94,7 @@ app.post('/score', async (req, res) => {
     return res.status(400).send('Invalid typos');
   }
 
-  // Mode validation
-  if (typeof mode !== 'string' || !['rage', 'precision'].includes(mode)) {
-    return res.status(400).send('Invalid mode');
-  }
+
   
   // Calculate precision
   const precision = ((keystrokes - typos) / keystrokes) * 100;
