@@ -96,15 +96,14 @@
 
 	  
 	<div id="settings-menu" style="display: none">
-		<div id="language-container">
+		<div id="settings-container">
 			<label for="language" title="Change language">Language</label>
 			<select id="language">
 			  <!-- options will be filled by script -->
 			</select>
 		</div>
 
-
-	<div id="mode-container">
+	<div id="settings-container">
 		<label for="mode" title="Change game mode">Mode</label>
 		<select id="mode">
 			<option value="rage" title="Typo increases word speed">Rage Mode</option>
@@ -112,15 +111,27 @@
 		</select>
 	</div>
 
-	<div>
-	<input type="checkbox" id="grammar" name="grammar">
-	<label for="grammar">Punctuation</label>
-	</div>
+	<div id="settings-container">
+		<label for="checkbox" title="Change Options">Options</label>
+			<div>
+			<input type="checkbox" id="grammar" name="grammar">
+			<label for="grammar">Punctuation</label>
+			</div>
 
-	<div>
-	<input type="checkbox" id="addNumbers" name="addNumbers">
-	<label for="addNumbers">Numbers</label>
+			<div>
+			<input type="checkbox" id="addNumbers" name="addNumbers">
+			<label for="addNumbers">Numbers</label>
+			</div>
 	</div>
+		
+	<div id="settings-container">
+	<label for="theme" title="Change theme">Themes</label>
+	  <select id="theme" name="theme">
+		<option value="default">Default</option>
+		<option value="psychedelic">Psychedelic</option>
+		<option value="psychedelic-spin">Psychedelic Spin</option>
+	  </select>
+</div>
 
 
 	</div>

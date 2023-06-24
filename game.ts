@@ -38,7 +38,8 @@ class Game {
 	private grammarCheckbox: HTMLInputElement;
 	private addNumbersSetting: boolean = localStorage.getItem('addNumbers') === 'true';
 	private addNumbersCheckbox: HTMLInputElement;
-
+	private theme: string = localStorage.getItem('theme') || 'default';
+	private themeSelector: HTMLSelectElement;
 
 
 	private constructor(canvas: HTMLCanvasElement, playerName: string, WPM: number = 60, language: string = 'english') {
@@ -68,7 +69,10 @@ class Game {
 		this.addNumbersCheckbox = document.getElementById('addNumbers') as HTMLInputElement;
 		this.addNumbersCheckbox.checked = this.addNumbersSetting;
 		this.addNumbersCheckbox.addEventListener('change', this.toggleAddNumbers.bind(this));
-
+		this.themeSelector = document.getElementById('theme') as HTMLSelectElement;
+		this.themeSelector.value = this.theme;
+		this.themeSelector.addEventListener('change', this.changeTheme.bind(this));
+		this.changeTheme();
 	}
 
 	closeSettingsMenuIfClickedOutside(event: MouseEvent) {
@@ -107,6 +111,14 @@ class Game {
 	  const data = await response.json();
 	  this.token = data.token;
 	}
+
+changeTheme() {
+    this.theme = this.themeSelector.value;
+    localStorage.setItem('theme', this.theme);
+    document.body.setAttribute('data-theme', this.theme); // Apply the new theme
+}
+
+
 
 	toggleAddNumbers() {
 		this.addNumbersSetting = this.addNumbersCheckbox.checked;
