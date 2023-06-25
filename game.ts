@@ -118,8 +118,6 @@ changeTheme() {
     document.body.setAttribute('data-theme', this.theme); // Apply the new theme
 }
 
-
-
 	toggleAddNumbers() {
 		this.addNumbersSetting = this.addNumbersCheckbox.checked;
 		localStorage.setItem('addNumbers', this.addNumbersSetting.toString());
@@ -247,7 +245,7 @@ async fetchWords() {
         this.averageCharLength += 1;
     }
     if (this.addNumbersSetting) {
-        this.averageCharLength += 1;
+        this.averageCharLength += 2;
     }
 
     this.nextBatch();

@@ -46,7 +46,6 @@
 	  <p id="score">Score: <span id="current-score"></span></p>
 	  <div id="capsLockIndicator" style="display:none;">CAPS LOCK IS ON</div>
 	  <div id="GamePaused" style="display:none;">Game Paused</div>
-
 	</div>
 
 	<div id="wpm-container">
@@ -93,8 +92,12 @@
 	  </select>
 	</div>
 
+	<div id="player-name-container">
+	<label for="player-name">Player Name:</label>
+	  <input type="text" id="player-name" required minlength="3" maxlength="30" pattern=".{3,}">
+	</div>
 
-	  
+	<button id="settings-button">Settings</button>
 	<div id="settings-menu" style="display: none">
 		<div id="settings-container">
 			<label for="language" title="Change language">Language</label>
@@ -131,18 +134,9 @@
 		<option value="psychedelic">Psychedelic</option>
 		<option value="psychedelic-spin">Psychedelic Spin</option>
 	  </select>
-</div>
-
-
 	</div>
-
-	<button id="settings-button">Settings</button>
-
-	<div id="player-name-container">
-	<label for="player-name">Player Name:</label>
-	  <input type="text" id="player-name" required minlength="3" maxlength="30" pattern=".{3,}">
 	</div>
-
+	
     <script type="module" src="game.js"></script>
 	<script>
 	const gameCanvas = document.querySelector('#game');

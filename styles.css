@@ -7,7 +7,7 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: space-evenly; /* evenly distribute items along the vertical axis */
+  justify-content: space-evenly;
 }
 
 
@@ -15,9 +15,9 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: space-between;  /* This will space out the game and leaderboard */
-  height: 100vh;  /* Takes the full viewport height */
-  padding: 2rem;  /* Optional: Adds some space on the top and bottom */
+  justify-content: space-between; 
+  height: 100vh;
+  padding: 2rem;
 }
 
 #game-container {
@@ -31,14 +31,6 @@ body {
   flex-direction: column;
   justify-content: center;
   align-items: center;
-}
-
-/* Adjust the width and height when the screen size is small */
-@media screen and (max-width: 800px) {
-  #game-container {
-    height: 90vw;
-    max-height: 90vh;
-  }
 }
 
 p#score {
@@ -57,8 +49,8 @@ p#score {
   border: 1px solid #f8f8f2;
   background-color: #1e1e1e;
   font-size: 2rem;
-  width: 100%;
-  height: 90vh;
+  width: 100vmin;
+  height: 75vmin;
   max-height: 600px;
   max-width: 800px;
 }
@@ -181,27 +173,6 @@ p#score {
     font-family: 'Courier New', Courier, monospace;
 }
 
-@media screen and (max-width: 600px) {
-  #settings-menu {
-    padding: 5px;
-    top: 10px;
-    left: 10px;
-  }
-
-  #settings-button {
-    top: 1rem;
-    left: 1rem;
-    padding: 5px;
-    font-size: 0.8rem;
-  }
-
-  #settings-button, #settings-menu {
-    position: static;
-    margin: 1rem auto;
-    text-align: center;
-  }
-}
-
 #settings-button:focus {
     outline: none;
 }
@@ -273,7 +244,7 @@ p#score {
 }
 
 @media screen and (max-width: 600px) {
-  #score-board, #wpm-container, #language-container {
+  #score-board, #wpm-container, #language-container, #settings-button, #settings-menu {
     position: static;
     margin: 1rem auto;
     width: 90%;
@@ -495,7 +466,7 @@ button#play-again:hover {
 }
 
 body[data-theme="psychedelic-spin"] {
-  overflow: hidden;  /* Add this line */
+  overflow: hidden;
 }
 
 [data-theme="psychedelic-spin"] #settings-menu {
@@ -519,16 +490,26 @@ body[data-theme="psychedelic-spin"] {
   display: flex;
   justify-content: center;
   align-items: center;
-  height: 100vh; /* or any other height depending on your design requirements */
+  height: 100vh;
+}
+@media screen and (max-height: 600px) {
+  [data-theme="psychedelic-spin"] {
+    flex-direction: column;
+    overflow-y: auto;
+    height: auto;
+    min-height: 100vh;
+  }
 }
 
 [data-theme="psychedelic-spin"] #game {
-  position: relative; /* Add this line */
-  z-index: 2; /* Add this line */
+  position: relative;
+  z-index: 2;
   border: 1px solid #f8f8f2;
   font-size: 2rem;
-    width: 100vmin;
-    height: 75vmin;
+  width: 100vmin;
+  height: 75vmin;
+  max-height: 600px;
+  max-width: 800px;
   background: radial-gradient(circle, transparent, #000);
   animation: spin 10s infinite linear;
   transform-style: preserve-3d;
@@ -541,25 +522,32 @@ body[data-theme="psychedelic-spin"] {
   to { transform: rotateZ(360deg); }
 }
 
-@media screen and (max-width: 800px) {
-  [data-theme="psychedelic-spin"] #game {
-    width: 100%; /* Take the full width of the parent */
-    height: 75vw; /* Maintain the 4:3 ratio */
-    max-height: 75vh; /* Limit the height to avoid overflowing the viewport */
-  }
-}
-
 
 [data-theme="psychedelic"] #game {
   position: relative;
   border: 1px solid #f8f8f2;
   font-size: 2rem;
-  width: 100%;
-  height: 90vh;
-  max-height: 600px;
-  max-width: 800px;
   background: radial-gradient(circle, transparent, #000);
   transform-style: preserve-3d;
   perspective: 800px;
   border-radius: 15px;
+}
+
+[data-theme="psychedelic"] #score-board,
+[data-theme="psychedelic"] select#wpm,
+[data-theme="psychedelic"] select#theme,
+[data-theme="psychedelic"] select#mode,
+[data-theme="psychedelic"] select#language,
+[data-theme="psychedelic"] button#settings-button,
+[data-theme="psychedelic"] div#settings-menu,
+[data-theme="psychedelic"] input#player-name,
+[data-theme="psychedelic-spin"] #score-board,
+[data-theme="psychedelic-spin"] select#wpm,
+[data-theme="psychedelic-spin"] select#theme,
+[data-theme="psychedelic-spin"] select#mode,
+[data-theme="psychedelic-spin"] select#language,
+[data-theme="psychedelic-spin"] button#settings-button,
+[data-theme="psychedelic-spin"] div#settings-menu,
+[data-theme="psychedelic-spin"] input#player-name {
+    background-color: rgba(0, 0, 0, 0.5);
 }
