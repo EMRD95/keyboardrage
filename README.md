@@ -91,6 +91,19 @@ server {
     }
 }
 ```
+## Change scores TTL
+
+Edit expire in server.js then drop and recreate the index in Mongo:
+
+```javascript
+mongosh
+use typing_game
+db.scores.getIndexes()
+db.scores.dropIndex("timestamp_1")
+db.scores.createIndex({ "timestamp": 1 }, { expireAfterSeconds: 315360000 }) //for 10 years
+```
+
+Restart the server for all changes to apply.
 
 ## Language Pack
 
