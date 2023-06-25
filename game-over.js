@@ -66,6 +66,13 @@ const timeElapsedElement = document.getElementById('timeElapsed');
 timeElapsedElement.textContent = `Time Elapsed: ${timeElapsedDisplay}`;
 
 
+function updateScoreSubtitle() {
+  const scoreSubtitle = document.getElementById('ScoreSubtitle');
+  scoreSubtitle.textContent = `For ${WPM} WPM ${language}`;
+}
+
+// Call this function every time you update the WPM or language
+updateScoreSubtitle();
 
 
 let currentPage = 1;
@@ -172,6 +179,87 @@ function fetchLeaderboard() {
 }
 
 fetchLeaderboard();
+
+let currentPageLatestScores = 1;
+
+function fetchLatestScores() {
+  fetch(`/latest-scores?page=${currentPageLatestScores}`)
+    .then(response => response.json())
+    .then(data => {
+      if (data.length === 0 && currentPageLatestScores > 1) {
+        currentPageLatestScores--;
+        return;
+      }
+
+      const latestScoresElement = document.getElementById('latest-scores');
+      latestScoresElement.innerHTML = '';
+
+      // Create header row
+      const headerRow = document.createElement('tr');
+      ['Name', 'Score', 'Mode', 'Precision', 'Date', 'WPM', 'Language'].forEach(text => {
+        const th = document.createElement('th');
+        th.textContent = text;
+        headerRow.appendChild(th);
+      });
+      latestScoresElement.appendChild(headerRow);
+
+      // Add each score to the latest scores
+      data.forEach((score, index) => {
+        const row = document.createElement('tr');
+
+        const playerNameCell = document.createElement('td');
+        playerNameCell.textContent = score.name;
+        row.appendChild(playerNameCell);
+
+        const scoreCell = document.createElement('td');
+        scoreCell.textContent = score.score;
+        row.appendChild(scoreCell);
+
+        const modeCell = document.createElement('td');
+        modeCell.textContent = score.mode;
+        row.appendChild(modeCell);
+
+        const precisionCell = document.createElement('td');
+        precisionCell.textContent = parseFloat(score.precision).toFixed(2);
+        row.appendChild(precisionCell);
+
+        const dateCell = document.createElement('td');
+        const date = new Date(score.timestamp);
+        dateCell.textContent = date.toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: '2-digit' });
+        row.appendChild(dateCell);
+
+        const wpmCell = document.createElement('td');
+        wpmCell.textContent = score.WPM;
+        row.appendChild(wpmCell);
+
+        const languageCell = document.createElement('td');
+        languageCell.textContent = score.language;
+        row.appendChild(languageCell);
+
+        latestScoresElement.appendChild(row);
+      });
+    })
+    .catch(error => {
+      console.error('Failed to fetch latest scores:', error);
+    });
+}
+
+fetchLatestScores();
+
+// Add event listeners to pagination buttons
+document.getElementById('previous-page-latest-scores').addEventListener('click', () => {
+  if (currentPageLatestScores > 1) {
+    currentPageLatestScores--;
+    fetchLatestScores();
+  }
+});
+
+document.getElementById('next-page-latest-scores').addEventListener('click', () => {
+  currentPageLatestScores++;
+  fetchLatestScores();
+});
+
+
 
 
 

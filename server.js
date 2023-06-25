@@ -229,3 +229,30 @@ app.get('/leaderboard/:language/:WPM', async (req, res) => {
     return res.status(500).send(err);
   }
 });
+
+// Endpoint for the latest scores
+app.get('/latest-scores', async (req, res) => {
+  const page = parseInt(req.query.page) || 1;
+  const limit = parseInt(req.query.limit) || 10;
+  const skip = (page - 1) * limit;
+
+  try {
+    const scores = await Score.aggregate([
+      {
+        $sort: {
+          timestamp: -1,  // Sort by timestamp in descending order to get latest scores
+        }
+      },
+      {
+        $skip: skip
+      },
+      {
+        $limit: limit
+      }
+    ]);
+
+    return res.status(200).send(scores);
+  } catch (err) {
+    return res.status(500).send(err);
+  }
+});

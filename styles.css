@@ -215,6 +215,15 @@ p#score {
   font-size: 1rem;
 }
 
+@media screen and (max-width: 600px) {
+  #score-board, #wpm-container, #language-container, #settings-button, #settings-menu {
+    position: static;
+    margin: 1rem auto;
+    width: 90%;
+    text-align: center;
+  }
+}
+
 #pagination {
   display: flex;
   justify-content: center;
@@ -243,16 +252,29 @@ p#score {
   cursor: not-allowed;
 }
 
-@media screen and (max-width: 600px) {
-  #score-board, #wpm-container, #language-container, #settings-button, #settings-menu {
-    position: static;
-    margin: 1rem auto;
-    width: 90%;
-    text-align: center;
-  }
+#previous-page, #next-page, #previous-page-latest-scores, #next-page-latest-scores {
+  background-color: #44475a;
+  color: #f8f8f2;
+  padding: 10px 20px;
+  border: none;
+  border-radius: 4px;
+  font-size: 1rem;
+  font-family: 'Courier New', Courier, monospace;
+  margin: 0 10px;
 }
 
-#leaderboard {
+#previous-page:hover, #next-page:hover, #previous-page-latest-scores:hover, #next-page-latest-scores:hover {
+  background-color: #6272a4;
+  cursor: pointer;
+}
+
+#previous-page:disabled, #next-page:disabled, #previous-page-latest-scores:disabled, #next-page-latest-scores:disabled {
+  background-color: #44475a;
+  color: #666;
+  cursor: not-allowed;
+}
+
+#leaderboard, #latest-scores {
   width: 100%;
   max-width: 400px;
   margin: 0 auto;
@@ -261,29 +283,46 @@ p#score {
 }
 
 #leaderboard th,
-#leaderboard td {
+#latest-scores th,
+#leaderboard td,
+#latest-scores td {
   border: 1px solid #ccc;
   padding: 5px;
   text-align: left;
 }
 
-#leaderboard tr:nth-child(even) {
+#leaderboard tr:nth-child(even),
+#latest-scores tr:nth-child(even) {
   background-color: #282a36;
 }
 
 @media screen and (max-width: 600px) {
   #leaderboard,
+  #latest-scores,
   #leaderboard th,
-  #leaderboard td {
+  #latest-scores th,
+  #leaderboard td,
+  #latest-scores td {
     width: 100%;
   }
 }
 
 @media screen and (max-width: 400px) {
   #leaderboard th,
+  #latest-scores th,
+  #latest-scores td,
   #leaderboard td {
     font-size: 0.7rem;
   }
+}
+
+.small-text {
+  font-size: 0.6em;  /* Adjust this value according to your needs */
+}
+
+#motivationalMessage {
+	max-width: 600px;
+	font-size: 1rem;
 }
 
 /* Styling the scrollbar */
@@ -300,11 +339,6 @@ p#score {
 }
 ::-webkit-scrollbar-thumb:hover {
   background-color: #6272a4;
-}
-
-#motivationalMessage {
-	max-width: 600px;
-	font-size: 1rem;
 }
 
 #capsLockIndicator {
