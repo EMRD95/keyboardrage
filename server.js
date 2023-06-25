@@ -50,9 +50,7 @@ const ScoreSchema = new mongoose.Schema({
   mode: String, 
   precision: Number, 
   timeElapsed: Number, 
-  timestamp: { type: Date, default: Date.now, expires: '30d' } 
-  
-
+  timestamp: { type: Date, default: Date.now, expires: '3653d' } 
 });
 
 
@@ -94,8 +92,6 @@ app.post('/score', async (req, res) => {
     return res.status(400).send('Invalid typos');
   }
 
-
-  
   // Calculate precision
   const precision = ((keystrokes - typos) / keystrokes) * 100;
   
