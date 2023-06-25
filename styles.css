@@ -498,6 +498,10 @@ body[data-theme="psychedelic-spin"] {
   overflow: hidden;  /* Add this line */
 }
 
+[data-theme="psychedelic-spin"] #settings-menu {
+  z-index: 3;
+}
+
 
 [data-theme="psychedelic-spin"] p#score {
   position: absolute;
