@@ -10,6 +10,7 @@ body {
   justify-content: space-evenly; /* evenly distribute items along the vertical axis */
 }
 
+
 #main-wrapper {
   display: flex;
   flex-direction: column;
@@ -493,14 +494,37 @@ button#play-again:hover {
   }
 }
 
+body[data-theme="psychedelic-spin"] {
+  overflow: hidden;  /* Add this line */
+}
+
+
+[data-theme="psychedelic-spin"] p#score {
+  position: absolute;
+  bottom: 0px;
+  z-index: 1;
+}
+
+[data-theme="psychedelic-spin"] .player-name-container {
+  position: absolute;
+  bottom: 0;
+  z-index: 1;
+}
+
+[data-theme="psychedelic-spin"] {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh; /* or any other height depending on your design requirements */
+}
+
 [data-theme="psychedelic-spin"] #game {
-  position: relative;
+  position: relative; /* Add this line */
+  z-index: 2; /* Add this line */
   border: 1px solid #f8f8f2;
   font-size: 2rem;
-  width: 100%;
-  height: 90vh;
-  max-height: 600px;
-  max-width: 800px;
+    width: 100vmin;
+    height: 75vmin;
   background: radial-gradient(circle, transparent, #000);
   animation: spin 10s infinite linear;
   transform-style: preserve-3d;
@@ -512,6 +536,15 @@ button#play-again:hover {
   from { transform: rotateZ(0deg); }
   to { transform: rotateZ(360deg); }
 }
+
+@media screen and (max-width: 800px) {
+  [data-theme="psychedelic-spin"] #game {
+    width: 100%; /* Take the full width of the parent */
+    height: 75vw; /* Maintain the 4:3 ratio */
+    max-height: 75vh; /* Limit the height to avoid overflowing the viewport */
+  }
+}
+
 
 [data-theme="psychedelic"] #game {
   position: relative;
