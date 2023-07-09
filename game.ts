@@ -113,9 +113,25 @@ class Game {
 	}
 
 changeTheme() {
-    this.theme = this.themeSelector.value;
-    localStorage.setItem('theme', this.theme);
-    document.body.setAttribute('data-theme', this.theme); // Apply the new theme
+  this.theme = this.themeSelector.value;
+  localStorage.setItem('theme', this.theme);
+  document.body.setAttribute('data-theme', this.theme); // Apply the new theme
+
+  var iframe = document.getElementById('myVideo') as HTMLIFrameElement;
+
+  if (this.theme === 'psy2') {
+    var randomTime = Math.floor(Math.random() * 7777);
+    iframe.src = "https://youtube.com/embed/bx-0YlFprqc?start=" + randomTime + "&autoplay=1&mute=1&modestbranding=1&loop=1&controls=0&playlist=bx-0YlFprqc";
+  } else if (this.theme === 'ocean') {
+    var randomTime = Math.floor(Math.random() * 42222);
+    iframe.src = "https://youtube.com/embed/RPALuGooegs?start=" + randomTime + "&autoplay=1&mute=1&modestbranding=1&loop=1&controls=0&playlist=RPALuGooegs";
+  } else if (this.theme === 'space') {
+    var randomTime = Math.floor(Math.random() * 10000);
+    iframe.src = "https://youtube.com/embed/rWnCk_86KVE?start=" + randomTime + "&autoplay=1&mute=1&modestbranding=1&loop=1&controls=0&playlist=rWnCk_86KVE";
+  } else if (this.theme === 'space2') {
+    var randomTime = Math.floor(Math.random() * 11222);
+    iframe.src = "https://youtube.com/embed/gCWaRhNUvfc?start=" + randomTime + "&autoplay=1&mute=1&modestbranding=1&loop=1&controls=0&playlist=gCWaRhNUvfc";
+  }
 }
 
 	toggleAddNumbers() {

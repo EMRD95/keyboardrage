@@ -558,7 +558,11 @@ body[data-theme="psychedelic-spin"] {
 }
 
 
-[data-theme="psychedelic"] #game {
+[data-theme="psychedelic"] #game,
+[data-theme="psy2"] #game,
+[data-theme="ocean"] #game,
+[data-theme="space"] #game,
+[data-theme="space2"] #game {
   position: relative;
   border: 1px solid #f8f8f2;
   font-size: 2rem;
@@ -583,6 +587,73 @@ body[data-theme="psychedelic-spin"] {
 [data-theme="psychedelic-spin"] select#language,
 [data-theme="psychedelic-spin"] button#settings-button,
 [data-theme="psychedelic-spin"] div#settings-menu,
-[data-theme="psychedelic-spin"] input#player-name {
+[data-theme="psychedelic-spin"] input#player-name,
+[data-theme="psy2"] #score-board,
+[data-theme="psy2"] select#wpm,
+[data-theme="psy2"] select#theme,
+[data-theme="psy2"] select#mode,
+[data-theme="psy2"] select#language,
+[data-theme="psy2"] button#settings-button,
+[data-theme="psy2"] div#settings-menu,
+[data-theme="psy2"] input#player-name,
+[data-theme="ocean"] #score-board,
+[data-theme="ocean"] select#wpm,
+[data-theme="ocean"] select#theme,
+[data-theme="ocean"] select#mode,
+[data-theme="ocean"] select#language,
+[data-theme="ocean"] button#settings-button,
+[data-theme="ocean"] div#settings-menu,
+[data-theme="ocean"] input#player-name,
+[data-theme="space"] #score-board,
+[data-theme="space"] select#wpm,
+[data-theme="space"] select#theme,
+[data-theme="space"] select#mode,
+[data-theme="space"] select#language,
+[data-theme="space"] button#settings-button,
+[data-theme="space"] div#settings-menu,
+[data-theme="space"] input#player-name,
+[data-theme="space2"] #score-board,
+[data-theme="space2"] select#wpm,
+[data-theme="space2"] select#theme,
+[data-theme="space2"] select#mode,
+[data-theme="space2"] select#language,
+[data-theme="space2"] button#settings-button,
+[data-theme="space2"] div#settings-menu,
+[data-theme="space2"] input#player-name {
     background-color: rgba(0, 0, 0, 0.5);
+}
+
+
+[data-theme="psy2"] #myVideo,
+[data-theme="ocean"] #myVideo,
+[data-theme="space"] #myVideo,
+[data-theme="space2"] #myVideo {
+  position: fixed;
+  display: block;
+  z-index: -2;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+#myVideo {
+  display: none;
+  position: fixed;
+  z-index: -2;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+#overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 100%;
+    width: 100%;
+    z-index: -1;
 }
