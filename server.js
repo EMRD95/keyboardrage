@@ -8,7 +8,7 @@ const path = require('path');
 const fs = require('fs');
 
 const app = express();
-
+app.set('trust proxy', true);
 app.use(bodyParser.json());
 
 app.listen(3000, () => console.log('Server listening on port 3000'));
@@ -67,9 +67,10 @@ app.get('/languages', (req, res) => {
 });
 
 const Score = mongoose.model('Score', ScoreSchema);
+const scoreLimiter = require('./rateLimiter');
 
 let supportedWPMs = [30, 50, 100, 150, 200, 250, 300, 350, 400];
-app.post('/score', async (req, res) => {
+app.post("/score", scoreLimiter, async (req, res) => {
   const { token, keystrokes, timeElapsed, typos, mode, ...scoreData } = req.body; // Include typos and mode in destructuring
 
   // Token validation
