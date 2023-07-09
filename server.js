@@ -6,6 +6,7 @@ const mongoose = require('mongoose');
 const bodyParser = require('body-parser');
 const path = require('path');
 const fs = require('fs');
+const ip = require('ip');
 
 const app = express();
 app.set('trust proxy', true);
@@ -50,10 +51,9 @@ const ScoreSchema = new mongoose.Schema({
   mode: String, 
   precision: Number, 
   timeElapsed: Number, 
+  ip: String, 
   timestamp: { type: Date, default: Date.now, expires: '3653d' } 
 });
-
-
 
 let supportedLanguages;
 try {
@@ -78,10 +78,10 @@ app.post("/score", scoreLimiter, async (req, res) => {
     return res.status(403).send('Invalid token');
   }
 
-    // Score validation
-    if (!validateScore(scoreData.score, keystrokes, timeElapsed)) {
-        return res.status(400).send('Invalid score');
-    }
+  // Score validation
+  if (!validateScore(scoreData.score)) {
+    return res.status(400).send('Invalid score');
+  }
 
   // Additional input validations
   if (typeof scoreData.name !== 'string' || scoreData.name.length === 0 || scoreData.name.length > 30) {
@@ -92,6 +92,23 @@ app.post("/score", scoreLimiter, async (req, res) => {
   if (typeof typos !== 'number' || !Number.isInteger(typos) || typos < 0 || typos > keystrokes) {
     return res.status(400).send('Invalid typos');
   }
+
+	// Mode validation
+	if (
+	  typeof mode !== 'string' ||
+	  ![
+		'rage',
+		'precision',
+		'precision+P',
+		'precision+N',
+		'rage+N',
+		'rage+P',
+		'precision+N+P',
+		'rage+N+P'
+	  ].includes(mode)
+	) {
+	  return res.status(400).send('Invalid mode');
+	}
 
   // Calculate precision
   const precision = ((keystrokes - typos) / keystrokes) * 100;
@@ -113,15 +130,16 @@ app.post("/score", scoreLimiter, async (req, res) => {
     return res.status(400).send('Invalid WPM');
   }
 
-  // Create new scoreData including keystrokes and timeElapsed
+  // Create new scoreData including keystrokes, timeElapsed, and IP address
   const newScoreData = {
     ...scoreData,
     keystrokes,
     timeElapsed,
     typos,
     mode,
-    precision,
-  };
+	  precision,
+	  ip: req.headers['x-forwarded-for']?.split(',')[0].trim() || req.connection.remoteAddress
+	};
 
   // Find the highest score for the given name, WPM, and language
   const highestScoreEntry = await Score.findOne({ name: scoreData.name, WPM: scoreData.WPM, language: scoreData.language }).sort({ score: -1 });
@@ -142,8 +160,6 @@ app.post("/score", scoreLimiter, async (req, res) => {
       score: { $lte: highestScore }
     });
   }
-
-  
 
   const newScore = new Score(newScoreData);
   try {

@@ -99,12 +99,14 @@ class Game {
     }
 	
 
-	static async create(canvas: HTMLCanvasElement, playerName: string, WPM: number = 60, language: string = 'english') {
-		const game = new Game(canvas, playerName, WPM, language);
-		await game.fetchToken();
-		await game.fetchWords();
-		return game;
-	}
+static async create(canvas: HTMLCanvasElement, playerName: string = 'Player', WPM: number = 60, language: string = 'english') {
+    const game = new Game(canvas, playerName, WPM, language);
+    await game.fetchToken();
+    await game.fetchWords();
+    return game;
+}
+
+
 
 	async fetchToken() {
 	  const response = await fetch('/token');
@@ -601,7 +603,7 @@ const canvas = document.getElementById('game') as HTMLCanvasElement;
 const wpmInput = document.getElementById('wpm') as HTMLSelectElement;
 const modeInput = document.getElementById('mode') as HTMLSelectElement;
 
-Game.create(canvas, "Player", 30, 'english').then(game => { 
+Game.create(canvas, undefined, 30, 'english').then(game => { 
     game.initialize();
     game.animate();
 
@@ -647,19 +649,32 @@ Game.create(canvas, "Player", 30, 'english').then(game => {
 		game.setLanguage(languageInput.value);
 	});
 
-	const playerNameInput = document.getElementById('player-name') as HTMLInputElement;
+const playerNameInput = document.getElementById('player-name') as HTMLInputElement;
 
-	playerNameInput.addEventListener('focus', () => {
-		game.pauseGame();
-	});
+playerNameInput.addEventListener('focus', () => {
+    game.pauseGame();
+});
 
-	playerNameInput.addEventListener('blur', () => {
-		game.resumeGame();
-	});
-    playerNameInput.value = localStorage.getItem('playerName') || 'Player'; 
-    playerNameInput.addEventListener('change', () => {
-        game.setPlayerName(playerNameInput.value);
-    });
+playerNameInput.addEventListener('blur', () => {
+    game.resumeGame();
+});
+
+let playerName = localStorage.getItem('playerName');
+
+if(!playerName) {
+    playerName = `Player${Math.floor(Math.random() * 1000000)}`;
+    localStorage.setItem('playerName', playerName);
+    game.setPlayerName(playerName);
+}
+
+playerNameInput.value = playerName; 
+
+playerNameInput.addEventListener('change', () => {
+    game.setPlayerName(playerNameInput.value);
+    localStorage.setItem('playerName', playerNameInput.value);
+});
+
+
 	
 	let prevWPM = Number(localStorage.getItem('WPM')) || 30;
 	wpmInput.addEventListener('change', () => {
