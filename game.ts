@@ -374,50 +374,55 @@ restart(currentWPM: number) {
 			this.keystrokes++;
 		if (this.words.length === 0) return;
 
-		const firstWord = this.words[0];
-		if (firstWord.text.startsWith(event.key)) {
-			firstWord.text = firstWord.text.slice(1);
-			firstWord.color = '#f8f8f2'; 
-			firstWord.currentIndex++;
+const firstWord = this.words[0];
+if (firstWord.text.startsWith(event.key)) {
+    firstWord.text = firstWord.text.slice(1);
+    firstWord.color = '#f8f8f2'; 
+    firstWord.currentIndex++;
 
-			if (firstWord.text.length === 0) {
-				this.words.shift();
-				if (this.mode !== 'fast' || !firstWord.isTypoMade) {
-					this.score++;
-				}
-				if (this.words.length < this.batchSize) {
-					this.generateWords();
-				}
-			}
-		} else { 
-			this.typos++;
-			if (this.mode === 'rage') {
-				firstWord.speed *= 1.1; 
-				firstWord.color = '#FF0000'; 
-			} else if (this.mode === 'precision') {
-				firstWord.text = firstWord.originalText; 
-				firstWord.color = '#FF0000'; 
-				firstWord.currentIndex = 0;
+    // Only shift to next word if the typo was not on the last space
+    if (firstWord.text.length === 0 && !(this.mode === 'fast' && firstWord.isTypoMade && event.key !== ' ')) {
+        this.words.shift();
+        if (this.mode !== 'fast' || !firstWord.isTypoMade) {
+            this.score++;
+        }
+        if (this.words.length < this.batchSize) {
+            this.generateWords();
+        }
+    }
+} else { 
+    this.typos++;
+    if (this.mode === 'rage') {
+        firstWord.speed *= 1.1; 
+        firstWord.color = '#FF0000'; 
+    } else if (this.mode === 'precision') {
+        firstWord.text = firstWord.originalText; 
+        firstWord.color = '#FF0000'; 
+        firstWord.currentIndex = 0;
 
-				// After 0.5 seconds, reset the color to original
-				setTimeout(() => {
-					firstWord.color = '#f8f8f2';
-				}, 500);
+        // After 0.5 seconds, reset the color to original
+        setTimeout(() => {
+            firstWord.color = '#f8f8f2';
+        }, 500);
     } else if (this.mode === 'fast') {
-				firstWord.text = firstWord.text.slice(1);
-				firstWord.currentIndex++;
-				firstWord.isTypoMade = true; 
-				firstWord.color = '#FF0000'; 
-				
-				if (firstWord.text.length === 0) {
-					this.words.shift();
-					if (this.words.length < this.batchSize) {
-						this.generateWords();
-					}
-					}
-					}
-			firstWord.currentIndex = firstWord.text[0] === ' ' ? 0 : firstWord.currentIndex; 
-		}
+        // Only remove the character if it is not the last space
+        if (firstWord.text.length > 1 || event.key === ' ') {
+            firstWord.text = firstWord.text.slice(1);
+            firstWord.currentIndex++;
+        }
+        firstWord.isTypoMade = true; 
+        firstWord.color = '#FF0000'; 
+
+        if (firstWord.text.length === 0) {
+            this.words.shift();
+            if (this.words.length < this.batchSize) {
+                this.generateWords();
+            }
+        }
+    }
+    firstWord.currentIndex = firstWord.text[0] === ' ' ? 0 : firstWord.currentIndex; 
+}
+
 			});
 			
 			
