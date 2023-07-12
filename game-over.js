@@ -21,6 +21,14 @@ const precisionFormatted = parseFloat(precision).toFixed(2);
 const modeElement = document.getElementById('mode');
 modeElement.textContent = `Mode: ${mode}`;
 
+if ((mode === 'fast' && parseFloat(precision) < 90) && ['30', '50', '100', '150', '200', '250', '300', '350', '400'].includes(WPM)) {
+  const precisionWarning = document.createElement('div');
+  precisionWarning.classList.add('warning');
+  precisionWarning.textContent = 'Scores in fast mode are only valid if precision is above 90%';
+  document.body.insertBefore(precisionWarning, document.getElementById('leaderboard'));
+}
+
+
 // get options from local storage
 const addNumbersSetting = localStorage.getItem('addNumbers') === 'true';
 const applyGrammarSetting = localStorage.getItem('applyGrammar') === 'true';
@@ -258,10 +266,6 @@ document.getElementById('next-page-latest-scores').addEventListener('click', () 
   currentPageLatestScores++;
   fetchLatestScores();
 });
-
-
-
-
 
 document.getElementById('play-again').addEventListener('click', () => {
   window.location.href = '/index.html';

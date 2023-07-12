@@ -93,42 +93,52 @@ app.post("/score", scoreLimiter, async (req, res) => {
     return res.status(400).send('Invalid typos');
   }
 
-	// Mode validation
-	if (
-	  typeof mode !== 'string' ||
-	  ![
-		'rage',
-		'precision',
-		'precision+P',
-		'precision+N',
-		'rage+N',
-		'rage+P',
-		'precision+N+P',
-		'rage+N+P'
-	  ].includes(mode)
-	) {
-	  return res.status(400).send('Invalid mode');
-	}
+// Mode validation
+if (
+    typeof mode !== 'string' ||
+    ![
+        'rage',
+        'precision',
+        'fast',
+        'precision+P',
+        'precision+N',
+        'rage+N',
+        'rage+P',
+        'fast+N',
+        'fast+P',
+        'precision+N+P',
+        'rage+N+P',
+        'fast+N+P'
+    ].includes(mode)
+) {
+    return res.status(400).send('Invalid mode');
+}
 
-  // Calculate precision
-  const precision = ((keystrokes - typos) / keystrokes) * 100;
-  
-  // Validate precision
-  if (typeof precision !== 'number' || precision < 0 || precision > 100) {
+// Calculate precision
+const precision = ((keystrokes - typos) / keystrokes) * 100;
+
+// Validate precision
+if (typeof precision !== 'number' || precision < 0 || precision > 100) {
     return res.status(400).send('Invalid precision');
-  }
-  
-  if (typeof scoreData.score !== 'number' || !Number.isInteger(scoreData.score) || scoreData.score < 0 || scoreData.score > 300000) {
+}
+
+// Validate precision for 'fast' mode
+if (['fast', 'fast+N', 'fast+P', 'fast+N+P'].includes(mode) && precision < 90) {
+    return res.status(400).send('Invalid precision for fast mode. Precision must be above 90');
+}
+
+if (typeof scoreData.score !== 'number' || !Number.isInteger(scoreData.score) || scoreData.score < 0 || scoreData.score > 300000) {
     return res.status(400).send('Invalid score');
-  }
+}
 
-  if (!supportedLanguages.includes(scoreData.language)) {
+if (!supportedLanguages.includes(scoreData.language)) {
     return res.status(400).send('Invalid language');
-  }
+}
 
-  if (!supportedWPMs.includes(scoreData.WPM)) {
+if (!supportedWPMs.includes(scoreData.WPM)) {
     return res.status(400).send('Invalid WPM');
-  }
+}
+
 
   // Create new scoreData including keystrokes, timeElapsed, and IP address
   const newScoreData = {

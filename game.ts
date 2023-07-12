@@ -7,6 +7,7 @@ interface Word {
     originalSpeed: number;
     color: string; 
     currentIndex: number;
+	isTypoMade?: boolean;
 }
 
 class Game {
@@ -30,7 +31,7 @@ class Game {
     private wordIndex = 0;
 	private averageCharLength: number;
 	private lastTimestamp: number;
-	private mode: 'rage' | 'precision' = (localStorage.getItem('mode') as 'rage' | 'precision') || 'rage';
+	private mode: 'rage' | 'precision' | 'fast' = (localStorage.getItem('mode') as 'rage' | 'precision' | 'fast') || 'rage';
     private settingsButton: HTMLElement;
     private settingsMenu: HTMLElement;
 	private typos: number;
@@ -280,7 +281,7 @@ nextBatch() {
     this.wordIndex += this.batchSize;
 }
 
-setMode(newMode: 'rage' | 'precision') {
+setMode(newMode: 'rage' | 'precision' | 'fast') {
 	if (newMode !== this.mode) { 
 		localStorage.setItem('mode', newMode);
 		this.mode = newMode;
@@ -377,11 +378,13 @@ restart(currentWPM: number) {
 		if (firstWord.text.startsWith(event.key)) {
 			firstWord.text = firstWord.text.slice(1);
 			firstWord.color = '#f8f8f2'; 
-			firstWord.currentIndex++; 
+			firstWord.currentIndex++;
 
 			if (firstWord.text.length === 0) {
 				this.words.shift();
-				this.score++;
+				if (this.mode !== 'fast' || !firstWord.isTypoMade) {
+					this.score++;
+				}
 				if (this.words.length < this.batchSize) {
 					this.generateWords();
 				}
@@ -400,7 +403,19 @@ restart(currentWPM: number) {
 				setTimeout(() => {
 					firstWord.color = '#f8f8f2';
 				}, 500);
-			}
+    } else if (this.mode === 'fast') {
+				firstWord.text = firstWord.text.slice(1);
+				firstWord.currentIndex++;
+				firstWord.isTypoMade = true; 
+				firstWord.color = '#FF0000'; 
+				
+				if (firstWord.text.length === 0) {
+					this.words.shift();
+					if (this.words.length < this.batchSize) {
+						this.generateWords();
+					}
+					}
+					}
 			firstWord.currentIndex = firstWord.text[0] === ' ' ? 0 : firstWord.currentIndex; 
 		}
 			});
@@ -607,10 +622,10 @@ Game.create(canvas, undefined, 30, 'english').then(game => {
     game.initialize();
     game.animate();
 
-    modeInput.value = localStorage.getItem('mode') || 'rage'; 
-    modeInput.addEventListener('change', () => {
-        game.setMode(modeInput.value as 'rage' | 'precision');
-    });
+	modeInput.value = localStorage.getItem('mode') || 'rage'; 
+	modeInput.addEventListener('change', () => {
+		game.setMode(modeInput.value as 'rage' | 'precision' | 'fast');
+	});
     
     modeInput.addEventListener('focus', () => {
 		game.pauseGame();
@@ -618,7 +633,7 @@ Game.create(canvas, undefined, 30, 'english').then(game => {
 
 	modeInput.addEventListener('blur', () => {
 		game.resumeGame();
-		game.setMode(modeInput.value as 'rage' | 'precision');
+		game.setMode(modeInput.value as 'rage' | 'precision' | 'fast');
 	});
 
     wpmInput.value = localStorage.getItem('WPM') || '30'; 
