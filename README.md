@@ -1,7 +1,5 @@
 # KeyboardRage
 
-Repository for the source code of the https://keyboardrage.com/ game.
-
 KeyboardRage is a typing game in an arcadce style where players have to type the words before they fall to the bottom of the box, different speeds and languages are available.
 
 
