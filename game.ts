@@ -469,6 +469,13 @@ animate(timestamp = 0) {
 				word.speed += speedIncrease; 
 			});
 		}
+		
+		if (this.WPM === 101) {
+			const speedIncrease = 0.00001; // Adjust this value to control the rate of speed increase
+			this.words.forEach(word => {
+				word.speed += speedIncrease; 
+			});
+		}
 
         this.context.clearRect(0, 0, this.canvas.width, this.canvas.height);
         this.context.fillStyle = '#f8f8f2'; 
