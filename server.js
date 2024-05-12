@@ -69,7 +69,7 @@ app.get('/languages', (req, res) => {
 const Score = mongoose.model('Score', ScoreSchema);
 const scoreLimiter = require('./rateLimiter');
 
-let supportedWPMs = [30, 50, 100, 150, 200, 250, 300, 350, 400];
+let supportedWPMs = [30, 50, 100, 101, 150, 200, 250, 300, 350, 400];
 app.post("/score", scoreLimiter, async (req, res) => {
   const { token, keystrokes, timeElapsed, typos, mode, ...scoreData } = req.body; // Include typos and mode in destructuring
 
