@@ -25,7 +25,9 @@ The game has been tested and found to be working on Ubuntu 22.04 with the follow
 
 ```shell
 node v20.2.0
-mongod db version v6.0.6
+https://github.com/nvm-sh/nvm?tab=readme-ov-file#installing-and-updating
+mongod db version v6.0.6 and v7.0.9
+https://www.mongodb.com/docs/manual/tutorial/install-mongodb-on-ubuntu/
 ```
 
 Next, install the required packages:
@@ -33,6 +35,7 @@ Next, install the required packages:
 ```shell
 npm install -g typescript
 npm install express mongoose body-parser
+npm install ip
 npm install
 ```
 
