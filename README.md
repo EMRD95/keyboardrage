@@ -4,11 +4,7 @@ KeyboardRage is a typing game in an arcadce style where players have to type the
 
 
 
-
-
-
-https://github.com/EMRD95/keyboardrage/assets/114953576/b17d1525-0a0a-447f-8d8f-3e937dbd9330
-
+https://github.com/EMRD95/keyboardrage/assets/114953576/e6760a23-df1b-4d6f-812a-7dee6af56f81
 
 
 
