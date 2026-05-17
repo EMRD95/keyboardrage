@@ -1,11 +1,13 @@
 import * as THREE from 'three';
 import { FRACTAL_VERTEX_SHADER } from './themes/shader-core.js';
 import { THEME_OPTIONS, THREE_BACKGROUND_THEMES, VIDEO_THEMES, isThreeBackgroundTheme } from './themes/registry.js';
+import { shouldIgnoreDeadAccentKey, typedKeyPrefixLength } from './typing-input.js';
 import type { ShaderThreeThemeDefinition, ThemeUniforms, ThreeThemeRuntime } from './themes/types.js';
 
 interface Word {
   text: string;
   originalText: string;
+  sourceIndex?: number;
   x: number;
   y: number;
   speed: number;
@@ -21,6 +23,11 @@ interface Word {
 }
 
 type GameMode = 'rage' | 'precision' | 'fast';
+
+type WordListEntry = {
+  text: string;
+  sourceIndex: number;
+};
 
 const LOGICAL_WIDTH = 800;
 const LOGICAL_HEIGHT = 600;
@@ -42,7 +49,7 @@ class Game {
   private measureCanvas: HTMLCanvasElement;
   private measureContext: CanvasRenderingContext2D;
   private words: Word[];
-  private wordList: string[];
+  private wordList: WordListEntry[];
   private score: number;
   private WPM: number;
   private language: string;
@@ -54,7 +61,7 @@ class Game {
   private timeElapsed: number;
   private keystrokes: number;
   private startTime: number;
-  private allWords: string[];
+  private allWords: WordListEntry[];
   private readonly batchSize = 10;
   private wordIndex = 0;
   private averageCharLength: number;
@@ -511,9 +518,10 @@ class Game {
   async fetchWords() {
     const response = await fetch(`/words/${this.language}.json`);
     const data = (await response.json()) as { words: string[]; charLength: number };
-    this.allWords = this.shuffleArray(data.words)
-      .map(this.applyGrammar.bind(this))
-      .map(this.addRandomNumbers.bind(this));
+    this.allWords = this.shuffleArray(data.words.map((word, sourceIndex) => ({
+      text: this.addRandomNumbers(this.applyGrammar(word)),
+      sourceIndex
+    })));
 
     this.averageCharLength = data.charLength;
     if (this.applyGrammarSetting) {
@@ -546,12 +554,12 @@ class Game {
   setLanguage(newLanguage: string) {
     if (newLanguage !== this.language) {
       localStorage.setItem('language', newLanguage);
+      this.clearWords();
       this.language = newLanguage;
-      this.words = [];
+      this.allWords = [];
+      this.wordList = [];
       this.wordIndex = 0;
-      this.fetchWords().then(() => {
-        this.restart(this.WPM);
-      });
+      this.restart(this.WPM);
     }
   }
 
@@ -630,14 +638,19 @@ class Game {
     }
 
     event.preventDefault();
-    this.keystrokes++;
     if (this.words.length === 0) return;
 
     const firstWord = this.words[0];
-    if (firstWord.text.startsWith(event.key)) {
-      firstWord.text = firstWord.text.slice(1);
+    if (shouldIgnoreDeadAccentKey(event.key, firstWord.text)) {
+      return;
+    }
+
+    this.keystrokes++;
+    const typedLength = typedKeyPrefixLength(firstWord.text, event.key);
+    if (typedLength > 0) {
+      firstWord.text = firstWord.text.slice(typedLength);
       firstWord.color = WORD_FILL;
-      firstWord.currentIndex++;
+      firstWord.currentIndex += typedLength;
 
       if (firstWord.text.length === 0 && !(this.mode === 'fast' && firstWord.isTypoMade && event.key !== ' ')) {
         this.removeWord(firstWord);
@@ -702,12 +715,14 @@ class Game {
       ? this.words[this.words.length - 1].speed
       : (this.WPM * 20) / 60 / 60 / this.averageCharLength;
 
-    shuffledList.forEach((wordText, index) => {
+    shuffledList.forEach((entry, index) => {
+      const wordText = entry.text;
       const textWidth = this.measureWordWidth(wordText);
       const maxWordX = Math.max(24, LOGICAL_WIDTH - textWidth - 24);
       const word: Word = {
         text: wordText,
         originalText: wordText,
+        sourceIndex: entry.sourceIndex,
         x: 24 + Math.random() * Math.max(1, maxWordX - 24),
         y: offset - index * 80,
         speed: lastWordSpeed,
@@ -834,8 +849,10 @@ class Game {
     const deltaTime = Math.max(0, timestamp - this.lastTimestamp);
     this.lastTimestamp = timestamp;
 
+    const activeWord = this.words[0]?.originalText ?? '';
+    const activeWordSourceIndex = this.words[0]?.sourceIndex;
     for (const instance of this.threeThemeInstances.values()) {
-      instance.update({ timestamp, deltaTime });
+      instance.update({ timestamp, deltaTime, activeWord, activeWordSourceIndex, language: this.language });
     }
 
     if (this.pause || this.isGameOver) {

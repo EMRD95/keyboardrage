@@ -18,7 +18,8 @@ import { spaceTheme } from './space.js';
 import { space2Theme } from './space2.js';
 import { axiomataTheme } from './axiomata.js';
 import { castleTheme } from './castle.js';
-import { castleTheme as boxTheme } from './box.js';
+import { boxTheme } from './box.js';
+import { boxCubeTheme } from './box-cube.js';
 
 export const THEME_OPTIONS: ThemeDefinition[] = [
   defaultTheme,
@@ -40,7 +41,8 @@ export const THEME_OPTIONS: ThemeDefinition[] = [
   space2Theme,
   axiomataTheme,
   castleTheme,
-  boxTheme
+  boxTheme,
+  boxCubeTheme
 ];
 
 function isVideoTheme(theme: ThemeDefinition): theme is VideoThemeDefinition {

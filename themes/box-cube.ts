@@ -18,8 +18,16 @@ import {
 } from './box-embedding-data.js';
 import { buildExpandedBoxPointPositions } from './box-point-layout.js';
 
-const BOX_RENDER_ORDER = -91;
-const BOX_DISPLAY_VERTEX_SHADER = `
+const BOX_CUBE_RENDER_ORDER = -90;
+const CUBE_SIZE = 1.92;
+const CUBE_GRID_DIVISIONS = 10;
+const CUBE_POINT_SCALE = CUBE_SIZE * 0.46;
+const CUBE_BASE_ROTATION = new THREE.Euler(-0.28, 0.62, 0.10);
+
+const ACTIVE_DOT_COLOR = new THREE.Color('#ff174d');
+const BASE_DOT_BRIGHT = new THREE.Color('#ecfffb');
+
+const CUBE_DISPLAY_VERTEX_SHADER = `
   varying vec2 vUv;
   void main() {
     vUv = uv;
@@ -27,7 +35,7 @@ const BOX_DISPLAY_VERTEX_SHADER = `
   }
 `;
 
-const BOX_DISPLAY_FRAGMENT_SHADER = `
+const CUBE_DISPLAY_FRAGMENT_SHADER = `
   precision highp float;
   varying vec2 vUv;
   uniform sampler2D uTexture;
@@ -41,21 +49,14 @@ const BOX_DISPLAY_FRAGMENT_SHADER = `
   }
 `;
 
-const MATRIX_BOX_COUNT = 8;
-const MATRIX_BOX_SIZE = 0.46;
-const MATRIX_POINT_SCALE = MATRIX_BOX_SIZE * 0.49;
-const MATRIX_NEAR_Z = 0.92;
-const MATRIX_BOX_SPACING = 0.72;
-const MATRIX_BOX_SPEED = 0.24;
-const MATRIX_TUNNEL_RADIUS = 0.50;
-const MATRIX_TUNNEL_LENGTH = 6.7;
-
-const ACTIVE_DOT_COLOR = new THREE.Color('#ff174d');
-const BASE_DOT_BRIGHT = new THREE.Color('#d9fff7');
-
-type BoxInstance = {
+type LightOrbit = {
   root: THREE.Group;
-  highlight: THREE.Points<THREE.BufferGeometry, THREE.PointsMaterial>;
+  light: THREE.PointLight;
+  sphere: THREE.Mesh<THREE.SphereGeometry, THREE.MeshBasicMaterial>;
+  phase: number;
+  speed: number;
+  radius: number;
+  tilt: number;
 };
 
 function normalizeMatrixLetters(value: string, stripAccents = false) {
@@ -72,7 +73,7 @@ function getMatrixLookupKeys(value: string) {
   return exact === folded ? [exact] : [exact, folded];
 }
 
-function createMatrixGridGeometry(size: number, divisions: number) {
+function createCubeGridGeometry(size: number, divisions: number) {
   const half = size / 2;
   const step = size / divisions;
   const vertices: number[] = [];
@@ -82,52 +83,42 @@ function createMatrixGridGeometry(size: number, divisions: number) {
   };
 
   for (let i = 0; i <= divisions; i += 1) {
-    const v = -half + i * step;
+    const value = -half + i * step;
 
-    // Front/back XY planes.
-    pushLine([-half, v, -half], [half, v, -half]);
-    pushLine([v, -half, -half], [v, half, -half]);
-    pushLine([-half, v, half], [half, v, half]);
-    pushLine([v, -half, half], [v, half, half]);
+    // Front/back XY matrices.
+    pushLine([-half, value, -half], [half, value, -half]);
+    pushLine([value, -half, -half], [value, half, -half]);
+    pushLine([-half, value, half], [half, value, half]);
+    pushLine([value, -half, half], [value, half, half]);
 
-    // Floor/ceiling XZ planes.
-    pushLine([-half, -half, v], [half, -half, v]);
-    pushLine([v, -half, -half], [v, -half, half]);
-    pushLine([-half, half, v], [half, half, v]);
-    pushLine([v, half, -half], [v, half, half]);
+    // Floor/ceiling XZ matrices.
+    pushLine([-half, -half, value], [half, -half, value]);
+    pushLine([value, -half, -half], [value, -half, half]);
+    pushLine([-half, half, value], [half, half, value]);
+    pushLine([value, half, -half], [value, half, half]);
 
-    // Left/right YZ planes.
-    pushLine([-half, -half, v], [-half, half, v]);
-    pushLine([-half, v, -half], [-half, v, half]);
-    pushLine([half, -half, v], [half, half, v]);
-    pushLine([half, v, -half], [half, v, half]);
+    // Left/right YZ matrices.
+    pushLine([-half, -half, value], [-half, half, value]);
+    pushLine([-half, value, -half], [-half, value, half]);
+    pushLine([half, -half, value], [half, half, value]);
+    pushLine([half, value, -half], [half, value, half]);
   }
+
+  // Three bright center axes make the cube read as one fixed semantic space.
+  pushLine([-half, 0, 0], [half, 0, 0]);
+  pushLine([0, -half, 0], [0, half, 0]);
+  pushLine([0, 0, -half], [0, 0, half]);
 
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
   return geometry;
 }
 
-function createTunnelGeometry() {
-  const points: THREE.Vector3[] = [];
-  const segments = 7;
-  for (let i = 0; i <= segments; i += 1) {
-    const t = i / segments;
-    points.push(new THREE.Vector3(
-      Math.sin(t * Math.PI * 2.0) * 0.035,
-      Math.cos(t * Math.PI * 1.7) * 0.025,
-      t * MATRIX_TUNNEL_LENGTH
-    ));
-  }
-  const curve = new THREE.CatmullRomCurve3(points, false, 'catmullrom');
-  return new THREE.TubeGeometry(curve, 108, MATRIX_TUNNEL_RADIUS, 28, false);
-}
-
-export class BoxMatrixBackground implements ThreeThemeRuntime {
+export class BoxCubeBackground implements ThreeThemeRuntime {
   private readonly mainScene: THREE.Scene;
   private readonly renderer: THREE.WebGLRenderer;
-  private readonly matrixScene = new THREE.Scene();
-  private readonly matrixCamera: THREE.PerspectiveCamera;
+  private readonly cubeScene = new THREE.Scene();
+  private readonly cubeCamera: THREE.PerspectiveCamera;
   private readonly renderTarget: THREE.WebGLRenderTarget;
   private readonly display: THREE.Mesh<THREE.PlaneGeometry, THREE.ShaderMaterial>;
   private readonly displayUniforms: {
@@ -135,24 +126,28 @@ export class BoxMatrixBackground implements ThreeThemeRuntime {
     uOpacity: { value: number };
   };
 
+  private readonly cubeRoot = new THREE.Group();
   private readonly pointGeometry = new THREE.BufferGeometry();
-  private readonly pointMaterial: THREE.PointsMaterial;
   private readonly highlightGeometry = new THREE.BufferGeometry();
-  private readonly highlightMaterial: THREE.PointsMaterial;
-  private readonly edgeGeometry: THREE.EdgesGeometry;
-  private readonly gridGeometry: THREE.BufferGeometry;
+  private readonly cubeFaceGeometry: THREE.BoxGeometry;
+  private readonly cubeEdgeGeometry: THREE.EdgesGeometry;
+  private readonly cubeGridGeometry: THREE.BufferGeometry;
+  private readonly lightSphereGeometry = new THREE.SphereGeometry(0.042, 18, 10);
+
+  private readonly faceMaterial: THREE.MeshStandardMaterial;
   private readonly shellMaterial: THREE.LineBasicMaterial;
   private readonly gridMaterial: THREE.LineBasicMaterial;
-  private readonly tunnelGeometry: THREE.TubeGeometry;
-  private readonly tunnelMaterial: THREE.MeshBasicMaterial;
-  private readonly tunnelMesh: THREE.Mesh<THREE.TubeGeometry, THREE.MeshBasicMaterial>;
+  private readonly pointMaterial: THREE.PointsMaterial;
+  private readonly highlightMaterial: THREE.PointsMaterial;
+  private readonly highlightHaloMaterial: THREE.PointsMaterial;
+
   private basePointColors: Float32Array;
   private livePointColors: Float32Array;
   private wordPoints: readonly GraniteBoxWordPoint[] = GRANITE_BOX_WORD_POINTS;
   private readonly wordIndex = new Map<string, number>();
-  private readonly boxes: BoxInstance[] = [];
+  private readonly lightOrbits: LightOrbit[] = [];
 
-  private readonly accent = new THREE.Color('#22ffd6');
+  private readonly accent = new THREE.Color('#6dfff2');
   private readonly accent2 = new THREE.Color('#ff174d');
   private visible = false;
   private animTime = 0;
@@ -160,14 +155,14 @@ export class BoxMatrixBackground implements ThreeThemeRuntime {
   private activeSourceIndex: number | undefined;
   private activeIndex = -1;
 
-  constructor(context: ThreeThemeContext, renderOrder = BOX_RENDER_ORDER) {
+  constructor(context: ThreeThemeContext, renderOrder = BOX_CUBE_RENDER_ORDER) {
     this.mainScene = context.scene;
     this.renderer = context.renderer;
-    this.matrixScene.fog = new THREE.FogExp2(0x000806, 0.42);
+    this.cubeScene.fog = new THREE.FogExp2(0x02020c, 0.12);
 
-    this.matrixCamera = new THREE.PerspectiveCamera(42, context.logicalWidth / context.logicalHeight, 0.01, 30);
-    this.matrixCamera.rotation.y = Math.PI;
-    this.matrixCamera.position.z = 0.18;
+    this.cubeCamera = new THREE.PerspectiveCamera(34, context.logicalWidth / context.logicalHeight, 0.01, 40);
+    this.cubeCamera.position.set(0, 0, 4.65);
+    this.cubeCamera.lookAt(0, 0, 0);
 
     const pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
     this.renderTarget = new THREE.WebGLRenderTarget(
@@ -185,8 +180,8 @@ export class BoxMatrixBackground implements ThreeThemeRuntime {
       new THREE.PlaneGeometry(1, 1, 1, 1),
       new THREE.ShaderMaterial({
         uniforms: this.displayUniforms,
-        vertexShader: BOX_DISPLAY_VERTEX_SHADER,
-        fragmentShader: BOX_DISPLAY_FRAGMENT_SHADER,
+        vertexShader: CUBE_DISPLAY_VERTEX_SHADER,
+        fragmentShader: CUBE_DISPLAY_FRAGMENT_SHADER,
         transparent: true,
         depthTest: false,
         depthWrite: false
@@ -197,40 +192,60 @@ export class BoxMatrixBackground implements ThreeThemeRuntime {
     this.display.position.z = -500;
     this.mainScene.add(this.display);
 
-    const cubeGeometry = new THREE.BoxGeometry(MATRIX_BOX_SIZE, MATRIX_BOX_SIZE, MATRIX_BOX_SIZE);
-    this.edgeGeometry = new THREE.EdgesGeometry(cubeGeometry);
-    cubeGeometry.dispose();
-    this.gridGeometry = createMatrixGridGeometry(MATRIX_BOX_SIZE, 6);
+    this.cubeFaceGeometry = new THREE.BoxGeometry(CUBE_SIZE, CUBE_SIZE, CUBE_SIZE, 1, 1, 1);
+    this.cubeEdgeGeometry = new THREE.EdgesGeometry(this.cubeFaceGeometry);
+    this.cubeGridGeometry = createCubeGridGeometry(CUBE_SIZE, CUBE_GRID_DIVISIONS);
 
+    this.faceMaterial = new THREE.MeshStandardMaterial({
+      color: 0x061816,
+      emissive: this.accent,
+      emissiveIntensity: 0.055,
+      roughness: 0.42,
+      metalness: 0.18,
+      transparent: true,
+      opacity: 0.055,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending
+    });
     this.shellMaterial = new THREE.LineBasicMaterial({
       color: this.accent,
       transparent: true,
-      opacity: 0.55,
+      opacity: 0.90,
       depthWrite: false,
       blending: THREE.AdditiveBlending
     });
     this.gridMaterial = new THREE.LineBasicMaterial({
       color: this.accent,
       transparent: true,
-      opacity: 0.14,
+      opacity: 0.20,
       depthWrite: false,
       blending: THREE.AdditiveBlending
     });
     this.pointMaterial = new THREE.PointsMaterial({
-      size: 0.020,
+      size: 0.040,
       sizeAttenuation: true,
       vertexColors: true,
       transparent: true,
-      opacity: 0.88,
+      opacity: 0.92,
       depthWrite: false,
       blending: THREE.AdditiveBlending
     });
     this.highlightMaterial = new THREE.PointsMaterial({
       color: ACTIVE_DOT_COLOR,
-      size: 0.075,
+      size: 0.155,
       sizeAttenuation: true,
       transparent: true,
       opacity: 1.0,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending
+    });
+    this.highlightHaloMaterial = new THREE.PointsMaterial({
+      color: ACTIVE_DOT_COLOR,
+      size: 0.255,
+      sizeAttenuation: true,
+      transparent: true,
+      opacity: 0.38,
       depthWrite: false,
       blending: THREE.AdditiveBlending
     });
@@ -239,34 +254,36 @@ export class BoxMatrixBackground implements ThreeThemeRuntime {
     this.basePointColors = new Float32Array(pointCount * 3);
     this.livePointColors = new Float32Array(pointCount * 3);
     this.buildPointCloudGeometry();
-
     this.highlightGeometry.setAttribute(
       'position',
       new THREE.BufferAttribute(new Float32Array([0, 0, 0]), 3)
     );
 
-    this.tunnelGeometry = createTunnelGeometry();
-    this.tunnelMaterial = new THREE.MeshBasicMaterial({
-      color: this.accent,
-      wireframe: true,
-      side: THREE.BackSide,
-      transparent: true,
-      opacity: 0.10,
-      depthWrite: false,
-      blending: THREE.AdditiveBlending
-    });
-    this.tunnelMesh = new THREE.Mesh(this.tunnelGeometry, this.tunnelMaterial);
-    this.tunnelMesh.frustumCulled = false;
-    this.matrixScene.add(this.tunnelMesh);
+    const cubeFace = new THREE.Mesh(this.cubeFaceGeometry, this.faceMaterial);
+    const cubeShell = new THREE.LineSegments(this.cubeEdgeGeometry, this.shellMaterial);
+    const cubeGrid = new THREE.LineSegments(this.cubeGridGeometry, this.gridMaterial);
+    const cubePoints = new THREE.Points(this.pointGeometry, this.pointMaterial);
+    const activeDot = new THREE.Points(this.highlightGeometry, this.highlightMaterial);
+    const activeHalo = new THREE.Points(this.highlightGeometry, this.highlightHaloMaterial);
 
-    this.createMatrixBoxes();
+    [cubeFace, cubeShell, cubeGrid, cubePoints, activeDot, activeHalo].forEach((child) => {
+      child.frustumCulled = false;
+    });
+    activeDot.visible = false;
+    activeHalo.visible = false;
+    activeDot.name = 'BoxCubeActiveDot';
+    activeHalo.name = 'BoxCubeActiveHalo';
+
+    this.cubeRoot.add(cubeFace, cubeShell, cubeGrid, cubePoints, activeHalo, activeDot);
+    this.cubeScene.add(this.cubeRoot);
+    this.createRotatingLights();
   }
 
   setVisible(visible: boolean) {
     this.visible = visible;
     this.display.visible = visible;
     if (visible) {
-      this.renderMatrixToTarget();
+      this.renderCubeToTarget();
     }
   }
 
@@ -274,8 +291,8 @@ export class BoxMatrixBackground implements ThreeThemeRuntime {
     this.display.position.set(centerX, centerY, -500);
     this.display.scale.set(visibleWidth, visibleHeight, 1);
 
-    this.matrixCamera.aspect = width / Math.max(height, 1);
-    this.matrixCamera.updateProjectionMatrix();
+    this.cubeCamera.aspect = width / Math.max(height, 1);
+    this.cubeCamera.updateProjectionMatrix();
     this.renderTarget.setSize(
       Math.max(1, Math.floor(width * pixelRatio)),
       Math.max(1, Math.floor(height * pixelRatio))
@@ -291,59 +308,108 @@ export class BoxMatrixBackground implements ThreeThemeRuntime {
 
     if (!this.visible) return;
 
-    const cycle = MATRIX_BOX_COUNT * MATRIX_BOX_SPACING;
-    const travel = (this.animTime * MATRIX_BOX_SPEED) % cycle;
-    const pulse = Math.sin(this.animTime * 7.5) * 0.5 + 0.5;
-    this.highlightMaterial.size = this.activeIndex >= 0 ? 0.070 + pulse * 0.028 : 0.070;
-    this.highlightMaterial.opacity = this.activeIndex >= 0 ? 0.78 + pulse * 0.22 : 0.0;
-    this.tunnelMesh.rotation.z = this.animTime * 0.045;
+    const t = this.animTime;
+    this.cubeRoot.rotation.x = CUBE_BASE_ROTATION.x + Math.sin(t * 0.31) * 0.13;
+    this.cubeRoot.rotation.y = CUBE_BASE_ROTATION.y + t * 0.115;
+    this.cubeRoot.rotation.z = CUBE_BASE_ROTATION.z + Math.sin(t * 0.23 + 0.7) * 0.075;
 
-    this.boxes.forEach(({ root }, index) => {
-      const lane = (index * MATRIX_BOX_SPACING - travel + cycle) % cycle;
-      const z = MATRIX_NEAR_Z + lane;
-      const sway = this.animTime * 0.55 + index * 1.7;
-      root.position.set(Math.sin(sway) * 0.018, Math.cos(sway * 0.8) * 0.014, z);
-      root.rotation.x = Math.sin(this.animTime * 0.34 + index) * 0.18;
-      root.rotation.y = Math.cos(this.animTime * 0.29 + index * 0.7) * 0.16;
-      root.rotation.z = this.animTime * 0.10 + index * 0.27;
+    // Keep the cube itself visually stable: no shell opacity or face-emissive pulsing.
+    // Only the active red marker breathes, so the semantic target remains easy to find.
+    const markerPulse = Math.sin(t * 4.2) * 0.5 + 0.5;
+    this.pointMaterial.size = 0.037;
+    this.shellMaterial.opacity = 0.82;
+    this.faceMaterial.emissiveIntensity = 0.045;
+    this.highlightMaterial.size = this.activeIndex >= 0 ? 0.145 + markerPulse * 0.030 : 0.145;
+    this.highlightMaterial.opacity = this.activeIndex >= 0 ? 0.90 + markerPulse * 0.10 : 0.0;
+    this.highlightHaloMaterial.size = this.activeIndex >= 0 ? 0.245 + markerPulse * 0.055 : 0.245;
+    this.highlightHaloMaterial.opacity = this.activeIndex >= 0 ? 0.22 + markerPulse * 0.08 : 0.0;
+
+    this.lightOrbits.forEach((orbit, index) => {
+      orbit.root.rotation.y = t * orbit.speed + orbit.phase;
+      orbit.root.rotation.x = Math.sin(t * (0.19 + index * 0.04) + orbit.phase) * orbit.tilt;
+      orbit.root.rotation.z = Math.cos(t * (0.16 + index * 0.05) + orbit.phase) * orbit.tilt * 0.65;
+      orbit.light.intensity = 0.42;
+      orbit.light.distance = orbit.radius * 2.4;
     });
 
-    this.renderMatrixToTarget();
+    this.renderCubeToTarget();
   }
 
   updateColors({ accent, accent2 }: ThreeThemeColorInfo) {
     this.accent.set(accent);
     this.accent2.set(accent2);
+    this.faceMaterial.emissive.copy(this.accent);
     this.shellMaterial.color.copy(this.accent);
     this.gridMaterial.color.copy(this.accent);
-    this.tunnelMaterial.color.copy(this.accent);
     this.highlightMaterial.color.copy(this.accent2);
+    this.highlightHaloMaterial.color.copy(this.accent2);
+    this.lightOrbits.forEach((orbit, index) => {
+      const lightColor = index === 1 ? this.accent2 : this.accent;
+      orbit.light.color.copy(lightColor);
+      orbit.sphere.material.color.copy(lightColor);
+    });
     this.rebuildPointColors();
   }
 
   dispose() {
     this.mainScene.remove(this.display);
+    this.cubeScene.remove(this.cubeRoot);
+    this.lightOrbits.forEach(({ root, sphere }) => {
+      this.cubeScene.remove(root);
+      sphere.material.dispose();
+    });
+
     this.display.geometry.dispose();
     this.display.material.dispose();
     this.renderTarget.dispose();
-
-    this.boxes.forEach(({ root }) => this.matrixScene.remove(root));
-    this.matrixScene.remove(this.tunnelMesh);
-
     this.pointGeometry.dispose();
-    this.pointMaterial.dispose();
     this.highlightGeometry.dispose();
-    this.highlightMaterial.dispose();
-    this.edgeGeometry.dispose();
-    this.gridGeometry.dispose();
+    this.cubeFaceGeometry.dispose();
+    this.cubeEdgeGeometry.dispose();
+    this.cubeGridGeometry.dispose();
+    this.lightSphereGeometry.dispose();
+    this.faceMaterial.dispose();
     this.shellMaterial.dispose();
     this.gridMaterial.dispose();
-    this.tunnelGeometry.dispose();
-    this.tunnelMaterial.dispose();
+    this.pointMaterial.dispose();
+    this.highlightMaterial.dispose();
+    this.highlightHaloMaterial.dispose();
+  }
+
+  private createRotatingLights() {
+    const lightSettings = [
+      { color: this.accent, radius: 2.35, speed: 0.44, phase: 0.0, tilt: 0.55 },
+      { color: this.accent2, radius: 2.05, speed: -0.36, phase: Math.PI * 0.72, tilt: 0.42 },
+      { color: new THREE.Color('#ffffff'), radius: 2.60, speed: 0.24, phase: Math.PI * 1.34, tilt: 0.34 }
+    ];
+
+    lightSettings.forEach(({ color, radius, speed, phase, tilt }) => {
+      const root = new THREE.Group();
+      const light = new THREE.PointLight(color, 1.25, radius * 3.0, 1.5);
+      const sphere = new THREE.Mesh(
+        this.lightSphereGeometry,
+        new THREE.MeshBasicMaterial({
+          color,
+          transparent: true,
+          opacity: 0.72,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false
+        })
+      );
+      light.position.set(radius, 0, 0);
+      sphere.position.copy(light.position);
+      sphere.visible = false;
+      // Keep the rotating point lights, but do not render visible orbit markers.
+      root.add(light);
+      root.frustumCulled = false;
+      sphere.frustumCulled = false;
+      this.cubeScene.add(root);
+      this.lightOrbits.push({ root, light, sphere, phase, speed, radius, tilt });
+    });
   }
 
   private buildPointCloudGeometry() {
-    const positions = buildExpandedBoxPointPositions(this.wordPoints, MATRIX_POINT_SCALE);
+    const positions = buildExpandedBoxPointPositions(this.wordPoints, CUBE_POINT_SCALE);
     this.basePointColors = new Float32Array(this.wordPoints.length * 3);
     this.livePointColors = new Float32Array(this.wordPoints.length * 3);
     this.wordIndex.clear();
@@ -358,36 +424,15 @@ export class BoxMatrixBackground implements ThreeThemeRuntime {
     this.rebuildPointColors();
   }
 
-  private createMatrixBoxes() {
-    for (let i = 0; i < MATRIX_BOX_COUNT; i += 1) {
-      const root = new THREE.Group();
-      root.frustumCulled = false;
-
-      const shell = new THREE.LineSegments(this.edgeGeometry, this.shellMaterial);
-      shell.frustumCulled = false;
-      const grid = new THREE.LineSegments(this.gridGeometry, this.gridMaterial);
-      grid.frustumCulled = false;
-      const points = new THREE.Points(this.pointGeometry, this.pointMaterial);
-      points.frustumCulled = false;
-      const highlight = new THREE.Points(this.highlightGeometry, this.highlightMaterial);
-      highlight.visible = false;
-      highlight.frustumCulled = false;
-
-      root.add(shell, grid, points, highlight);
-      this.matrixScene.add(root);
-      this.boxes.push({ root, highlight });
-    }
-  }
-
   private rebuildPointColors() {
     const attr = this.pointGeometry.getAttribute('color') as THREE.BufferAttribute | undefined;
     const color = new THREE.Color();
 
     this.wordPoints.forEach(([, x, y, z], index) => {
-      const depthTint = THREE.MathUtils.clamp((z + 0.82) / 1.64, 0, 1);
-      const verticalTint = THREE.MathUtils.clamp((y + 0.82) / 1.64, 0, 1);
-      color.copy(this.accent).lerp(BASE_DOT_BRIGHT, 0.16 + depthTint * 0.30);
-      color.offsetHSL((x * 0.015) + (verticalTint * 0.018), 0, 0.04 * verticalTint);
+      const semanticDepth = THREE.MathUtils.clamp((z + 0.82) / 1.64, 0, 1);
+      const semanticHeight = THREE.MathUtils.clamp((y + 0.82) / 1.64, 0, 1);
+      color.copy(this.accent).lerp(BASE_DOT_BRIGHT, 0.20 + semanticDepth * 0.34);
+      color.offsetHSL(x * 0.018, 0.03, semanticHeight * 0.045);
       this.basePointColors[index * 3] = color.r;
       this.basePointColors[index * 3 + 1] = color.g;
       this.basePointColors[index * 3 + 2] = color.b;
@@ -409,9 +454,11 @@ export class BoxMatrixBackground implements ThreeThemeRuntime {
     this.activeSourceIndex = undefined;
     this.activeIndex = -1;
     this.buildPointCloudGeometry();
-    this.boxes.forEach(({ highlight }) => {
-      highlight.visible = false;
-    });
+
+    const activeDot = this.cubeRoot.getObjectByName('BoxCubeActiveDot');
+    const activeHalo = this.cubeRoot.getObjectByName('BoxCubeActiveHalo');
+    if (activeDot) activeDot.visible = false;
+    if (activeHalo) activeHalo.visible = false;
   }
 
   private addWordIndex(word: string, index: number) {
@@ -441,16 +488,17 @@ export class BoxMatrixBackground implements ThreeThemeRuntime {
     this.activeIndex = index;
     this.livePointColors.set(this.basePointColors);
 
+    const activeDot = this.cubeRoot.getObjectByName('BoxCubeActiveDot');
+    const activeHalo = this.cubeRoot.getObjectByName('BoxCubeActiveHalo');
+
     if (index >= 0) {
       this.paintActivePoint(index);
       this.moveHighlightToPoint(index);
-      this.boxes.forEach(({ highlight }) => {
-        highlight.visible = true;
-      });
+      if (activeDot) activeDot.visible = true;
+      if (activeHalo) activeHalo.visible = true;
     } else {
-      this.boxes.forEach(({ highlight }) => {
-        highlight.visible = false;
-      });
+      if (activeDot) activeDot.visible = false;
+      if (activeHalo) activeHalo.visible = false;
     }
 
     const colorAttr = this.pointGeometry.getAttribute('color') as THREE.BufferAttribute;
@@ -471,16 +519,16 @@ export class BoxMatrixBackground implements ThreeThemeRuntime {
     this.highlightGeometry.computeBoundingSphere();
   }
 
-  private renderMatrixToTarget() {
+  private renderCubeToTarget() {
     const previousRenderTarget = this.renderer.getRenderTarget();
     const previousClearColor = new THREE.Color();
     this.renderer.getClearColor(previousClearColor);
     const previousClearAlpha = this.renderer.getClearAlpha();
 
-    this.renderer.setClearColor(0x000806, 1);
+    this.renderer.setClearColor(0x02020c, 1);
     this.renderer.setRenderTarget(this.renderTarget);
     this.renderer.clear(true, true, true);
-    this.renderer.render(this.matrixScene, this.matrixCamera);
+    this.renderer.render(this.cubeScene, this.cubeCamera);
     this.renderer.setRenderTarget(previousRenderTarget);
     this.renderer.setClearColor(previousClearColor, previousClearAlpha);
 
@@ -488,15 +536,15 @@ export class BoxMatrixBackground implements ThreeThemeRuntime {
   }
 }
 
-export const boxTheme: CustomThreeThemeDefinition = {
-  id: 'box',
-  label: 'Box Matrix (3D)',
+export const boxCubeTheme: CustomThreeThemeDefinition = {
+  id: 'box-cube',
+  label: 'Box Cube (3D)',
   kind: 'three',
   backgroundType: 'custom',
-  renderOrder: BOX_RENDER_ORDER,
-  createBackground: (context) => new BoxMatrixBackground(context, BOX_RENDER_ORDER)
+  renderOrder: BOX_CUBE_RENDER_ORDER,
+  createBackground: (context) => new BoxCubeBackground(context, BOX_CUBE_RENDER_ORDER)
 };
 
 console.debug(
-  `Box Matrix uses up to ${GRANITE_BOX_MAX_DOTS_PER_LANGUAGE} Granite points across ${Object.keys(GRANITE_BOX_WORD_POINTS_BY_LANGUAGE).length} language sets from ${GRANITE_BOX_EMBEDDING_MODEL}`
+  `Box Cube uses up to ${GRANITE_BOX_MAX_DOTS_PER_LANGUAGE} Granite points across ${Object.keys(GRANITE_BOX_WORD_POINTS_BY_LANGUAGE).length} language sets from ${GRANITE_BOX_EMBEDDING_MODEL}`
 );

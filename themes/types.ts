@@ -43,6 +43,9 @@ export type ThreeThemeResizeInfo = {
 export type ThreeThemeUpdateInfo = {
   timestamp: number;
   deltaTime: number;
+  activeWord?: string;
+  activeWordSourceIndex?: number;
+  language?: string;
 };
 
 export type ThreeThemeColorInfo = {

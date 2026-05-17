@@ -1551,6 +1551,65 @@ body[data-theme="hyperspace"] .hint-card {
   background-color: rgba(0, 0, 0, 0.15);
 }
 
+/* Box Matrix: Granite embedding dots inside recursive matrix boxes */
+body[data-theme="box"] {
+  --accent: #22ffd6;
+  --accent-2: #ff174d;
+  --stage-glow: rgba(34, 255, 214, 0.24);
+  --theme-overlay: none;
+  background: #000806;
+}
+
+body[data-theme="box"]::before { opacity: 0.02; }
+body[data-theme="box"] .stage-grid { opacity: 0.01; }
+
+body[data-theme="box"] .stage-vignette {
+  opacity: 0.68;
+  background:
+    radial-gradient(circle at 50% 45%, transparent 34%, rgba(0, 0, 0, 0.62)),
+    linear-gradient(180deg, rgba(0, 8, 6, 0.12), rgba(0, 0, 0, 0.32));
+}
+
+body[data-theme="box"] .brand-block,
+body[data-theme="box"] .control-panel,
+body[data-theme="box"] .settings-card,
+body[data-theme="box"] .pill,
+body[data-theme="box"] .score-card,
+body[data-theme="box"] .hint-card {
+  border-color: rgba(34, 255, 214, 0.08);
+  background-color: rgba(0, 8, 6, 0.18);
+}
+
+/* Box Cube: one large semantic matrix cube with rotating light orbits */
+body[data-theme="box-cube"] {
+  --accent: #6dfff2;
+  --accent-2: #ff174d;
+  --stage-glow: rgba(109, 255, 242, 0.26);
+  --theme-overlay: none;
+  background: #02020c;
+}
+
+body[data-theme="box-cube"]::before { opacity: 0.018; }
+body[data-theme="box-cube"] .stage-grid { opacity: 0.008; }
+
+body[data-theme="box-cube"] .stage-vignette {
+  opacity: 0.70;
+  background:
+    radial-gradient(circle at 50% 48%, transparent 32%, rgba(0, 0, 0, 0.58)),
+    radial-gradient(circle at 48% 42%, rgba(109, 255, 242, 0.08), transparent 42%),
+    linear-gradient(180deg, rgba(2, 2, 12, 0.10), rgba(0, 0, 0, 0.34));
+}
+
+body[data-theme="box-cube"] .brand-block,
+body[data-theme="box-cube"] .control-panel,
+body[data-theme="box-cube"] .settings-card,
+body[data-theme="box-cube"] .pill,
+body[data-theme="box-cube"] .score-card,
+body[data-theme="box-cube"] .hint-card {
+  border-color: rgba(109, 255, 242, 0.08);
+  background-color: rgba(2, 2, 12, 0.18);
+}
+
 /* Gameplay chrome should not obscure newly-spawned words. The bottom hint
    carries the instruction, so keep the top-left brand minimal during play. */
 body[data-theme] .brand-block > div:not(.brand-mark),
