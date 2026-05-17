@@ -23,12 +23,6 @@ const TUNNEL_DISPLAY_FRAGMENT_SHADER = `
   }
 `;
 
-type TunnelMouse = {
-  position: { x: number; y: number };
-  ratio: { x: number; y: number };
-  target: { x: number; y: number };
-};
-
 class HyperspaceTunnelBackground implements ThreeThemeRuntime {
   private readonly mainScene: THREE.Scene;
   private readonly renderer: THREE.WebGLRenderer;
@@ -48,20 +42,12 @@ class HyperspaceTunnelBackground implements ThreeThemeRuntime {
   private tunnelSplineMesh: THREE.Line | null = null;
   private textureParams = { offsetX: 0, offsetY: 0, repeatX: 10, repeatY: 4 };
   private cameraShake = { x: 0, y: 0 };
-  private tunnelMouse: TunnelMouse = {
-    position: { x: 0.5, y: 0.5 },
-    ratio: { x: 0, y: 0 },
-    target: { x: 0.5, y: 0.5 }
-  };
+  
+  // Replaces mouse state with an internal procedural wander state
+  private currentWander = { x: 0.5, y: 0.5 };
+  
   private animTime = 0;
   private visible = false;
-
-  private readonly handlePointerMove = (event: PointerEvent) => {
-    const width = Math.max(window.innerWidth || 1, 1);
-    const height = Math.max(window.innerHeight || 1, 1);
-    this.tunnelMouse.target.x = event.clientX / width;
-    this.tunnelMouse.target.y = event.clientY / height;
-  };
 
   constructor(context: ThreeThemeContext, renderOrder: number) {
     this.mainScene = context.scene;
@@ -102,7 +88,6 @@ class HyperspaceTunnelBackground implements ThreeThemeRuntime {
     this.tunnelDisplay.position.z = -500;
     this.mainScene.add(this.tunnelDisplay);
 
-    window.addEventListener('pointermove', this.handlePointerMove, { passive: true });
     this.initAnimation();
     this.loadGalaxyTunnelTexture();
   }
@@ -149,7 +134,6 @@ class HyperspaceTunnelBackground implements ThreeThemeRuntime {
   }
 
   dispose() {
-    window.removeEventListener('pointermove', this.handlePointerMove);
     this.mainScene.remove(this.tunnelDisplay);
     this.tunnelDisplay.geometry.dispose();
     this.tunnelDisplay.material.dispose();
@@ -273,14 +257,17 @@ class HyperspaceTunnelBackground implements ThreeThemeRuntime {
   }
 
   private updateCameraPosition() {
-    this.tunnelMouse.position.x += (this.tunnelMouse.target.x - this.tunnelMouse.position.x) / 50;
-    this.tunnelMouse.position.y += (this.tunnelMouse.target.y - this.tunnelMouse.position.y) / 50;
+    // Generate a smooth procedural target using Lissajous curves (sine/cosine with different frequencies)
+    // Oscillates smoothly between ~0.1 and ~0.9
+    const targetX = 0.5 + Math.sin(this.animTime * 0.4) * 0.4;
+    const targetY = 0.5 + Math.cos(this.animTime * 0.25) * 0.4;
 
-    this.tunnelMouse.ratio.x = this.tunnelMouse.position.x;
-    this.tunnelMouse.ratio.y = this.tunnelMouse.position.y;
+    // Smoothly interpolate current wander state towards the procedural target
+    this.currentWander.x += (targetX - this.currentWander.x) / 50;
+    this.currentWander.y += (targetY - this.currentWander.y) / 50;
 
-    this.tunnelCamera.position.x = this.tunnelMouse.ratio.x * 0.044 - 0.025 + this.cameraShake.x;
-    this.tunnelCamera.position.y = this.tunnelMouse.ratio.y * 0.044 - 0.025;
+    this.tunnelCamera.position.x = this.currentWander.x * 0.044 - 0.025 + this.cameraShake.x;
+    this.tunnelCamera.position.y = this.currentWander.y * 0.044 - 0.025;
   }
 
   private updateCurve() {
@@ -288,9 +275,9 @@ class HyperspaceTunnelBackground implements ThreeThemeRuntime {
       return;
     }
 
-    // Determine the max target bend coordinates based on mouse position
-    const bendX = (this.tunnelMouse.ratio.x - 0.5) * 1.5; 
-    const bendY = (this.tunnelMouse.ratio.y - 0.5) * 1.5; 
+    // Determine the max target bend coordinates based on the procedural wander state
+    const bendX = (this.currentWander.x - 0.5) * 1.5; 
+    const bendY = (this.currentWander.y - 0.5) * 1.5; 
 
     // Update the control points to form a perfectly smooth parabolic curve 
     // This stops CatmullRomCurve3 from zigzagging, twisting its Frenet frames, and pinching/folding the tube walls

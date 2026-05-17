@@ -29,19 +29,10 @@ class HyperspaceTunnelBackground {
         this.tunnelSplineMesh = null;
         this.textureParams = { offsetX: 0, offsetY: 0, repeatX: 10, repeatY: 4 };
         this.cameraShake = { x: 0, y: 0 };
-        this.tunnelMouse = {
-            position: { x: 0.5, y: 0.5 },
-            ratio: { x: 0, y: 0 },
-            target: { x: 0.5, y: 0.5 }
-        };
+        // Replaces mouse state with an internal procedural wander state
+        this.currentWander = { x: 0.5, y: 0.5 };
         this.animTime = 0;
         this.visible = false;
-        this.handlePointerMove = (event) => {
-            const width = Math.max(window.innerWidth || 1, 1);
-            const height = Math.max(window.innerHeight || 1, 1);
-            this.tunnelMouse.target.x = event.clientX / width;
-            this.tunnelMouse.target.y = event.clientY / height;
-        };
         this.mainScene = context.scene;
         this.renderer = context.renderer;
         // Fog completely hides the far edge of the tunnel geometry to create infinite depth
@@ -72,7 +63,6 @@ class HyperspaceTunnelBackground {
         this.tunnelDisplay.renderOrder = renderOrder;
         this.tunnelDisplay.position.z = -500;
         this.mainScene.add(this.tunnelDisplay);
-        window.addEventListener('pointermove', this.handlePointerMove, { passive: true });
         this.initAnimation();
         this.loadGalaxyTunnelTexture();
     }
@@ -108,7 +98,6 @@ class HyperspaceTunnelBackground {
         this.renderTunnelToTarget();
     }
     dispose() {
-        window.removeEventListener('pointermove', this.handlePointerMove);
         this.mainScene.remove(this.tunnelDisplay);
         this.tunnelDisplay.geometry.dispose();
         this.tunnelDisplay.material.dispose();
@@ -217,20 +206,23 @@ class HyperspaceTunnelBackground {
         map.repeat.set(this.textureParams.repeatX, this.textureParams.repeatY);
     }
     updateCameraPosition() {
-        this.tunnelMouse.position.x += (this.tunnelMouse.target.x - this.tunnelMouse.position.x) / 50;
-        this.tunnelMouse.position.y += (this.tunnelMouse.target.y - this.tunnelMouse.position.y) / 50;
-        this.tunnelMouse.ratio.x = this.tunnelMouse.position.x;
-        this.tunnelMouse.ratio.y = this.tunnelMouse.position.y;
-        this.tunnelCamera.position.x = this.tunnelMouse.ratio.x * 0.044 - 0.025 + this.cameraShake.x;
-        this.tunnelCamera.position.y = this.tunnelMouse.ratio.y * 0.044 - 0.025;
+        // Generate a smooth procedural target using Lissajous curves (sine/cosine with different frequencies)
+        // Oscillates smoothly between ~0.1 and ~0.9
+        const targetX = 0.5 + Math.sin(this.animTime * 0.4) * 0.4;
+        const targetY = 0.5 + Math.cos(this.animTime * 0.25) * 0.4;
+        // Smoothly interpolate current wander state towards the procedural target
+        this.currentWander.x += (targetX - this.currentWander.x) / 50;
+        this.currentWander.y += (targetY - this.currentWander.y) / 50;
+        this.tunnelCamera.position.x = this.currentWander.x * 0.044 - 0.025 + this.cameraShake.x;
+        this.tunnelCamera.position.y = this.currentWander.y * 0.044 - 0.025;
     }
     updateCurve() {
         if (!this.tunnelCurve || !this.tunnelTubeGeometry || !this.tunnelGeometryOrigins || !this.tunnelSplineMesh) {
             return;
         }
-        // Determine the max target bend coordinates based on mouse position
-        const bendX = (this.tunnelMouse.ratio.x - 0.5) * 1.5;
-        const bendY = (this.tunnelMouse.ratio.y - 0.5) * 1.5;
+        // Determine the max target bend coordinates based on the procedural wander state
+        const bendX = (this.currentWander.x - 0.5) * 1.5;
+        const bendY = (this.currentWander.y - 0.5) * 1.5;
         // Update the control points to form a perfectly smooth parabolic curve 
         // This stops CatmullRomCurve3 from zigzagging, twisting its Frenet frames, and pinching/folding the tube walls
         this.tunnelCurve.points[1].x = bendX * 0.0625;
