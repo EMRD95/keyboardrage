@@ -16,6 +16,8 @@ import { rollercoasterTheme } from './rollercoaster.js';
 import { spaceTheme } from './space.js';
 import { space2Theme } from './space2.js';
 import { axiomataTheme } from './axiomata.js';
+import { castleTheme } from './castle.js';
+import { castleTheme as boxTheme } from './box.js';
 export const THEME_OPTIONS = [
     defaultTheme,
     highwayTheme,
@@ -34,7 +36,9 @@ export const THEME_OPTIONS = [
     rollercoasterTheme,
     spaceTheme,
     space2Theme,
-    axiomataTheme
+    axiomataTheme,
+    castleTheme,
+    boxTheme
 ];
 function isVideoTheme(theme) {
     return theme.kind === 'video';
