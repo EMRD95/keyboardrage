@@ -1,0 +1,320 @@
+import * as THREE from 'three';
+import type { CustomThreeThemeDefinition, ThreeThemeContext, ThreeThemeResizeInfo, ThreeThemeRuntime, ThreeThemeUpdateInfo } from './types.js';
+
+const TUNNEL_DISPLAY_VERTEX_SHADER = `
+  varying vec2 vUv;
+
+  void main() {
+    vUv = uv;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  }
+`;
+
+const TUNNEL_DISPLAY_FRAGMENT_SHADER = `
+  precision highp float;
+
+  varying vec2 vUv;
+  uniform sampler2D uTexture;
+  uniform float uOpacity;
+
+  void main() {
+    vec4 tex = texture2D(uTexture, vUv);
+    gl_FragColor = vec4(tex.rgb, tex.a * uOpacity);
+  }
+`;
+
+type TunnelMouse = {
+  position: { x: number; y: number };
+  ratio: { x: number; y: number };
+  target: { x: number; y: number };
+};
+
+class HyperspaceTunnelBackground implements ThreeThemeRuntime {
+  private readonly mainScene: THREE.Scene;
+  private readonly renderer: THREE.WebGLRenderer;
+  private readonly tunnelScene = new THREE.Scene();
+  private readonly tunnelCamera: THREE.PerspectiveCamera;
+  private readonly tunnelRenderTarget: THREE.WebGLRenderTarget;
+  private readonly tunnelDisplay: THREE.Mesh<THREE.PlaneGeometry, THREE.ShaderMaterial>;
+  private readonly tunnelDisplayUniforms: {
+    uTexture: { value: THREE.Texture };
+    uOpacity: { value: number };
+  };
+  private readonly forwardScrollSpeed = 0.06; // Original index3/demo3 0.001 per frame at ~60fps.
+  // Keep the fake mouse close to center. The original demo's full mouse range bends the
+  // tiny 0.02-radius tube so far that it looks like an inside-out sock in a game bg.
+  private readonly mouseSeed = Math.random() * 1000;
+  private readonly mouseMin = 0.47;
+  private readonly mouseMax = 0.53;
+  private readonly bendStrength = 0.08;
+  private readonly tubeLength = 6;
+
+  private tunnelMesh: THREE.Mesh<THREE.TubeGeometry, THREE.MeshBasicMaterial> | null = null;
+  private tunnelTubeGeometry: THREE.TubeGeometry | null = null;
+  private tunnelGeometryOrigins: Float32Array | null = null;
+  private tunnelCurve: THREE.CatmullRomCurve3 | null = null;
+  private tunnelSplineMesh: THREE.Line | null = null;
+  private textureParams = { offsetX: 0, offsetY: 0, repeatX: 10, repeatY: 4 };
+  private tunnelMouse: TunnelMouse = {
+    position: { x: 0.5, y: 0.5 },
+    ratio: { x: 0.5, y: 0.5 },
+    target: { x: 0.5, y: 0.5 }
+  };
+  private animTime = 0;
+  private visible = false;
+
+  constructor(context: ThreeThemeContext, renderOrder: number) {
+    this.mainScene = context.scene;
+    this.renderer = context.renderer;
+
+    this.tunnelCamera = new THREE.PerspectiveCamera(15, context.logicalWidth / context.logicalHeight, 0.01, 1000);
+    this.tunnelCamera.rotation.y = Math.PI;
+    this.tunnelCamera.position.z = 0.35;
+
+    const pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
+    this.tunnelRenderTarget = new THREE.WebGLRenderTarget(
+      Math.floor(context.logicalWidth * pixelRatio),
+      Math.floor(context.logicalHeight * pixelRatio),
+      { depthBuffer: false, stencilBuffer: false }
+    );
+
+    this.tunnelDisplayUniforms = {
+      uTexture: { value: this.tunnelRenderTarget.texture },
+      uOpacity: { value: 1.0 }
+    };
+    const displayGeometry = new THREE.PlaneGeometry(1, 1, 1, 1);
+    const displayMaterial = new THREE.ShaderMaterial({
+      uniforms: this.tunnelDisplayUniforms,
+      vertexShader: TUNNEL_DISPLAY_VERTEX_SHADER,
+      fragmentShader: TUNNEL_DISPLAY_FRAGMENT_SHADER,
+      transparent: true,
+      depthTest: false,
+      depthWrite: false
+    });
+    this.tunnelDisplay = new THREE.Mesh(displayGeometry, displayMaterial);
+    this.tunnelDisplay.visible = false;
+    this.tunnelDisplay.renderOrder = renderOrder;
+    this.tunnelDisplay.position.z = -500;
+    this.mainScene.add(this.tunnelDisplay);
+
+    this.loadGalaxyTunnelTexture();
+  }
+
+  setVisible(visible: boolean) {
+    this.visible = visible;
+    this.tunnelDisplay.visible = visible;
+    if (visible) {
+      this.updateCameraPosition(1 / 60);
+      this.updateCurve();
+      this.renderTunnelToTarget();
+    }
+  }
+
+  resize({ width, height, visibleWidth, visibleHeight, centerX, centerY, pixelRatio }: ThreeThemeResizeInfo) {
+    this.tunnelDisplay.position.set(centerX, centerY, -500);
+    this.tunnelDisplay.scale.set(visibleWidth, visibleHeight, 1);
+
+    this.tunnelCamera.aspect = width / Math.max(height, 1);
+    this.tunnelCamera.updateProjectionMatrix();
+
+    this.tunnelRenderTarget.setSize(
+      Math.max(1, Math.floor(width * pixelRatio)),
+      Math.max(1, Math.floor(height * pixelRatio))
+    );
+  }
+
+  update({ deltaTime }: ThreeThemeUpdateInfo) {
+    const dt = Math.min(Math.max(deltaTime * 0.001, 0), 0.05);
+    this.animTime += dt;
+
+    if (!this.visible) return;
+
+    if (this.tunnelMesh) {
+      this.updateMaterialOffset(dt);
+      this.updateCameraPosition(dt);
+      this.updateCurve();
+    }
+
+    this.renderTunnelToTarget();
+  }
+
+  dispose() {
+    this.mainScene.remove(this.tunnelDisplay);
+    this.tunnelDisplay.geometry.dispose();
+    this.tunnelDisplay.material.dispose();
+    this.tunnelRenderTarget.dispose();
+    this.tunnelTubeGeometry?.dispose();
+    this.tunnelMesh?.material.dispose();
+    if (this.tunnelMesh) this.tunnelScene.remove(this.tunnelMesh);
+  }
+
+  private loadGalaxyTunnelTexture() {
+    const loader = new THREE.TextureLoader();
+    loader.load(
+      '/assets/galaxyTexture.jpg',
+      (texture) => {
+        texture.wrapS = THREE.MirroredRepeatWrapping;
+        texture.wrapT = THREE.MirroredRepeatWrapping;
+        texture.repeat.set(this.textureParams.repeatX, this.textureParams.repeatY);
+        texture.offset.set(this.textureParams.offsetX, this.textureParams.offsetY);
+        texture.colorSpace = THREE.SRGBColorSpace;
+        texture.needsUpdate = true;
+        this.createTunnelMesh(texture);
+      },
+      undefined,
+      (error) => {
+        console.error('Failed to load Hyperspace galaxy texture', error);
+      }
+    );
+  }
+
+  private createTunnelMesh(texture: THREE.Texture) {
+    if (this.tunnelMesh) {
+      this.tunnelScene.remove(this.tunnelMesh);
+      this.tunnelTubeGeometry?.dispose();
+      this.tunnelMesh.material.dispose();
+    }
+
+    const points: THREE.Vector3[] = [];
+    for (let i = 0; i < 5; i += 1) {
+      points.push(new THREE.Vector3(0, 0, this.tubeLength * (i / 4)));
+    }
+    points[4].y = -0.06;
+
+    this.tunnelCurve = new THREE.CatmullRomCurve3(points);
+
+    const splineGeometry = new THREE.BufferGeometry().setFromPoints(this.tunnelCurve.getPoints(70));
+    this.tunnelSplineMesh = new THREE.Line(splineGeometry, new THREE.LineBasicMaterial());
+
+    this.tunnelTubeGeometry = new THREE.TubeGeometry(this.tunnelCurve, 70, 0.02, 30, false);
+    const positionArray = this.tunnelTubeGeometry.getAttribute('position').array as Float32Array;
+    this.tunnelGeometryOrigins = new Float32Array(positionArray);
+
+    const tubeMaterial = new THREE.MeshBasicMaterial({
+      side: THREE.BackSide,
+      map: texture
+    });
+    this.tunnelMesh = new THREE.Mesh(this.tunnelTubeGeometry, tubeMaterial);
+    this.tunnelScene.add(this.tunnelMesh);
+
+    if (this.visible) {
+      this.updateCameraPosition(1 / 60);
+      this.updateCurve();
+      this.renderTunnelToTarget();
+    }
+  }
+
+  private updateMaterialOffset(dt: number) {
+    if (!this.tunnelMesh) return;
+    const map = this.tunnelMesh.material.map;
+    if (!map) return;
+
+    this.textureParams.offsetY += dt * this.forwardScrollSpeed;
+    this.textureParams.repeatX = 10;
+    this.textureParams.repeatY = 4;
+
+    map.offset.x = this.textureParams.offsetX;
+    map.offset.y = this.textureParams.offsetY;
+    map.repeat.set(this.textureParams.repeatX, this.textureParams.repeatY);
+  }
+
+  private updateCameraPosition(dt: number) {
+    const t = this.animTime;
+    const rawX = 0.5
+      + 0.055 * Math.sin(t * 0.27 + this.mouseSeed)
+      + 0.030 * Math.sin(t * 0.61 + this.mouseSeed * 1.73)
+      + 0.015 * Math.cos(t * 0.13 + 2.4);
+    const rawY = 0.5
+      + 0.050 * Math.cos(t * 0.23 + this.mouseSeed * 0.71)
+      + 0.032 * Math.sin(t * 0.47 + this.mouseSeed * 1.37)
+      + 0.014 * Math.cos(t * 0.11 + 0.8);
+
+    this.tunnelMouse.target.x = this.clamp(rawX, this.mouseMin, this.mouseMax);
+    this.tunnelMouse.target.y = this.clamp(rawY, this.mouseMin, this.mouseMax);
+
+    const lerp = 1 - Math.exp(-dt * 0.9);
+    this.tunnelMouse.position.x += (this.tunnelMouse.target.x - this.tunnelMouse.position.x) * lerp;
+    this.tunnelMouse.position.y += (this.tunnelMouse.target.y - this.tunnelMouse.position.y) * lerp;
+    this.tunnelMouse.ratio.x = this.tunnelMouse.position.x;
+    this.tunnelMouse.ratio.y = this.tunnelMouse.position.y;
+
+    // Original demo3 centering formula. No camera shake, no timeline acceleration.
+    this.tunnelCamera.position.x = this.tunnelMouse.ratio.x * 0.044 - 0.025;
+    this.tunnelCamera.position.y = this.tunnelMouse.ratio.y * 0.044 - 0.025;
+  }
+
+  private updateCurve() {
+    if (!this.tunnelCurve || !this.tunnelTubeGeometry || !this.tunnelGeometryOrigins || !this.tunnelSplineMesh) {
+      return;
+    }
+
+    const bendX = (0.6 * (1 - this.tunnelMouse.ratio.x) - 0.3) * this.bendStrength;
+    const bendY = (0.6 * (1 - this.tunnelMouse.ratio.y) - 0.3) * this.bendStrength;
+    this.tunnelCurve.points[2].x = bendX;
+    this.tunnelCurve.points[3].x = 0;
+    this.tunnelCurve.points[4].x = bendX;
+    this.tunnelCurve.points[2].y = bendY;
+    this.tunnelCurve.points[3].y = 0;
+    this.tunnelCurve.points[4].y = bendY;
+
+    const splinePositions = this.tunnelSplineMesh.geometry.getAttribute('position') as THREE.BufferAttribute;
+    const splineVerts = this.tunnelCurve.getPoints(70);
+    for (let i = 0; i < splineVerts.length; i += 1) {
+      splinePositions.setXYZ(i, splineVerts[i].x, splineVerts[i].y, splineVerts[i].z);
+    }
+    splinePositions.needsUpdate = true;
+
+    const tubePositions = this.tunnelTubeGeometry.getAttribute('position') as THREE.BufferAttribute;
+    const origins = this.tunnelGeometryOrigins;
+    const ringStride = 31; // radialSegments + 1 for TubeGeometry(…, 30, …)
+    const maxSplineIndex = splinePositions.count - 1;
+
+    for (let i = 0; i < tubePositions.count; i += 1) {
+      const splineIndex = Math.min(maxSplineIndex, Math.floor(i / ringStride));
+      const ox = origins[i * 3];
+      const oy = origins[i * 3 + 1];
+      const oz = origins[i * 3 + 2];
+      const cx = tubePositions.getX(i);
+      const cy = tubePositions.getY(i);
+      const sx = splinePositions.getX(splineIndex);
+      const sy = splinePositions.getY(splineIndex);
+
+      tubePositions.setXYZ(
+        i,
+        cx + (ox + sx - cx) / 15,
+        cy + (oy + sy - cy) / 15,
+        oz
+      );
+    }
+    tubePositions.needsUpdate = true;
+  }
+
+  private renderTunnelToTarget() {
+    const previousRenderTarget = this.renderer.getRenderTarget();
+    const previousClearColor = new THREE.Color();
+    this.renderer.getClearColor(previousClearColor);
+    const previousClearAlpha = this.renderer.getClearAlpha();
+
+    this.renderer.setClearColor(0x000000, 1);
+    this.renderer.setRenderTarget(this.tunnelRenderTarget);
+    this.renderer.clear(true, true, true);
+    this.renderer.render(this.tunnelScene, this.tunnelCamera);
+    this.renderer.setRenderTarget(previousRenderTarget);
+    this.renderer.setClearColor(previousClearColor, previousClearAlpha);
+
+    this.tunnelDisplayUniforms.uTexture.value = this.tunnelRenderTarget.texture;
+  }
+
+  private clamp(value: number, min: number, max: number) {
+    return Math.max(min, Math.min(max, value));
+  }
+}
+
+export const hyperspaceTheme: CustomThreeThemeDefinition = {
+  id: 'hyperspace',
+  label: 'Hyperspace (3D)',
+  kind: 'three',
+  backgroundType: 'custom',
+  renderOrder: -94,
+  createBackground: (context) => new HyperspaceTunnelBackground(context, -94)
+};

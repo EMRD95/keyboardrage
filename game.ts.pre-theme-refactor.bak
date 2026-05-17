@@ -1,0 +1,2440 @@
+import * as THREE from 'three';
+
+interface Word {
+  text: string;
+  originalText: string;
+  x: number;
+  y: number;
+  speed: number;
+  originalSpeed: number;
+  color: string;
+  currentIndex: number;
+  isTypoMade?: boolean;
+  sprite?: THREE.Sprite;
+  texture?: THREE.CanvasTexture;
+  material?: THREE.SpriteMaterial;
+  width?: number;
+  height?: number;
+}
+
+type GameMode = 'rage' | 'precision' | 'fast';
+
+type VideoTheme = {
+  id: string;
+  maxStart: number;
+};
+
+const LOGICAL_WIDTH = 800;
+const LOGICAL_HEIGHT = 600;
+const WORD_FONT_SIZE = 48;
+const WORD_FONT = `700 ${WORD_FONT_SIZE}px "Courier New", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace`;
+const WORD_FILL = '#f8f8f2';
+const WORD_MUTED = '#777777';
+const WORD_DANGER = '#FF0000';
+
+const VIDEO_THEMES: Record<string, VideoTheme> = {
+  psy2: { id: 'bx-0YlFprqc', maxStart: 7777 },
+  ocean: { id: 'prfZFyp4XZk', maxStart: 42444 },
+  space: { id: 'rWnCk_86KVE', maxStart: 10000 },
+  space2: { id: 'gCWaRhNUvfc', maxStart: 11222 },
+  rollercoaster: { id: '9N7bhFycatU', maxStart: 3603 },
+  highway: { id: 'tTBJeT5F4r8', maxStart: 2536 }
+};
+
+const THREE_FRACTAL_THEME = 'fractal-flow';
+const DEEP_FRACTAL_THEME = 'deep-fractal';
+const FRACTAL_TUNNEL_THEME = 'fractal-tunnel';
+const KLEINIAN_ATMO_THEME = 'kleinian-atmo';
+const AESTRETHRA_THEME = 'aestrethra';
+const INFINITE_TUBES_THEME = 'infinite-tubes';
+const HYPERSPACE_THEME = 'hyperspace';
+const FRACTAL_WORLDS_THEME = 'fractal-worlds';
+
+const FRACTAL_VERTEX_SHADER = `
+  varying vec2 vUv;
+
+  void main() {
+    vUv = uv;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  }
+`;
+
+const DEEP_FRACTAL_SHADER = `
+  precision highp float;
+
+  varying vec2 vUv;
+  uniform float uTime;
+  uniform vec2 uResolution;
+  uniform vec3 uAccentA;
+  uniform vec3 uAccentB;
+  uniform float uOpacity;
+
+  // Rotate 2D point around origin
+  mat2 rot(float a) {
+    float s = sin(a), c = cos(a);
+    return mat2(c, -s, s, c);
+  }
+
+  // Smooth noise for domain warping
+  float hash(vec2 p) {
+    return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+  }
+
+  float noise(vec2 p) {
+    vec2 i = floor(p);
+    vec2 f = fract(p);
+    f = f * f * (3.0 - 2.0 * f);
+    return mix(
+      mix(hash(i), hash(i + vec2(1.0, 0.0)), f.x),
+      mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), f.x),
+      f.y
+    );
+  }
+
+  void main() {
+    vec2 uv = vUv * 2.0 - 1.0;
+    uv.x *= uResolution.x / max(uResolution.y, 1.0);
+
+    // Domain warp: flowing distortion field
+    float warpScale = 3.5;
+    float warpAmp = 0.25;
+    vec2 warp = vec2(
+      noise(uv * warpScale + uTime * 0.15),
+      noise(uv * warpScale + uTime * 0.15 + 3.7)
+    );
+    uv += (warp - 0.5) * warpAmp;
+
+    // KIFS — Kaleidoscopic Iterated Function System
+    vec2 p = uv;
+    float orbit = 0.0;
+    float foldCount = 0.0;
+    float scale = 1.0;
+
+    // Animate fold angles
+    float baseAngle = uTime * 0.12;
+    int folds = 6 + int(sin(uTime * 0.08) * 2.0);  // 4-8 fold symmetry, slowly changing
+
+    for (int i = 0; i < 8; i++) {
+      // Fold into first sector
+      float angle = 6.2831853 / float(folds);
+      float sector = floor(atan(p.y, p.x) / angle + 0.5);
+      float rotAngle = sector * angle;
+      p = p * rot(-rotAngle);  // rotate to sector 0
+      p.x = abs(p.x);           // mirror into positive x
+
+      // Record orbit for coloring
+      orbit += length(p) * scale;
+      foldCount += 1.0;
+
+      // Scale and translate for next iteration
+      p = p * 2.2 - 1.0;
+      p = p * rot(baseAngle + float(i) * 0.4);
+      scale *= 0.45;
+    }
+
+    // Coloring from orbit distance — use sin() for infinite, never-resetting bands
+    float t = orbit * 0.6;
+
+    // Smooth infinite color bands
+    float band1 = sin(t * 4.5 + uTime * 0.08) * 0.5 + 0.5;
+    float band2 = sin(t * 3.2 - uTime * 0.06) * 0.5 + 0.5;
+    float band3 = sin(t * 7.0 + uTime * 0.11) * 0.5 + 0.5;
+
+    // Neon palette: cyan, magenta, gold, violet
+    vec3 c1 = vec3(0.0, 1.0, 0.9);    // cyan
+    vec3 c2 = vec3(1.0, 0.35, 0.9);   // magenta
+    vec3 c3 = vec3(1.0, 0.7, 0.1);    // gold
+    vec3 c4 = vec3(0.6, 0.1, 1.0);    // violet
+    vec3 c5 = vec3(0.1, 0.95, 0.5);   // emerald
+
+    vec3 col = c1;
+    col = mix(col, c2, smoothstep(0.0, 0.2, band1));
+    col = mix(col, c3, smoothstep(0.2, 0.4, band1));
+    col = mix(col, c4, smoothstep(0.4, 0.6, band1));
+    col = mix(col, c5, smoothstep(0.6, 0.8, band1));
+    col = mix(col, c1, smoothstep(0.8, 1.0, band1));
+
+    // Add accent-tinted banding from orbit
+    col = mix(col, uAccentA, band2 * 0.35);
+    col = mix(col, uAccentB, band3 * 0.25);
+
+    // Fold-line glow: smooth infinite ripples, never repeats
+    float foldGlow = sin(orbit * 8.0 + uTime * 0.15) * 0.5 + 0.5;
+    foldGlow = pow(foldGlow, 4.0) * 0.45;
+    col += uAccentA * foldGlow;
+
+    // Brightness
+    float brightness = 0.55 + orbit * 0.08;
+    brightness = clamp(brightness, 0.3, 1.3);
+
+    vec3 darkBase = vec3(0.004, 0.005, 0.015);
+    vec3 color = darkBase + col * brightness;
+
+    // Center readability: keep play area slightly subdued
+    float centerDist = length(uv);
+    float centerFade = 1.0 - smoothstep(0.0, 0.5, centerDist) * 0.3;
+    color *= centerFade;
+
+    // Vignette
+    float vignette = 1.0 - smoothstep(0.55, 1.4, centerDist) * 0.5;
+    color *= vignette;
+
+    // Gentle contrast
+    color = pow(color, vec3(0.92));
+
+    gl_FragColor = vec4(color, uOpacity);
+  }
+`;
+
+const TUNNEL_FRAGMENT_SHADER = `
+  precision highp float;
+
+  varying vec2 vUv;
+  uniform float uTime;
+  uniform vec2 uResolution;
+  uniform vec3 uAccentA;
+  uniform vec3 uAccentB;
+  uniform float uOpacity;
+
+  // Kleinian inversion fractal SDF — lean for CPU rendering
+  float kleinianSDF(vec3 p) {
+    float scale = 1.0;
+    float minRadius = 1e9;
+    const float foldSize = 1.2;
+    const float sphereR = 1.26;
+    const float sphereR2 = sphereR * sphereR;
+
+    // 5 iterations — minimal for recognizable Kleinian structure
+    for (int i = 0; i < 5; i++) {
+      float r2 = dot(p, p);
+      if (r2 < sphereR2) {
+        float k = sphereR2 / max(r2, 0.001);
+        p *= k;
+        scale *= k;
+      }
+      p = clamp(p, -foldSize, foldSize) * 2.0 - p;
+      minRadius = min(minRadius, length(p));
+    }
+
+    return (minRadius / max(scale, 0.001)) * 0.5;
+  }
+
+  float sd(vec3 p) {
+    return kleinianSDF(p);
+  }
+
+  // Tetrahedron normal: larger epsilon for stable normals at low iteration count
+  vec3 calcNormal(vec3 p) {
+    float e = 0.015;
+    vec2 k = vec2(1.0, -1.0);
+    return normalize(
+      k.xyy * sd(p + k.xyy * e) +
+      k.yyx * sd(p + k.yyx * e) +
+      k.yxy * sd(p + k.yxy * e) +
+      k.xxx * sd(p + k.xxx * e)
+    );
+  }
+
+  void main() {
+    vec2 uv = vUv * 2.0 - 1.0;
+    uv.x *= uResolution.x / max(uResolution.y, 1.0);
+
+    // Infinite cyclic orbit
+    float t = uTime * 0.3;
+    vec3 ro = vec3(
+      sin(t * 0.7) * 3.5,
+      cos(t * 0.5) * 2.8 + sin(t * 0.3) * 1.5,
+      cos(t * 0.6) * 4.0 + 2.5
+    );
+    vec3 lookAt = vec3(
+      sin(t * 0.7 + 1.2) * 1.5,
+      cos(t * 0.5 + 0.8) * 1.0,
+      cos(t * 0.6 + 2.5) * 2.0 + 1.5
+    );
+    vec3 forward = normalize(lookAt - ro);
+    vec3 right = normalize(cross(forward, vec3(0.0, 1.0, 0.0)));
+    vec3 up = cross(right, forward);
+    vec3 rd = normalize(forward + right * uv.x * 0.55 + up * uv.y * 0.55);
+
+    // Raymarch — 64 steps, tight near clip
+    float tDist = 0.0;
+    float dist;
+    const int MAX_STEPS = 64;
+    const float MAX_DIST = 30.0;
+    const float HIT_THRESH = 0.001;
+    int steps = 0;
+
+    for (int i = 0; i < MAX_STEPS; i++) {
+      vec3 pos = ro + rd * tDist;
+      dist = sd(pos);
+      steps = i;
+      if (abs(dist) < HIT_THRESH || tDist > MAX_DIST) break;
+      tDist += dist * 0.85;  // conservative: avoids skipping thin surfaces
+    }
+
+    vec3 color;
+
+    if (tDist < MAX_DIST) {
+      vec3 hitPos = ro + rd * tDist;
+      vec3 normal = calcNormal(hitPos);
+      vec3 lightDir = normalize(vec3(0.4, 0.7, 0.4));
+      float diff = max(dot(normal, lightDir), 0.0) * 0.75 + 0.25;
+
+      float depth = tDist / MAX_DIST;
+      float iterColor = float(steps) / float(MAX_STEPS);
+      float band = sin(iterColor * 7.0 + uTime * 0.05) * 0.5 + 0.5;
+
+      vec3 c1 = vec3(0.0, 1.0, 0.85);
+      vec3 c2 = vec3(1.0, 0.35, 0.85);
+      vec3 c3 = vec3(1.0, 0.65, 0.1);
+      vec3 surfaceColor = mix(c1, c2, smoothstep(0.0, 0.5, band));
+      surfaceColor = mix(surfaceColor, c3, smoothstep(0.5, 1.0, band));
+
+      color = surfaceColor * diff;
+      float fog = exp(-depth * 4.0);
+      color = mix(vec3(0.002, 0.003, 0.008), color, fog);
+    } else {
+      color = vec3(0.002, 0.003, 0.008);
+    }
+
+    float cd = length(uv * vec2(1.0, uResolution.y / uResolution.x));
+    color *= 1.0 - smoothstep(0.0, 0.45, cd) * 0.18;
+    color *= 1.0 - smoothstep(0.5, 1.4, cd) * 0.40;
+
+    gl_FragColor = vec4(color, uOpacity);
+  }
+`;
+
+const ATMO_FRAGMENT_SHADER = `
+  precision highp float;
+
+  varying vec2 vUv;
+  uniform float uTime;
+  uniform vec2 uResolution;
+  uniform vec3 uAccentA;
+  uniform vec3 uAccentB;
+  uniform float uOpacity;
+
+  // ── Atmospheric scattering (adapted from sbcode TSL reference) ──
+  vec3 atmosphericScattering(vec3 pos, vec3 lightDir) {
+    vec3 topColour = vec3(0.1, 0.2, 0.5) * 2.0;
+    vec3 midColour = vec3(1.0, 0.4, 0.2);
+    vec3 bottomColour = vec3(0.0, 0.0, 0.133);
+
+    float t = clamp(pos.y * 0.5 + 0.5, 0.0, 1.0);
+    vec3 skyColour = mix(mix(bottomColour, vec3(0.75, 0.85, 0.95), t) * 3.0, vec3(0.0), t * 1.25);
+
+    float radius = 0.005;
+    float dist = length(pos - normalize(lightDir));
+    float sun = exp(-dist * (dist / radius));
+    skyColour += vec3(1.0, 0.8, 0.5) * sun;
+
+    float mie = exp(-pow(dist * 3.0, 2.0)) * 0.5;
+    skyColour += midColour * mie * 1.5;
+
+    float rayleigh = exp(pos.y * 2.5) * 0.3;
+    skyColour += rayleigh * topColour;
+
+    float nightFactor = smoothstep(-0.1, 0.1, lightDir.y);
+    skyColour *= nightFactor;
+
+    return skyColour;
+  }
+
+  // ── Hash for randomized ray start (prevents banding) ──
+  float hash(vec3 seed) {
+    float d = dot(seed, vec3(12.3456, 78.9012, 34.5678));
+    return fract(sin(d * 34567.89012) * 0.1);
+  }
+
+  // ── Kleinian SDF with organic distortion ──
+  float kleinianSDF(vec3 p, float organic) {
+    float scale = 1.0;
+    float minRadius = 1e9;
+    const float foldSize = 1.2;
+    float sphereR = 1.26;
+    float sphereR2 = sphereR * sphereR;
+
+    for (int i = 0; i < 8; i++) {
+      float r2 = dot(p, p + organic);
+      if (r2 < sphereR2) {
+        float k = sphereR2 / max(r2, 0.001);
+        p *= k;
+        scale *= k;
+      }
+      p = clamp(p, -foldSize, foldSize) * 2.0 - p;
+      minRadius = min(minRadius, length(p));
+    }
+
+    return (minRadius / max(scale, 0.001)) * 0.5;
+  }
+
+  float sd(vec3 p) {
+    return kleinianSDF(p, 0.0);
+  }
+  float sdOrganic(vec3 p, float organic) {
+    return kleinianSDF(p, organic);
+  }
+
+  // ── Tetrahedron normal ──
+  vec3 calcNormal(vec3 p) {
+    float e = 0.0025;
+    vec2 k = vec2(1.0, -1.0);
+    return normalize(
+      k.xyy * sd(p + k.xyy * e) +
+      k.yyx * sd(p + k.yyx * e) +
+      k.yxy * sd(p + k.yxy * e) +
+      k.xxx * sd(p + k.xxx * e)
+    );
+  }
+
+  // ── Simple ambient occlusion (directional sample along normal) ──
+  float ambientOcclusion(vec3 p, vec3 n) {
+    float occ = 0.0;
+    float spread = 0.015;
+    for (int i = 1; i <= 4; i++) {
+      float d = sd(p + n * (float(i) * spread));
+      occ += smoothstep(0.0, 0.005, d);
+    }
+    return clamp(occ / 4.0, 0.0, 1.0);
+  }
+
+  void main() {
+    vec2 uv = vUv * 2.0 - 1.0;
+    uv.x *= uResolution.x / max(uResolution.y, 1.0);
+
+    // Infinite cyclic orbit
+    float t = uTime * 0.25;
+    vec3 ro = vec3(
+      sin(t * 0.7) * 4.0,
+      cos(t * 0.5) * 3.0 + sin(t * 0.3) * 2.0,
+      cos(t * 0.6) * 5.0 + 3.0
+    );
+    vec3 lookAt = vec3(
+      sin(t * 0.7 + 1.2) * 2.0,
+      cos(t * 0.5 + 0.8) * 1.5,
+      cos(t * 0.6 + 2.5) * 2.5 + 2.0
+    );
+    vec3 forward = normalize(lookAt - ro);
+    vec3 right = normalize(cross(forward, vec3(0.0, 1.0, 0.0)));
+    vec3 up = cross(right, forward);
+    vec3 rd = normalize(forward + right * uv.x * 0.5 + up * uv.y * 0.5);
+
+    // Light
+    vec3 lightPos = vec3(0.0, 50.0, -60.0);
+    vec3 lightDir = normalize(lightPos - ro);
+
+    // Randomized start (prevents banding artifacts)
+    float jitter = hash(ro + rd) * 0.05;
+
+    // Raymarch
+    float tDist = jitter;
+    float dist;
+    const int MAX_STEPS = 128;
+    const float MAX_DIST = 80.0;
+    const float HIT_THRESH = 0.0001;
+    int steps = 0;
+
+    // Organic parameter slowly evolving
+    float organic = sin(uTime * 0.15) * 0.3;
+
+    for (int i = 0; i < MAX_STEPS; i++) {
+      vec3 pos = ro + rd * tDist;
+      dist = sdOrganic(pos, organic);
+      steps = i;
+      if (abs(dist) < HIT_THRESH || tDist > MAX_DIST) break;
+      tDist += dist * 0.666;
+    }
+
+    vec3 color;
+
+    if (tDist < MAX_DIST) {
+      vec3 hitPos = ro + rd * tDist;
+      vec3 normal = calcNormal(hitPos);
+
+      float diff = clamp(dot(normal, lightDir), 0.0, 1.0);
+      float ao = ambientOcclusion(hitPos, normal);
+
+      vec3 surfaceColour = vec3(0.4, 0.9, 0.7);
+      // Tint with accent colors for neon look
+      surfaceColour = mix(surfaceColour, uAccentA, 0.3);
+      surfaceColour = mix(surfaceColour, uAccentB, 0.2);
+      surfaceColour *= ao;
+
+      color = surfaceColour * (0.2 + diff * 0.4) * pow(normal * 0.5 + 0.5, vec3(0.5));
+
+      // Fog blend
+      float fog = exp(-pow(tDist * 0.000001, 3.0));
+      vec3 skyColour = atmosphericScattering(rd, lightDir);
+      color = mix(skyColour, color, fog);
+    } else {
+      color = atmosphericScattering(rd, lightDir);
+    }
+
+    float cd = length(uv * vec2(1.0, uResolution.y / uResolution.x));
+    color *= 1.0 - smoothstep(0.0, 0.5, cd) * 0.15;
+    color *= 1.0 - smoothstep(0.5, 1.4, cd) * 0.35;
+
+    gl_FragColor = vec4(color, uOpacity);
+  }
+`;
+
+const AESTRETHRA_FRAGMENT_SHADER = `
+  precision highp float;
+
+  varying vec2 vUv;
+  uniform float uTime;
+  uniform vec2 uResolution;
+  uniform vec3 uAccentA;
+  uniform vec3 uAccentB;
+  uniform float uOpacity;
+
+  // ── Atmospheric scattering (dark sky, same as FractalWorlds) ──
+  vec3 atmosphericScattering(vec3 dir, vec3 lightDir) {
+    float t = clamp(dir.y * 0.5 + 0.5, 0.0, 1.0);
+    vec3 skyColour = mix(vec3(0.01, 0.01, 0.04), vec3(0.04, 0.06, 0.12), t);
+    float dist = length(dir - normalize(lightDir));
+    float sun = exp(-dist * (dist / 0.3));
+    skyColour += vec3(1.0, 0.8, 0.5) * sun * 0.15;
+    skyColour += vec3(0.6, 0.25, 0.1) * exp(-pow(dist * 2.0, 2.0)) * 0.1;
+    skyColour *= smoothstep(-0.1, 0.1, lightDir.y);
+    return skyColour;
+  }
+
+  float hash(vec3 seed) {
+    return fract(sin(dot(seed, vec3(12.3456, 78.9012, 34.5678))) * 34567.89012) * 0.1;
+  }
+
+  // ── Aestrethra parameterized Kleinian SDF ──
+  vec2 aestrethraDE(vec3 p, vec3 rot, float wBias) {
+    float scale = 1.0;
+    vec4 minRadius = vec4(1e3);
+    for (int i = 0; i < 8; i++) {
+      p = clamp(p, -rot, rot) * 2.0 - p;
+      float r2 = dot(p, p);
+      float k = (2.0 / max(r2, 0.001)) + wBias;
+      p *= k;
+      scale *= k;
+      if (i < 6) minRadius = min(minRadius, vec4(p, r2));
+    }
+    float len2d = length(p.xy);
+    float d = (len2d - 4.0) * abs(-p.z / 4.0) / max(length(vec2(scale)), 0.001) * 0.5;
+    return vec2(d, minRadius.w);
+  }
+
+  float sd(vec3 p, vec3 rot, float wBias) { return aestrethraDE(p, rot, wBias).x; }
+
+  vec3 calcNormal(vec3 p, vec3 rot, float wBias) {
+    float e = 0.005;
+    vec2 k = vec2(1.0, -1.0);
+    return normalize(
+      k.xyy * sd(p + k.xyy * e, rot, wBias) +
+      k.yyx * sd(p + k.yyx * e, rot, wBias) +
+      k.yxy * sd(p + k.yxy * e, rot, wBias) +
+      k.xxx * sd(p + k.xxx * e, rot, wBias)
+    );
+  }
+
+  void main() {
+    vec2 uv = vUv * 2.0 - 1.0;
+    uv.x *= uResolution.x / max(uResolution.y, 1.0);
+
+    // Spiral orbit — stays in the dense core forever, feels like forward flight
+    float t = uTime * 0.2;
+    vec3 ro = vec3(
+      sin(t * 0.5) * 3.5,
+      cos(t * 0.4) * 3.0 + sin(t * 0.25) * 2.0 + 2.0,
+      cos(t * 0.45) * 4.0 + sin(t * 0.15) * 6.0
+    );
+    vec3 lookAt = vec3(
+      sin(t * 0.5 + 1.3) * 2.5,
+      cos(t * 0.4 + 0.9) * 1.5,
+      cos(t * 0.45 + 1.7) * 3.0 + sin(t * 0.15 + 0.5) * 5.0 + 5.0
+    );
+    vec3 forward = normalize(lookAt - ro);
+    vec3 right = normalize(cross(forward, vec3(0.0, 1.0, 0.0)));
+    vec3 up = cross(right, forward);
+    vec3 rd = normalize(forward + right * uv.x * 0.55 + up * uv.y * 0.55);
+
+    // Moderate fold sizes: open enough to see, dense enough to stay interesting
+    vec3 rot = vec3(
+      1.05 + sin(uTime * 0.05) * 0.25,
+      1.05 + cos(uTime * 0.06) * 0.25,
+      1.15 + sin(uTime * 0.07) * 0.30
+    );
+    float wBias = 0.018 + sin(uTime * 0.04) * 0.010;
+
+    vec3 lightPos = vec3(0.0, 50.0, -60.0);
+    vec3 lightDir = normalize(lightPos - ro);
+
+    // Raymarch
+    float tDist = hash(ro + rd);
+    float dist;
+    const int MAX_STEPS = 96;
+    const float MAX_DIST = 90.0;
+    const float HIT_THRESH = 0.0005;
+
+    for (int i = 0; i < MAX_STEPS; i++) {
+      vec3 pos = ro + rd * tDist;
+      dist = aestrethraDE(pos, rot, wBias).x;
+      if (abs(dist) < HIT_THRESH || tDist > MAX_DIST) break;
+      tDist += dist * 0.7;
+    }
+
+    vec3 color;
+
+    if (tDist < MAX_DIST) {
+      vec3 hitPos = ro + rd * tDist;
+      vec3 normal = calcNormal(hitPos, rot, wBias);
+      float diff = clamp(dot(normal, lightDir), 0.0, 1.0);
+
+      // Smooth depth-based coloring — no jitter
+      float depth = tDist / MAX_DIST;
+      float band = sin(tDist * 0.5 + uTime * 0.04) * 0.5 + 0.5;
+
+      vec3 c1 = vec3(0.0, 1.0, 0.8);
+      vec3 c2 = vec3(1.0, 0.4, 0.9);
+      vec3 c3 = vec3(1.0, 0.7, 0.15);
+      vec3 surfaceColor = mix(c1, c2, smoothstep(0.0, 0.5, band));
+      surfaceColor = mix(surfaceColor, c3, smoothstep(0.5, 1.0, band));
+
+      color = surfaceColor * (0.2 + diff * 0.4);
+
+      // Light fog: distant structures stay visible, atmosphere for depth
+      float fog = exp(-pow(tDist * 0.0000005, 3.0));
+      vec3 skyColour = atmosphericScattering(rd, lightDir);
+      color = mix(skyColour, color, fog);
+    } else {
+      color = atmosphericScattering(rd, lightDir);
+    }
+
+    float cd = length(uv * vec2(1.0, uResolution.y / uResolution.x));
+    color *= 1.0 - smoothstep(0.0, 0.5, cd) * 0.12;
+    color *= 1.0 - smoothstep(0.5, 1.4, cd) * 0.30;
+
+    gl_FragColor = vec4(color, uOpacity);
+  }
+`;
+
+const TUBES_FRAGMENT_SHADER = `
+  precision highp float;
+
+  varying vec2 vUv;
+  uniform float uTime;
+  uniform vec2 uResolution;
+  uniform vec3 uAccentA;
+  uniform vec3 uAccentB;
+  uniform float uOpacity;
+
+  float hash21(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+  float noise(vec2 p) {
+    vec2 i = floor(p), f = fract(p);
+    f = f * f * (3.0 - 2.0 * f);
+    return mix(mix(hash21(i), hash21(i+vec2(1,0)), f.x),
+               mix(hash21(i+vec2(0,1)), hash21(i+vec2(1,1)), f.x), f.y);
+  }
+
+  void main() {
+    vec2 uv = vUv * 2.0 - 1.0;
+    uv.x *= uResolution.x / max(uResolution.y, 1.0);
+
+    vec2 delta = uv;
+    float dist = length(delta);
+    float angle = atan(delta.y, delta.x);
+
+    float z = 1.0 / max(dist, 0.001);
+
+    float curveX = noise(vec2(z * 0.15 + uTime * 0.15, 0.0)) * 1.5;
+    float curveY = noise(vec2(z * 0.15 + uTime * 0.15, 3.7)) * 1.5;
+    vec2 curvedUV = uv - vec2(curveX, curveY) * (1.0 / z);
+    float curvedDist = length(curvedUV);
+    float curvedZ = 1.0 / max(curvedDist, 0.001);
+
+    float rings = sin(curvedZ * 4.0 + uTime * 1.8) * 0.5 + 0.5;
+    float ringGlow = smoothstep(0.02, 0.01, abs(fract(curvedZ * 2.0 + uTime * 0.9) - 0.5)) * 0.3;
+
+    float angleTiles = sin(angle * 12.0 + curvedZ * 2.0) * 0.5 + 0.5;
+    float brickLines = smoothstep(0.95, 1.0, angleTiles) * 0.4;
+
+    float pattern = rings * 0.6 + ringGlow + brickLines;
+
+    vec3 baseColor = mix(vec3(0.15, 0.08, 0.03), vec3(0.3, 0.15, 0.05), rings);
+    vec3 tubeColor = mix(baseColor, uAccentA, ringGlow * 0.6);
+    tubeColor = mix(tubeColor, uAccentB, brickLines * 0.3);
+
+    float fog = exp(-curvedZ * 0.12);
+    vec3 fogColor = vec3(0.01, 0.01, 0.02);
+    vec3 color = mix(fogColor, tubeColor, fog * pattern + 0.05);
+
+    color *= 1.0 - smoothstep(0.0, 0.6, dist) * 0.5;
+    color *= smoothstep(0.05, 0.15, dist);
+
+    gl_FragColor = vec4(color, uOpacity);
+  }
+`;
+
+// Hyperspace warp-speed effect — streaking light lines from vanishing point
+const HYPERSPACE_FRAGMENT_SHADER = `
+  precision highp float;
+
+  varying vec2 vUv;
+  uniform float uTime;
+  uniform vec2 uResolution;
+  uniform vec3 uAccentA;
+  uniform vec3 uAccentB;
+  uniform float uOpacity;
+
+  // Hash for pseudo-random star positions
+  float hash(vec2 p) {
+    return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+  }
+
+  // Star streak — elongated line from center
+  float starStreak(vec2 uv, vec2 center, float speed, float brightness) {
+    vec2 diff = uv - center;
+    float dist = length(diff);
+    vec2 dir = normalize(diff);
+    
+    // Elongate in the radial direction based on speed
+    float streak = exp(-dist * dist * 200.0 / max(speed, 0.001));
+    streak *= exp(-abs(diff.x * diff.y) * 500.0); // Thin line
+    
+    return streak * brightness;
+  }
+
+  void main() {
+    vec2 uv = vUv * 2.0 - 1.0;
+    uv.x *= uResolution.x / max(uResolution.y, 1.0);
+    
+    float t = uTime * 0.25; // speedFactor = 0.25
+    
+    // Vanishing point at center
+    vec2 center = vec2(0.0);
+    vec2 diff = uv - center;
+    float dist = length(diff);
+    vec2 dir = normalize(diff);
+    
+    // Radial tunnel effect — stars accelerate outward
+    float tunnel = exp(-dist * 3.0);
+    
+    // Generate multiple layers of streaking stars
+    float streaks = 0.0;
+    
+    // Layer 1: fast bright streaks
+    for (int i = 0; i < 20; i++) {
+      float fi = float(i);
+      float angle = fi * 0.3183 + t * 0.1; // Golden angle distribution
+      float radius = hash(vec2(fi, 0.0)) * 0.8 + 0.1;
+      float speed = hash(vec2(fi, 1.0)) * 2.0 + 1.0;
+      float brightness = hash(vec2(fi, 2.0)) * 0.5 + 0.5;
+      
+      // Star position moves outward from center
+      vec2 starPos = vec2(cos(angle), sin(angle)) * radius;
+      starPos += dir * t * speed * 0.3; // Move along radial direction
+      
+      // Wrap around
+      starPos = fract(starPos + 0.5) - 0.5;
+      
+      streaks += starStreak(uv, starPos, speed * t, brightness);
+    }
+    
+    // Layer 2: slower dimmer streaks (depth)
+    for (int i = 20; i < 40; i++) {
+      float fi = float(i);
+      float angle = fi * 0.3183 + t * 0.05;
+      float radius = hash(vec2(fi, 0.0)) * 0.9 + 0.05;
+      float speed = hash(vec2(fi, 1.0)) * 1.0 + 0.5;
+      float brightness = hash(vec2(fi, 2.0)) * 0.3 + 0.1;
+      
+      vec2 starPos = vec2(cos(angle), sin(angle)) * radius;
+      starPos += dir * t * speed * 0.2;
+      starPos = fract(starPos + 0.5) - 0.5;
+      
+      streaks += starStreak(uv, starPos, speed * t, brightness);
+    }
+    
+    // Central glow (vanishing point)
+    float glow = exp(-dist * dist * 50.0) * 0.5;
+    
+    // Radial motion lines — continuous streaks from center
+    float motionLines = 0.0;
+    for (int i = 0; i < 12; i++) {
+      float fi = float(i);
+      float angle = fi * 0.5236; // Every 30 degrees
+      float lineAngle = angle + t * 0.02;
+      
+      // Project uv onto this angle
+      float proj = dot(uv, vec2(cos(lineAngle), sin(lineAngle)));
+      float perp = dot(uv, vec2(-sin(lineAngle), cos(lineAngle)));
+      
+      // Line from center outward
+      if (proj > 0.0) {
+        float lineWidth = 0.002 + proj * 0.01;
+        float line = exp(-perp * perp / (lineWidth * lineWidth));
+        line *= exp(-proj * 2.0); // Fade with distance
+        line *= 0.3;
+        motionLines += line;
+      }
+    }
+    
+    // Color mixing — accent colors with white core
+    vec3 color1 = uAccentA; // Primary accent (blue/cyan)
+    vec3 color2 = uAccentB; // Secondary accent (purple/pink)
+    
+    // Mix colors based on angle and distance
+    float colorMix = sin(atan(diff.y, diff.x) * 2.0 + t * 0.5) * 0.5 + 0.5;
+    vec3 streakColor = mix(color1, color2, colorMix);
+    
+    // Combine
+    vec3 color = streaks * streakColor * 2.0;
+    color += glow * vec3(0.8, 0.9, 1.0);
+    color += motionLines * mix(color1, vec3(1.0), 0.5);
+    
+    // Add subtle star field background
+    float stars = 0.0;
+    for (int i = 0; i < 30; i++) {
+      float fi = float(i);
+      vec2 starUV = uv * (3.0 + hash(vec2(fi, 3.0)) * 2.0);
+      starUV += vec2(hash(vec2(fi, 4.0)), hash(vec2(fi, 5.0))) * 10.0;
+      vec2 starGrid = floor(starUV);
+      vec2 starFrac = fract(starUV) - 0.5;
+      float starHash = hash(starGrid + fi);
+      if (starHash > 0.7) {
+        float starBright = (starHash - 0.7) / 0.3;
+        float starDist = length(starFrac);
+        stars += exp(-starDist * starDist * 200.0) * starBright * 0.1;
+      }
+    }
+    color += stars * vec3(0.7, 0.8, 1.0);
+    
+    // Vignette
+    float vignette = 1.0 - smoothstep(0.3, 1.4, dist);
+    color *= vignette;
+    
+    gl_FragColor = vec4(color, uOpacity);
+  }
+`;
+
+const FRACTAL_WORLDS_FRAGMENT_SHADER = `
+  precision highp float;
+
+  varying vec2 vUv;
+  uniform float uTime;
+  uniform vec2 uResolution;
+  uniform vec3 uAccentA;
+  uniform vec3 uAccentB;
+  uniform float uOpacity;
+  uniform sampler2D uAlbedo;
+  uniform sampler2D uSpecular;
+  uniform sampler2D uBlueNoise;
+
+  // ── Aestrethra Kleinian SDF ──
+  // EXACT formula from fractalworlds.io deminified source (webcrack):
+  //   k = max(2/r², wBias)  — NOT 2/r² + wBias!
+  //   distance = abs(max(len2d-4, -len2d*z/4) / abs(scale) * overallScale)
+  //   orbitTrap = vec4(abs(p.xyz), r²) — captured during first 6 iterations
+  //   repetition = mod(p+50, 100)-50 — tiles every 100 units
+  vec2 aestrethraDE(vec3 p, vec3 rot, float wBias) {
+    p = mod(p + 50.0, 100.0) - 50.0;
+    float scale = 1.0;
+    vec4 orbitTrap = vec4(1e3);
+    for (int i = 0; i < 8; i++) {
+      p = clamp(p, -rot, rot) * 2.0 - p;
+      float r2 = dot(p, p);
+      float k = max(2.0 / max(r2, 0.0001), wBias);
+      p *= k;
+      scale *= k;
+      if (i < 6) orbitTrap = min(orbitTrap, vec4(abs(p), r2));
+    }
+    float len2d = length(p.xy);
+    // EXACT DE: abs(max(len2d-4, -len2d*z/4) / abs(scale) * overallScale)
+    float d = abs(max(len2d - 4.0, -len2d * p.z / 4.0) / max(abs(scale), 0.001) * 10.0);
+    return vec2(d, orbitTrap.w);
+  }
+
+  // Overload returning full orbit trap vec4 for texture sampling
+  struct DEResult { float dist; vec4 orbit; };
+  DEResult aestrethraDEFull(vec3 p, vec3 rot, float wBias) {
+    p = mod(p + 50.0, 100.0) - 50.0;
+    float scale = 1.0;
+    vec4 orbitTrap = vec4(1e3);
+    for (int i = 0; i < 8; i++) {
+      p = clamp(p, -rot, rot) * 2.0 - p;
+      float r2 = dot(p, p);
+      float k = max(2.0 / max(r2, 0.0001), wBias);
+      p *= k;
+      scale *= k;
+      if (i < 6) orbitTrap = min(orbitTrap, vec4(abs(p), r2));
+    }
+    float len2d = length(p.xy);
+    float d = abs(max(len2d - 4.0, -len2d * p.z / 4.0) / max(abs(scale), 0.001) * 10.0);
+    DEResult result;
+    result.dist = d;
+    result.orbit = orbitTrap;
+    return result;
+  }
+
+  float sd(vec3 p, vec3 rot, float wBias) { return aestrethraDE(p, rot, wBias).x; }
+
+  vec3 calcNormal(vec3 p, vec3 rot, float wBias) {
+    float e = 0.005;
+    vec2 k = vec2(1.0, -1.0);
+    return normalize(
+      k.xyy * sd(p + k.xyy * e, rot, wBias) +
+      k.yyx * sd(p + k.yyx * e, rot, wBias) +
+      k.yxy * sd(p + k.yxy * e, rot, wBias) +
+      k.xxx * sd(p + k.xxx * e, rot, wBias)
+    );
+  }
+
+  float hash(vec3 seed) {
+    return fract(sin(dot(seed, vec3(12.3456, 78.9012, 34.5678))) * 34567.89012) * 0.1;
+  }
+
+  void main() {
+    vec2 uv = vUv * 2.0 - 1.0;
+    uv.x *= uResolution.x / max(uResolution.y, 1.0);
+
+    // ── Camera: forward flight through tiled fractal with gentle drift ──
+    // Moves forward through the 100-unit tiled space, with X/Y sway
+    // to explore different ring structures. lookAt stays ahead.
+    float t = uTime;
+    float speed = 8.0; // forward speed through tiled fractal
+    vec3 ro = vec3(
+      sin(t * 0.13) * 4.0 + cos(t * 0.07) * 2.0,
+      sin(t * 0.11) * 3.0 + cos(t * 0.09) * 1.5,
+      t * speed + sin(t * 0.17) * 5.0
+    );
+    vec3 lookAt = vec3(
+      ro.x + sin(t * 0.13 + 0.5) * 3.0,
+      ro.y + cos(t * 0.11 + 0.3) * 2.0,
+      ro.z + 10.0
+    );
+    vec3 forward = normalize(lookAt - ro);
+    vec3 right = normalize(cross(forward, vec3(0.0, 1.0, 0.0)));
+    vec3 up = cross(right, forward);
+    vec3 rd = normalize(forward + right * uv.x * 0.55 + up * uv.y * 0.55);
+
+    // ── Kleinian params: EXACT fractalworlds.io Aestrethra ──
+    // parameters: {x:1, y:1, z:1.3, w:0.025}
+    // parametersOffset: {x:0.2, y:0.2, z:0.05, w:0.025}
+    vec3 rot = vec3(
+      1.0 + sin(uTime * 0.05) * 0.2,
+      1.0 + cos(uTime * 0.06) * 0.2,
+      1.3 + sin(uTime * 0.07) * 0.05
+    );
+    float wBias = 0.025 + sin(uTime * 0.04) * 0.025;
+
+    vec3 lightPos = vec3(0.0, 50.0, -60.0);
+    vec3 lightDir = normalize(lightPos - ro);
+    vec3 sunColor = vec3(1.0, 0.984, 0.898);
+
+    // ── Raymarch ──
+    float tDist = hash(ro + rd);
+    float dist;
+    const int MAX_STEPS = 96;
+    const float MAX_DIST = 90.0;
+    const float HIT_THRESH = 0.0005;
+
+    for (int i = 0; i < MAX_STEPS; i++) {
+      vec3 pos = ro + rd * tDist;
+      dist = aestrethraDE(pos, rot, wBias).x;
+      if (abs(dist) < HIT_THRESH || tDist > MAX_DIST) break;
+      tDist += dist * 0.7;
+    }
+
+    vec3 color;
+
+    if (tDist < MAX_DIST) {
+      vec3 hitPos = ro + rd * tDist;
+      vec3 normal = calcNormal(hitPos, rot, wBias);
+      float diff = clamp(dot(normal, lightDir), 0.0, 1.0);
+
+      // ── Orbit trap → lavaAqua texture ──
+      // fractalworlds uses: triplanar average of orbitTrap.xyz + offset 0.9
+      DEResult de = aestrethraDEFull(hitPos, rot, wBias);
+      // Simplified triplanar: average of abs(p) components
+      float orbitVal = (de.orbit.x + de.orbit.y + de.orbit.z) / 3.0 + 0.9;
+      vec3 texColor = texture2D(uAlbedo, vec2(orbitVal, 0.5)).rgb;
+
+      // ── PBR-like lighting ──
+      // ambientIntensity: 0.15, sunIntensity: 4
+      vec3 surfaceColor = texColor * (0.15 + diff * 0.6) * sunColor * 2.0;
+
+      // Specular (Blinn-Phong, roughness 0.8)
+      vec3 halfVec = normalize(lightDir - rd);
+      float spec = pow(max(dot(normal, halfVec), 0.0), 8.0);
+      surfaceColor += sunColor * spec * 0.3;
+
+      // ── Fog: fogIntensity 0.03 ──
+      vec3 fogSky = vec3(0.898, 0.933, 1.0) * 0.5;
+      vec3 fogSun = sunColor * pow(max(dot(rd, lightDir), 0.0), 8.0) * 1.0;
+      vec3 fogColor = fogSky + fogSun;
+      float fogAmount = 1.0 - exp(-tDist * 0.03);
+      color = mix(surfaceColor, fogColor, fogAmount);
+    } else {
+      vec3 fogSky = vec3(0.898, 0.933, 1.0) * 0.5;
+      vec3 fogSun = sunColor * pow(max(dot(rd, lightDir), 0.0), 32.0) * 2.0;
+      color = fogSky + fogSun;
+    }
+
+    // ── Tone mapping: exposure 1.5, Reinhard ──
+    color *= 1.5;
+    color = color / (color + 1.0);
+
+    // ── Vignette: intensity 0.5 ──
+    float cd = length(uv * vec2(1.0, uResolution.y / uResolution.x));
+    color *= 1.0 - smoothstep(0.3, 1.4, cd) * 0.5;
+
+    gl_FragColor = vec4(color, uOpacity);
+  }
+`;
+
+
+
+
+
+
+const TUNNEL_DISPLAY_VERTEX_SHADER = `
+  varying vec2 vUv;
+  void main() {
+    vUv = uv;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  }
+`;
+
+const TUNNEL_DISPLAY_FRAGMENT_SHADER = `
+  precision highp float;
+  varying vec2 vUv;
+  uniform sampler2D uTexture;
+  uniform float uOpacity;
+
+  void main() {
+    vec4 tex = texture2D(uTexture, vUv);
+    gl_FragColor = vec4(tex.rgb, uOpacity * tex.a);
+  }
+`;
+
+
+const FRACTAL_FRAGMENT_SHADER = `
+  precision highp float;
+
+  varying vec2 vUv;
+  uniform float uTime;
+  uniform vec2 uResolution;
+  uniform vec3 uAccentA;
+  uniform vec3 uAccentB;
+  uniform float uOpacity;
+
+  mat2 rotate2d(float angle) {
+    float s = sin(angle);
+    float c = cos(angle);
+    return mat2(c, -s, s, c);
+  }
+
+  void main() {
+    vec2 uv = vUv * 2.0 - 1.0;
+    uv.x *= uResolution.x / max(uResolution.y, 1.0);
+
+    float t = uTime * 0.18;
+    vec2 p = uv;
+    float filaments = 0.0;
+    float mist = 0.0;
+
+    // Compact kaleidoscopic fractal inspired by classic WebGL shader toys.
+    // Kept intentionally low-contrast so the falling words remain the focus.
+    for (int i = 0; i < 7; i++) {
+      float fi = float(i);
+      p = abs(p * rotate2d(0.22 + sin(t * 0.35 + fi) * 0.08));
+      p = p / clamp(dot(p, p), 0.34, 1.42) - vec2(0.62, 0.48);
+      p += 0.13 * vec2(cos(t + fi * 1.71), sin(t * 1.13 + fi * 2.03));
+
+      float r = length(p);
+      float beam = 0.012 / (0.035 + abs(sin(r * 9.0 - t * 2.6 + fi)));
+      filaments += beam * (0.64 + 0.36 * sin(fi + t));
+      mist += exp(-r * 2.0) * 0.035;
+    }
+
+    float vignette = smoothstep(1.65, 0.25, length(uv * vec2(0.82, 1.0)));
+    float centerReadability = smoothstep(0.18, 0.72, length(uv));
+    float pulse = 0.55 + 0.45 * sin(t * 1.7 + length(uv) * 5.0);
+    vec3 neon = mix(uAccentA, uAccentB, pulse);
+    vec3 coldBase = vec3(0.025, 0.032, 0.070);
+    vec3 color = coldBase + neon * min(filaments * 0.60 + mist, 0.85);
+
+    // Keep the exact typing area readable: darker center, brighter edges.
+    color *= mix(0.78, 1.0, centerReadability);
+    color *= vignette;
+    color += vec3(0.015, 0.005, 0.030) * (1.0 - vignette);
+
+    gl_FragColor = vec4(color, uOpacity);
+  }
+`;
+
+class Game {
+  private container: HTMLElement;
+  private scene: THREE.Scene;
+  private camera: THREE.OrthographicCamera;
+  private renderer: THREE.WebGLRenderer;
+  private ambientParticles: THREE.Points | null = null;
+  private ambientParticleMaterial: THREE.PointsMaterial | null = null;
+  private fractalBackground: THREE.Mesh<THREE.PlaneGeometry, THREE.ShaderMaterial> | null = null;
+  private fractalUniforms: {
+    uTime: { value: number };
+    uResolution: { value: THREE.Vector2 };
+    uAccentA: { value: THREE.Color };
+    uAccentB: { value: THREE.Color };
+    uOpacity: { value: number };
+  } | null = null;
+  private deepFractalBackground: THREE.Mesh<THREE.PlaneGeometry, THREE.ShaderMaterial> | null = null;
+  private deepFractalUniforms: {
+    uTime: { value: number };
+    uResolution: { value: THREE.Vector2 };
+    uAccentA: { value: THREE.Color };
+    uAccentB: { value: THREE.Color };
+    uOpacity: { value: number };
+  } | null = null;
+  private fractalTunnelBackground: THREE.Mesh<THREE.PlaneGeometry, THREE.ShaderMaterial> | null = null;
+  private fractalTunnelUniforms: {
+    uTime: { value: number };
+    uResolution: { value: THREE.Vector2 };
+    uAccentA: { value: THREE.Color };
+    uAccentB: { value: THREE.Color };
+    uOpacity: { value: number };
+  } | null = null;
+  private kleinianAtmoBackground: THREE.Mesh<THREE.PlaneGeometry, THREE.ShaderMaterial> | null = null;
+  private kleinianAtmoUniforms: {
+    uTime: { value: number };
+    uResolution: { value: THREE.Vector2 };
+    uAccentA: { value: THREE.Color };
+    uAccentB: { value: THREE.Color };
+    uOpacity: { value: number };
+  } | null = null;
+  private aestrethraBackground: THREE.Mesh<THREE.PlaneGeometry, THREE.ShaderMaterial> | null = null;
+  private aestrethraUniforms: {
+    uTime: { value: number };
+    uResolution: { value: THREE.Vector2 };
+    uAccentA: { value: THREE.Color };
+    uAccentB: { value: THREE.Color };
+    uOpacity: { value: number };
+  } | null = null;
+  private tubesBackground: THREE.Mesh<THREE.PlaneGeometry, THREE.ShaderMaterial> | null = null;
+  private tubesUniforms: {
+    uTime: { value: number };
+    uResolution: { value: THREE.Vector2 };
+    uAccentA: { value: THREE.Color };
+    uAccentB: { value: THREE.Color };
+    uOpacity: { value: number };
+  } | null = null;
+  private hyperspaceBackground: THREE.Mesh<THREE.PlaneGeometry, THREE.ShaderMaterial> | null = null;
+  private hyperspaceUniforms: {
+    uTime: { value: number };
+    uResolution: { value: THREE.Vector2 };
+    uAccentA: { value: THREE.Color };
+    uAccentB: { value: THREE.Color };
+    uOpacity: { value: number };
+  } | null = null;
+
+  private fractalWorldsBackground: THREE.Mesh<THREE.PlaneGeometry, THREE.ShaderMaterial> | null = null;
+  private fractalWorldsUniforms: {
+    uTime: { value: number };
+    uResolution: { value: THREE.Vector2 };
+    uAccentA: { value: THREE.Color };
+    uAccentB: { value: THREE.Color };
+    uOpacity: { value: number };
+    uAlbedo: { value: THREE.Texture | null };
+    uSpecular: { value: THREE.Texture | null };
+    uBlueNoise: { value: THREE.Texture | null };
+  } | null = null;
+  private measureCanvas: HTMLCanvasElement;
+  private measureContext: CanvasRenderingContext2D;
+  private words: Word[];
+  private wordList: string[];
+  private score: number;
+  private WPM: number;
+  private language: string;
+  private originalWPM: number;
+  private playerName: string;
+  private pause: boolean;
+  private isGameOver = false;
+  private token: string | null;
+  private timeElapsed: number;
+  private keystrokes: number;
+  private startTime: number;
+  private allWords: string[];
+  private readonly batchSize = 10;
+  private wordIndex = 0;
+  private averageCharLength: number;
+  private lastTimestamp: number;
+  private animationFrame: number | null = null;
+  private mode: GameMode = (localStorage.getItem('mode') as GameMode) || 'rage';
+  private settingsButton: HTMLElement;
+  private settingsMenu: HTMLElement;
+  private typos: number;
+  private applyGrammarSetting: boolean = localStorage.getItem('applyGrammar') === 'true';
+  private grammarCheckbox: HTMLInputElement;
+  private addNumbersSetting: boolean = localStorage.getItem('addNumbers') === 'true';
+  private addNumbersCheckbox: HTMLInputElement;
+  private theme: string = localStorage.getItem('theme') || 'default';
+  private themeSelector: HTMLSelectElement;
+
+  private constructor(container: HTMLElement, playerName: string, WPM: number = 60, language: string = 'english') {
+    this.container = container;
+    this.scene = new THREE.Scene();
+    this.camera = new THREE.OrthographicCamera(0, LOGICAL_WIDTH, LOGICAL_HEIGHT, 0, -1000, 1000);
+    this.camera.position.z = 10;
+    this.renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+    this.renderer.setClearColor(0x000000, 0);
+    this.renderer.domElement.className = 'three-canvas';
+    this.renderer.domElement.setAttribute('aria-hidden', 'true');
+    this.container.appendChild(this.renderer.domElement);
+
+    this.measureCanvas = document.createElement('canvas');
+    const measureContext = this.measureCanvas.getContext('2d');
+    if (!measureContext) {
+      throw new Error('Could not initialize text measurement context.');
+    }
+    this.measureContext = measureContext;
+    this.measureContext.font = WORD_FONT;
+
+    this.WPM = localStorage.getItem('WPM') ? parseInt(localStorage.getItem('WPM')!, 10) : WPM;
+    this.words = [];
+    this.wordList = [];
+    this.score = 0;
+    this.language = localStorage.getItem('language') || language;
+    this.originalWPM = this.WPM;
+    this.playerName = localStorage.getItem('playerName') || playerName;
+    this.pause = false;
+    this.token = null;
+    this.timeElapsed = 0;
+    this.keystrokes = 0;
+    this.startTime = Date.now();
+    this.allWords = [];
+    this.averageCharLength = 5;
+    this.lastTimestamp = performance.now();
+    this.settingsButton = document.getElementById('settings-button')!;
+    this.settingsMenu = document.getElementById('settings-menu')!;
+    this.settingsButton.addEventListener('click', this.toggleSettingsMenu.bind(this));
+    document.addEventListener('click', this.closeSettingsMenuIfClickedOutside.bind(this));
+    this.typos = 0;
+    this.grammarCheckbox = document.getElementById('grammar') as HTMLInputElement;
+    this.grammarCheckbox.checked = this.applyGrammarSetting;
+    this.grammarCheckbox.addEventListener('change', this.toggleApplyGrammar.bind(this));
+    this.addNumbersCheckbox = document.getElementById('addNumbers') as HTMLInputElement;
+    this.addNumbersCheckbox.checked = this.addNumbersSetting;
+    this.addNumbersCheckbox.addEventListener('change', this.toggleAddNumbers.bind(this));
+    this.themeSelector = document.getElementById('theme') as HTMLSelectElement;
+    this.themeSelector.value = this.theme;
+    if (!this.themeSelector.value) {
+      this.themeSelector.value = 'default';
+      this.theme = 'default';
+    }
+    this.themeSelector.addEventListener('change', this.changeTheme.bind(this));
+
+    this.createFractalBackground();
+    this.createDeepFractalBackground();
+    this.createFractalTunnelBackground();
+    this.createKleinianAtmoBackground();
+    this.createAestrethraBackground();
+    this.createTubesBackground();
+    this.createHyperspaceBackground();
+    this.createFractalWorldsBackground();
+    this.resizeRenderer();
+    window.addEventListener('resize', this.resizeRenderer.bind(this));
+    this.createAmbientParticles();
+    this.changeTheme();
+    this.updateHud();
+  }
+
+  static async create(container: HTMLElement, playerName: string = 'Player', WPM: number = 60, language: string = 'english') {
+    const game = new Game(container, playerName, WPM, language);
+    await game.fetchToken();
+    await game.fetchWords();
+    return game;
+  }
+
+  getLanguage() {
+    return this.language;
+  }
+
+  getWPM() {
+    return this.WPM;
+  }
+
+  getMode() {
+    return this.mode;
+  }
+
+  private resizeRenderer() {
+    const rect = this.container.getBoundingClientRect();
+    const width = Math.max(320, Math.floor(rect.width || LOGICAL_WIDTH));
+    const height = Math.max(240, Math.floor(rect.height || LOGICAL_HEIGHT));
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    this.renderer.setSize(width, height, false);
+
+    // Keep the original 800x600 gameplay plane and WPM fall calibration, but
+    // adapt the orthographic camera to the browser viewport so the Three.js
+    // sprites are not visually stretched when the stage becomes full-screen.
+    const baseAspect = LOGICAL_WIDTH / LOGICAL_HEIGHT;
+    const viewportAspect = width / height;
+    if (viewportAspect >= baseAspect) {
+      const visibleWidth = LOGICAL_HEIGHT * viewportAspect;
+      const horizontalBleed = (visibleWidth - LOGICAL_WIDTH) / 2;
+      this.camera.left = -horizontalBleed;
+      this.camera.right = LOGICAL_WIDTH + horizontalBleed;
+      this.camera.top = LOGICAL_HEIGHT;
+      this.camera.bottom = 0;
+    } else {
+      const visibleHeight = LOGICAL_WIDTH / viewportAspect;
+      const verticalBleed = (visibleHeight - LOGICAL_HEIGHT) / 2;
+      this.camera.left = 0;
+      this.camera.right = LOGICAL_WIDTH;
+      this.camera.top = LOGICAL_HEIGHT + verticalBleed;
+      this.camera.bottom = -verticalBleed;
+    }
+    this.camera.updateProjectionMatrix();
+    this.updateFractalBackgroundBounds(width, height);
+  }
+
+  private createFractalBackground() {
+    this.fractalUniforms = {
+      uTime: { value: 0 },
+      uResolution: { value: new THREE.Vector2(LOGICAL_WIDTH, LOGICAL_HEIGHT) },
+      uAccentA: { value: new THREE.Color('#00f5ff') },
+      uAccentB: { value: new THREE.Color('#ff4fd8') },
+      uOpacity: { value: 0.92 }
+    };
+
+    const geometry = new THREE.PlaneGeometry(1, 1, 1, 1);
+    const material = new THREE.ShaderMaterial({
+      uniforms: this.fractalUniforms,
+      vertexShader: FRACTAL_VERTEX_SHADER,
+      fragmentShader: FRACTAL_FRAGMENT_SHADER,
+      transparent: true,
+      depthTest: false,
+      depthWrite: false
+    });
+
+    this.fractalBackground = new THREE.Mesh(geometry, material);
+    this.fractalBackground.visible = false;
+    this.fractalBackground.renderOrder = -100;
+    this.fractalBackground.position.z = -500;
+    this.scene.add(this.fractalBackground);
+  }
+
+  private createDeepFractalBackground() {
+    this.deepFractalUniforms = {
+      uTime: { value: 0 },
+      uResolution: { value: new THREE.Vector2(LOGICAL_WIDTH, LOGICAL_HEIGHT) },
+      uAccentA: { value: new THREE.Color('#00f5ff') },
+      uAccentB: { value: new THREE.Color('#ff4fd8') },
+      uOpacity: { value: 0.95 }
+    };
+
+    const geometry = new THREE.PlaneGeometry(1, 1, 1, 1);
+    const material = new THREE.ShaderMaterial({
+      uniforms: this.deepFractalUniforms,
+      vertexShader: FRACTAL_VERTEX_SHADER,
+      fragmentShader: DEEP_FRACTAL_SHADER,
+      transparent: true,
+      depthTest: false,
+      depthWrite: false
+    });
+
+    this.deepFractalBackground = new THREE.Mesh(geometry, material);
+    this.deepFractalBackground.visible = false;
+    this.deepFractalBackground.renderOrder = -99;
+    this.deepFractalBackground.position.z = -500;
+    this.scene.add(this.deepFractalBackground);
+  }
+
+  private createFractalTunnelBackground() {
+    this.fractalTunnelUniforms = {
+      uTime: { value: 0 },
+      uResolution: { value: new THREE.Vector2(LOGICAL_WIDTH, LOGICAL_HEIGHT) },
+      uAccentA: { value: new THREE.Color('#00f5ff') },
+      uAccentB: { value: new THREE.Color('#ff4fd8') },
+      uOpacity: { value: 0.95 }
+    };
+
+    const geometry = new THREE.PlaneGeometry(1, 1, 1, 1);
+    const material = new THREE.ShaderMaterial({
+      uniforms: this.fractalTunnelUniforms,
+      vertexShader: FRACTAL_VERTEX_SHADER,
+      fragmentShader: TUNNEL_FRAGMENT_SHADER,
+      transparent: true,
+      depthTest: false,
+      depthWrite: false
+    });
+
+    this.fractalTunnelBackground = new THREE.Mesh(geometry, material);
+    this.fractalTunnelBackground.visible = false;
+    this.fractalTunnelBackground.renderOrder = -98;
+    this.fractalTunnelBackground.position.z = -500;
+    this.scene.add(this.fractalTunnelBackground);
+  }
+
+  private createKleinianAtmoBackground() {
+    this.kleinianAtmoUniforms = {
+      uTime: { value: 0 },
+      uResolution: { value: new THREE.Vector2(LOGICAL_WIDTH, LOGICAL_HEIGHT) },
+      uAccentA: { value: new THREE.Color('#00f5ff') },
+      uAccentB: { value: new THREE.Color('#ff4fd8') },
+      uOpacity: { value: 0.95 }
+    };
+
+    const geometry = new THREE.PlaneGeometry(1, 1, 1, 1);
+    const material = new THREE.ShaderMaterial({
+      uniforms: this.kleinianAtmoUniforms,
+      vertexShader: FRACTAL_VERTEX_SHADER,
+      fragmentShader: ATMO_FRAGMENT_SHADER,
+      transparent: true,
+      depthTest: false,
+      depthWrite: false
+    });
+
+    this.kleinianAtmoBackground = new THREE.Mesh(geometry, material);
+    this.kleinianAtmoBackground.visible = false;
+    this.kleinianAtmoBackground.renderOrder = -97;
+    this.kleinianAtmoBackground.position.z = -500;
+    this.scene.add(this.kleinianAtmoBackground);
+  }
+
+  private createAestrethraBackground() {
+    this.aestrethraUniforms = {
+      uTime: { value: 0 },
+      uResolution: { value: new THREE.Vector2(LOGICAL_WIDTH, LOGICAL_HEIGHT) },
+      uAccentA: { value: new THREE.Color('#00f5ff') },
+      uAccentB: { value: new THREE.Color('#ff4fd8') },
+      uOpacity: { value: 0.95 }
+    };
+
+    const geometry = new THREE.PlaneGeometry(1, 1, 1, 1);
+    const material = new THREE.ShaderMaterial({
+      uniforms: this.aestrethraUniforms,
+      vertexShader: FRACTAL_VERTEX_SHADER,
+      fragmentShader: AESTRETHRA_FRAGMENT_SHADER,
+      transparent: true,
+      depthTest: false,
+      depthWrite: false
+    });
+
+    this.aestrethraBackground = new THREE.Mesh(geometry, material);
+    this.aestrethraBackground.visible = false;
+    this.aestrethraBackground.renderOrder = -96;
+    this.aestrethraBackground.position.z = -500;
+    this.scene.add(this.aestrethraBackground);
+  }
+
+  private createTubesBackground() {
+    this.tubesUniforms = {
+      uTime: { value: 0 },
+      uResolution: { value: new THREE.Vector2(LOGICAL_WIDTH, LOGICAL_HEIGHT) },
+      uAccentA: { value: new THREE.Color('#00f5ff') },
+      uAccentB: { value: new THREE.Color('#ff4fd8') },
+      uOpacity: { value: 0.95 }
+    };
+    const geometry = new THREE.PlaneGeometry(1, 1, 1, 1);
+    const material = new THREE.ShaderMaterial({
+      uniforms: this.tubesUniforms,
+      vertexShader: FRACTAL_VERTEX_SHADER,
+      fragmentShader: TUBES_FRAGMENT_SHADER,
+      transparent: true, depthTest: false, depthWrite: false
+    });
+    this.tubesBackground = new THREE.Mesh(geometry, material);
+    this.tubesBackground.visible = false;
+    this.tubesBackground.renderOrder = -95;
+    this.tubesBackground.position.z = -500;
+    this.scene.add(this.tubesBackground);
+  }
+
+  private createHyperspaceBackground() {
+    this.hyperspaceUniforms = {
+      uTime: { value: 0 },
+      uResolution: { value: new THREE.Vector2(LOGICAL_WIDTH, LOGICAL_HEIGHT) },
+      uAccentA: { value: new THREE.Color('#00f5ff') },
+      uAccentB: { value: new THREE.Color('#ff4fd8') },
+      uOpacity: { value: 0.95 }
+    };
+    const geometry = new THREE.PlaneGeometry(1, 1, 1, 1);
+    const material = new THREE.ShaderMaterial({
+      uniforms: this.hyperspaceUniforms,
+      vertexShader: FRACTAL_VERTEX_SHADER,
+      fragmentShader: HYPERSPACE_FRAGMENT_SHADER,
+      transparent: true, depthTest: false, depthWrite: false
+    });
+    this.hyperspaceBackground = new THREE.Mesh(geometry, material);
+    this.hyperspaceBackground.visible = false;
+    this.hyperspaceBackground.renderOrder = -94;
+    this.hyperspaceBackground.position.z = -500;
+    this.scene.add(this.hyperspaceBackground);
+  }
+
+  private createFractalWorldsBackground() {
+    const loader = new THREE.TextureLoader();
+    const texOpts = { wrapS: THREE.RepeatWrapping, wrapT: THREE.RepeatWrapping,
+                       magFilter: THREE.LinearFilter, minFilter: THREE.LinearMipmapLinearFilter,
+                       generateMipmaps: true };
+
+    const albedo = loader.load('/textures/lavaAqua.png', undefined, undefined,
+      (err) => console.error('FractalWorlds: lavaAqua load error', err));
+    Object.assign(albedo, texOpts);
+
+    const specular = loader.load('/textures/specular01.jpg', undefined, undefined,
+      (err) => console.error('FractalWorlds: specular load error', err));
+    Object.assign(specular, texOpts);
+
+    const blueNoise = loader.load('/textures/bluenoise.png', undefined, undefined,
+      (err) => console.error('FractalWorlds: blueNoise load error', err));
+    blueNoise.wrapS = blueNoise.wrapT = THREE.RepeatWrapping;
+    blueNoise.magFilter = THREE.NearestFilter;
+    blueNoise.minFilter = THREE.NearestFilter;
+    blueNoise.generateMipmaps = false;
+
+    this.fractalWorldsUniforms = {
+      uTime: { value: 0 },
+      uResolution: { value: new THREE.Vector2(LOGICAL_WIDTH, LOGICAL_HEIGHT) },
+      uAccentA: { value: new THREE.Color('#00f5ff') },
+      uAccentB: { value: new THREE.Color('#ff4fd8') },
+      uOpacity: { value: 0.95 },
+      uAlbedo: { value: albedo },
+      uSpecular: { value: specular },
+      uBlueNoise: { value: blueNoise }
+    };
+    const geometry = new THREE.PlaneGeometry(1, 1, 1, 1);
+    const material = new THREE.ShaderMaterial({
+      uniforms: this.fractalWorldsUniforms,
+      vertexShader: FRACTAL_VERTEX_SHADER,
+      fragmentShader: FRACTAL_WORLDS_FRAGMENT_SHADER,
+      transparent: true, depthTest: false, depthWrite: false
+    });
+    this.fractalWorldsBackground = new THREE.Mesh(geometry, material);
+    this.fractalWorldsBackground.visible = false;
+    this.fractalWorldsBackground.renderOrder = -93;
+    this.fractalWorldsBackground.position.z = -500;
+    this.scene.add(this.fractalWorldsBackground);
+  }
+
+  private updateFractalBackgroundBounds(width: number, height: number) {
+    const visibleWidth = this.camera.right - this.camera.left;
+    const visibleHeight = this.camera.top - this.camera.bottom;
+
+    if (this.fractalBackground && this.fractalUniforms) {
+      this.fractalBackground.position.set(
+        this.camera.left + visibleWidth / 2,
+        this.camera.bottom + visibleHeight / 2,
+        -500
+      );
+      this.fractalBackground.scale.set(visibleWidth, visibleHeight, 1);
+      this.fractalUniforms.uResolution.value.set(width, height);
+    }
+
+    if (this.deepFractalBackground && this.deepFractalUniforms) {
+      this.deepFractalBackground.position.set(
+        this.camera.left + visibleWidth / 2,
+        this.camera.bottom + visibleHeight / 2,
+        -500
+      );
+      this.deepFractalBackground.scale.set(visibleWidth, visibleHeight, 1);
+      this.deepFractalUniforms.uResolution.value.set(width, height);
+    }
+
+    if (this.fractalTunnelBackground && this.fractalTunnelUniforms) {
+      this.fractalTunnelBackground.position.set(
+        this.camera.left + visibleWidth / 2,
+        this.camera.bottom + visibleHeight / 2,
+        -500
+      );
+      this.fractalTunnelBackground.scale.set(visibleWidth, visibleHeight, 1);
+      this.fractalTunnelUniforms.uResolution.value.set(width, height);
+    }
+
+    if (this.kleinianAtmoBackground && this.kleinianAtmoUniforms) {
+      this.kleinianAtmoBackground.position.set(
+        this.camera.left + visibleWidth / 2,
+        this.camera.bottom + visibleHeight / 2,
+        -500
+      );
+      this.kleinianAtmoBackground.scale.set(visibleWidth, visibleHeight, 1);
+      this.kleinianAtmoUniforms.uResolution.value.set(width, height);
+    }
+
+    if (this.aestrethraBackground && this.aestrethraUniforms) {
+      this.aestrethraBackground.position.set(
+        this.camera.left + visibleWidth / 2,
+        this.camera.bottom + visibleHeight / 2,
+        -500
+      );
+      this.aestrethraBackground.scale.set(visibleWidth, visibleHeight, 1);
+      this.aestrethraUniforms.uResolution.value.set(width, height);
+    }
+
+    if (this.tubesBackground && this.tubesUniforms) {
+      this.tubesBackground.position.set(
+        this.camera.left + visibleWidth / 2,
+        this.camera.bottom + visibleHeight / 2,
+        -500
+      );
+      this.tubesBackground.scale.set(visibleWidth, visibleHeight, 1);
+      this.tubesUniforms.uResolution.value.set(width, height);
+    }
+
+    if (this.hyperspaceBackground && this.hyperspaceUniforms) {
+      this.hyperspaceBackground.position.set(
+        this.camera.left + visibleWidth / 2,
+        this.camera.bottom + visibleHeight / 2,
+        -500
+      );
+      this.hyperspaceBackground.scale.set(visibleWidth, visibleHeight, 1);
+      this.hyperspaceUniforms.uResolution.value.set(width, height);
+    }
+
+    if (this.fractalWorldsBackground && this.fractalWorldsUniforms) {
+      this.fractalWorldsBackground.position.set(
+        this.camera.left + visibleWidth / 2,
+        this.camera.bottom + visibleHeight / 2,
+        -500
+      );
+      this.fractalWorldsBackground.scale.set(visibleWidth, visibleHeight, 1);
+      this.fractalWorldsUniforms.uResolution.value.set(width, height);
+    }
+  }
+
+  private isThreeFractalTheme() {
+    return this.theme === THREE_FRACTAL_THEME || this.theme === DEEP_FRACTAL_THEME || this.theme === FRACTAL_TUNNEL_THEME
+      || this.theme === KLEINIAN_ATMO_THEME || this.theme === AESTRETHRA_THEME || this.theme === INFINITE_TUBES_THEME
+      || this.theme === HYPERSPACE_THEME || this.theme === FRACTAL_WORLDS_THEME;
+  }
+
+  private updateFractalThemeColors() {
+    const styles = getComputedStyle(document.body);
+    const accent = styles.getPropertyValue('--accent').trim() || '#00f5ff';
+    const accent2 = styles.getPropertyValue('--accent-2').trim() || '#ff4fd8';
+
+    if (this.fractalUniforms) {
+      this.fractalUniforms.uAccentA.value.set(accent);
+      this.fractalUniforms.uAccentB.value.set(accent2);
+    }
+
+    if (this.deepFractalUniforms) {
+      this.deepFractalUniforms.uAccentA.value.set(accent);
+      this.deepFractalUniforms.uAccentB.value.set(accent2);
+    }
+
+    if (this.fractalTunnelUniforms) {
+      this.fractalTunnelUniforms.uAccentA.value.set(accent);
+      this.fractalTunnelUniforms.uAccentB.value.set(accent2);
+    }
+
+    if (this.kleinianAtmoUniforms) {
+      this.kleinianAtmoUniforms.uAccentA.value.set(accent);
+      this.kleinianAtmoUniforms.uAccentB.value.set(accent2);
+    }
+
+    if (this.aestrethraUniforms) {
+      this.aestrethraUniforms.uAccentA.value.set(accent);
+      this.aestrethraUniforms.uAccentB.value.set(accent2);
+    }
+
+    if (this.tubesUniforms) {
+      this.tubesUniforms.uAccentA.value.set(accent);
+      this.tubesUniforms.uAccentB.value.set(accent2);
+    }
+
+    if (this.hyperspaceUniforms) {
+      this.hyperspaceUniforms.uAccentA.value.set(accent);
+      this.hyperspaceUniforms.uAccentB.value.set(accent2);
+    }
+    if (this.fractalWorldsUniforms) {
+      this.fractalWorldsUniforms.uAccentA.value.set(accent);
+      this.fractalWorldsUniforms.uAccentB.value.set(accent2);
+    }
+  }
+
+  private createAmbientParticles() {
+    const particleCount = 180;
+    const positions = new Float32Array(particleCount * 3);
+    for (let i = 0; i < particleCount; i++) {
+      positions[i * 3] = Math.random() * LOGICAL_WIDTH;
+      positions[i * 3 + 1] = Math.random() * LOGICAL_HEIGHT;
+      positions[i * 3 + 2] = -120 - Math.random() * 160;
+    }
+
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    this.ambientParticleMaterial = new THREE.PointsMaterial({
+      color: this.currentAccentColor(),
+      size: 2.4,
+      transparent: true,
+      opacity: 0.38,
+      depthWrite: false
+    });
+    this.ambientParticles = new THREE.Points(geometry, this.ambientParticleMaterial);
+    this.scene.add(this.ambientParticles);
+  }
+
+  private currentAccentColor() {
+    const accent = getComputedStyle(document.body).getPropertyValue('--accent').trim();
+    return accent || '#7df9ff';
+  }
+
+  private updateThemeVisuals() {
+    if (this.ambientParticleMaterial) {
+      this.ambientParticleMaterial.color.set(this.currentAccentColor());
+    }
+    this.updateFractalThemeColors();
+  }
+
+  private updateHud() {
+    const currentScoreElement = document.getElementById('current-score');
+    if (currentScoreElement) currentScoreElement.textContent = `${this.score}`;
+
+    const hudWpm = document.getElementById('hud-wpm');
+    if (hudWpm) hudWpm.textContent = this.formatWPM(this.WPM);
+
+    const themeLabel = document.getElementById('theme-label');
+    if (themeLabel) themeLabel.textContent = this.selectedOptionText(this.themeSelector);
+
+    const modeLabel = document.getElementById('mode-label');
+    if (modeLabel) modeLabel.textContent = this.formatMode(this.mode);
+  }
+
+  private selectedOptionText(select: HTMLSelectElement) {
+    return select.selectedOptions[0]?.textContent?.replace(' (YT)', '').trim() || select.value || 'Default';
+  }
+
+  private formatWPM(wpm: number) {
+    if (wpm === 30) return '30⇢∞';
+    if (wpm === 101) return '100⇢∞';
+    return `${wpm}`;
+  }
+
+  private formatMode(mode: GameMode) {
+    return mode.charAt(0).toUpperCase() + mode.slice(1);
+  }
+
+  closeSettingsMenuIfClickedOutside(event: MouseEvent) {
+    const path = event.composedPath();
+    const inputFields = ['player-name', 'wpm', 'mode', 'language', 'theme', 'grammar', 'addNumbers'];
+    if (this.settingsMenu.style.display !== 'none' && !path.includes(this.settingsMenu) && !path.includes(this.settingsButton)) {
+      const clickedOnInputField = path.some((element: any) => element.id && inputFields.includes(element.id));
+      if (!clickedOnInputField) {
+        this.settingsMenu.style.display = 'none';
+        this.resumeGame();
+      }
+    }
+  }
+
+  toggleSettingsMenu() {
+    if (this.settingsMenu.style.display === 'none') {
+      this.settingsMenu.style.display = 'flex';
+      this.pauseGame();
+    } else {
+      this.settingsMenu.style.display = 'none';
+      this.resumeGame();
+    }
+  }
+
+  async fetchToken() {
+    try {
+      const response = await fetch('/token');
+      const data = await response.json();
+      this.token = data.token;
+    } catch (error) {
+      console.warn('Token endpoint unavailable; scores will not be ranked in this session.', error);
+      this.token = Math.random().toString(36).slice(2);
+    }
+  }
+
+  changeTheme() {
+    this.theme = this.themeSelector.value || 'default';
+    localStorage.setItem('theme', this.theme);
+    document.body.setAttribute('data-theme', this.theme);
+
+    const iframe = document.getElementById('myVideo') as HTMLIFrameElement;
+    const videoTheme = VIDEO_THEMES[this.theme];
+    const isFractalTheme = this.isThreeFractalTheme();
+
+    if (this.fractalBackground) {
+      this.fractalBackground.visible = this.theme === THREE_FRACTAL_THEME;
+    }
+    if (this.deepFractalBackground) {
+      this.deepFractalBackground.visible = this.theme === DEEP_FRACTAL_THEME;
+    }
+    if (this.fractalTunnelBackground) {
+      this.fractalTunnelBackground.visible = this.theme === FRACTAL_TUNNEL_THEME;
+    }
+    if (this.kleinianAtmoBackground) {
+      this.kleinianAtmoBackground.visible = this.theme === KLEINIAN_ATMO_THEME;
+    }
+    if (this.aestrethraBackground) {
+      this.aestrethraBackground.visible = this.theme === AESTRETHRA_THEME;
+    }
+    if (this.tubesBackground) {
+      this.tubesBackground.visible = this.theme === INFINITE_TUBES_THEME;
+    }
+    if (this.hyperspaceBackground) {
+      this.hyperspaceBackground.visible = this.theme === HYPERSPACE_THEME;
+    }
+    if (this.fractalWorldsBackground) {
+      this.fractalWorldsBackground.visible = this.theme === FRACTAL_WORLDS_THEME;
+    }
+    const activeThreeTheme = this.theme === THREE_FRACTAL_THEME ? THREE_FRACTAL_THEME
+      : this.theme === DEEP_FRACTAL_THEME ? DEEP_FRACTAL_THEME
+      : this.theme === FRACTAL_TUNNEL_THEME ? FRACTAL_TUNNEL_THEME
+      : this.theme === KLEINIAN_ATMO_THEME ? KLEINIAN_ATMO_THEME
+      : this.theme === AESTRETHRA_THEME ? AESTRETHRA_THEME
+      : this.theme === INFINITE_TUBES_THEME ? INFINITE_TUBES_THEME
+      : this.theme === HYPERSPACE_THEME ? HYPERSPACE_THEME
+      : this.theme === FRACTAL_WORLDS_THEME ? FRACTAL_WORLDS_THEME
+      : 'false';
+    document.body.setAttribute('data-three-theme', activeThreeTheme);
+
+    if (videoTheme && !isFractalTheme) {
+      const randomTime = Math.floor(Math.random() * videoTheme.maxStart);
+      iframe.src = `https://youtube.com/embed/${videoTheme.id}?start=${randomTime}&autoplay=1&mute=1&modestbranding=1&loop=1&controls=0&playlist=${videoTheme.id}`;
+      document.body.setAttribute('data-video-theme', 'true');
+    } else {
+      iframe.removeAttribute('src');
+      document.body.setAttribute('data-video-theme', 'false');
+    }
+
+    // Let CSS variables settle before sampling --accent for Three.js particles/shader.
+    requestAnimationFrame(() => this.updateThemeVisuals());
+    this.updateHud();
+  }
+
+  toggleAddNumbers() {
+    this.addNumbersSetting = this.addNumbersCheckbox.checked;
+    localStorage.setItem('addNumbers', this.addNumbersSetting.toString());
+    this.restart(this.WPM);
+  }
+
+  toggleApplyGrammar() {
+    this.applyGrammarSetting = this.grammarCheckbox.checked;
+    localStorage.setItem('applyGrammar', this.applyGrammarSetting.toString());
+    this.restart(this.WPM);
+  }
+
+  addRandomNumbers(word: string): string {
+    if (this.addNumbersSetting) {
+      const shouldAddNumber = Math.random() < 0.2;
+      if (shouldAddNumber) {
+        const numbersToAdd = Math.floor(Math.random() * 4) + 1;
+        let numberString = '';
+        for (let i = 0; i < numbersToAdd; i++) {
+          const randomNumber = Math.floor(Math.random() * 10);
+          numberString += randomNumber.toString();
+        }
+
+        const shouldAddCurrencySymbol = Math.random() < 0.1;
+        if (shouldAddCurrencySymbol) {
+          if (this.language.startsWith('french')) {
+            numberString += '€';
+          } else {
+            numberString = '$' + numberString;
+          }
+        }
+
+        word += numberString + ' ';
+      }
+    }
+    return word;
+  }
+
+  applyGrammar(word: string): string {
+    if (this.applyGrammarSetting) {
+      const shouldCapitalize = Math.random() < 0.2;
+      const shouldAddPunctuation = Math.random() < 0.2;
+      const shouldAddParentheses = Math.random() < 0.02;
+      const shouldAddHyphen = Math.random() < 0.02;
+      const shouldAddSquareBrackets = Math.random() < 0.015;
+      const shouldAddEllipsis = Math.random() < 0.05;
+      const shouldAddQuotes = Math.random() < 0.02;
+
+      if (shouldCapitalize && !this.language.startsWith('code')) {
+        if (this.language.startsWith('french')) {
+          switch (word.charAt(0).toLowerCase()) {
+            case 'é': word = 'E' + word.slice(1); break;
+            case 'è': word = 'E' + word.slice(1); break;
+            case 'ê': word = 'E' + word.slice(1); break;
+            case 'ë': word = 'E' + word.slice(1); break;
+            case 'à': word = 'A' + word.slice(1); break;
+            case 'â': word = 'A' + word.slice(1); break;
+            case 'ä': word = 'A' + word.slice(1); break;
+            case 'î': word = 'I' + word.slice(1); break;
+            case 'ï': word = 'I' + word.slice(1); break;
+            case 'ô': word = 'O' + word.slice(1); break;
+            case 'ö': word = 'O' + word.slice(1); break;
+            case 'ù': word = 'U' + word.slice(1); break;
+            case 'û': word = 'U' + word.slice(1); break;
+            case 'ü': word = 'U' + word.slice(1); break;
+            case 'ç': word = 'C' + word.slice(1); break;
+            case 'œ': word = 'OE' + word.slice(1); break;
+            case 'æ': word = 'AE' + word.slice(1); break;
+            default: word = word.charAt(0).toUpperCase() + word.slice(1);
+          }
+        } else {
+          word = word.charAt(0).toUpperCase() + word.slice(1);
+        }
+      } else if (shouldAddPunctuation) {
+        let punctuation = ['.', '?', '!', ',', ';'];
+        if (this.language.startsWith('french')) {
+          punctuation = ['.', ' ?', ' !', ';', ' :'];
+        } else if (this.language.startsWith('code_bash')) {
+          punctuation = [';', ' &&', ' ||', ' >', ' <', ' |', ' >>', ' <<', '*', '$', './', '='];
+        } else if (this.language.startsWith('code')) {
+          punctuation = ['.', '?', '!', ',', ';', '(', ')', '[', ']', '"', '-', '...', ':', '=', '+', '-', '*', '/', '//', '%', '**', '+=', '-=', '*=', '/=', '//=', '%=', '**='];
+        }
+        word += punctuation[Math.floor(Math.random() * punctuation.length)];
+      } else if (shouldAddEllipsis && !this.language.startsWith('code')) {
+        word += '...';
+      } else if (shouldAddParentheses) {
+        word = '(' + word + ')';
+      } else if (shouldAddSquareBrackets) {
+        word = '[' + word + ']';
+      } else if (shouldAddQuotes) {
+        word = '"' + word + '"';
+      } else if (shouldAddHyphen) {
+        word = '-' + word;
+      }
+    }
+
+    word += ' ';
+    return word;
+  }
+
+  async fetchWords() {
+    const response = await fetch(`/words/${this.language}.json`);
+    const data = (await response.json()) as { words: string[]; charLength: number };
+    this.allWords = this.shuffleArray(data.words)
+      .map(this.applyGrammar.bind(this))
+      .map(this.addRandomNumbers.bind(this));
+
+    this.averageCharLength = data.charLength;
+    if (this.applyGrammarSetting) {
+      this.averageCharLength += 1;
+    }
+    if (this.addNumbersSetting) {
+      this.averageCharLength += 2;
+    }
+
+    this.nextBatch();
+  }
+
+  nextBatch() {
+    if (this.wordIndex + this.batchSize > this.allWords.length) {
+      this.wordIndex = 0;
+    }
+    this.wordList = this.allWords.slice(this.wordIndex, this.wordIndex + this.batchSize);
+    this.wordIndex += this.batchSize;
+  }
+
+  setMode(newMode: GameMode) {
+    if (newMode !== this.mode) {
+      localStorage.setItem('mode', newMode);
+      this.mode = newMode;
+      this.updateHud();
+      this.restart(this.WPM);
+    }
+  }
+
+  setLanguage(newLanguage: string) {
+    if (newLanguage !== this.language) {
+      localStorage.setItem('language', newLanguage);
+      this.language = newLanguage;
+      this.words = [];
+      this.wordIndex = 0;
+      this.fetchWords().then(() => {
+        this.restart(this.WPM);
+      });
+    }
+  }
+
+  setWPM(newWPM: number) {
+    if (newWPM !== this.WPM) {
+      localStorage.setItem('WPM', newWPM.toString());
+      this.WPM = newWPM;
+      this.originalWPM = newWPM;
+      this.updateHud();
+      this.restart(this.WPM);
+    }
+  }
+
+  restart(currentWPM: number) {
+    this.score = 0;
+    this.clearWords();
+    this.originalWPM = currentWPM;
+    this.timeElapsed = 0;
+    this.keystrokes = 0;
+    this.typos = 0;
+    this.startTime = Date.now();
+    this.isGameOver = false;
+    this.wordIndex = 0;
+    this.updateHud();
+    this.fetchWords().then(() => {
+      setTimeout(() => {
+        if (!this.isGameOver && this.words.length === 0) {
+          this.generateWords();
+          if (!this.pause && this.animationFrame === null) {
+            this.lastTimestamp = performance.now();
+            this.animate(this.lastTimestamp);
+          }
+        }
+      }, 500);
+    });
+  }
+
+  initialize() {
+    this.container.focus({ preventScroll: true });
+    setTimeout(() => {
+      this.generateWords();
+      this.lastTimestamp = performance.now();
+      this.animate(this.lastTimestamp);
+    }, 500);
+
+    window.addEventListener('keydown', (event) => this.handleKeydown(event));
+  }
+
+  private handleKeydown(event: KeyboardEvent) {
+    if (event.target === document.getElementById('hidden-input')) {
+      return;
+    }
+
+    if (event.key === 'Tab') {
+      event.preventDefault();
+      if (this.pause) {
+        this.resumeGame();
+      } else {
+        this.pauseGame();
+      }
+      return;
+    }
+
+    if (this.pause || this.isGameOver) {
+      return;
+    }
+
+    const capsLockIndicator = document.getElementById('capsLockIndicator');
+    if (capsLockIndicator) {
+      capsLockIndicator.style.display = event.getModifierState('CapsLock') ? 'block' : 'none';
+    }
+
+    if (["Shift", "Control", "Alt", "AltGraph", "Meta", "Backspace", "CapsLock", "Escape", "Dead"].includes(event.key)
+      || (event.key >= 'F1' && event.key <= 'F12')) {
+      return;
+    }
+
+    event.preventDefault();
+    this.keystrokes++;
+    if (this.words.length === 0) return;
+
+    const firstWord = this.words[0];
+    if (firstWord.text.startsWith(event.key)) {
+      firstWord.text = firstWord.text.slice(1);
+      firstWord.color = WORD_FILL;
+      firstWord.currentIndex++;
+
+      if (firstWord.text.length === 0 && !(this.mode === 'fast' && firstWord.isTypoMade && event.key !== ' ')) {
+        this.removeWord(firstWord);
+        this.words.shift();
+        if (this.mode !== 'fast' || !firstWord.isTypoMade) {
+          this.score++;
+        }
+        if (this.words.length < this.batchSize) {
+          this.generateWords();
+        }
+      } else {
+        this.updateWordTexture(firstWord);
+      }
+    } else {
+      this.typos++;
+      if (this.mode === 'rage') {
+        firstWord.speed *= 1.1;
+        firstWord.color = WORD_DANGER;
+        this.updateWordTexture(firstWord);
+      } else if (this.mode === 'precision') {
+        firstWord.text = firstWord.originalText;
+        firstWord.color = WORD_DANGER;
+        firstWord.currentIndex = 0;
+        this.updateWordTexture(firstWord);
+
+        setTimeout(() => {
+          if (this.words.includes(firstWord)) {
+            firstWord.color = WORD_FILL;
+            this.updateWordTexture(firstWord);
+          }
+        }, 500);
+      } else if (this.mode === 'fast') {
+        if (firstWord.text.length > 1 || event.key === ' ') {
+          firstWord.text = firstWord.text.slice(1);
+          firstWord.currentIndex++;
+        }
+        firstWord.isTypoMade = true;
+        firstWord.color = WORD_DANGER;
+
+        if (firstWord.text.length === 0) {
+          this.removeWord(firstWord);
+          this.words.shift();
+          if (this.words.length < this.batchSize) {
+            this.generateWords();
+          }
+        } else {
+          this.updateWordTexture(firstWord);
+        }
+      }
+      firstWord.currentIndex = firstWord.text[0] === ' ' ? 0 : firstWord.currentIndex;
+    }
+
+    this.updateHud();
+  }
+
+  generateWords() {
+    this.nextBatch();
+
+    const shuffledList = this.shuffleArray([...this.wordList]);
+    const offset = this.words.length > 0 ? this.words[this.words.length - 1].y - 80 : 0;
+    const lastWordSpeed = this.words.length > 0
+      ? this.words[this.words.length - 1].speed
+      : (this.WPM * 20) / 60 / 60 / this.averageCharLength;
+
+    shuffledList.forEach((wordText, index) => {
+      const textWidth = this.measureWordWidth(wordText);
+      const maxWordX = Math.max(24, LOGICAL_WIDTH - textWidth - 24);
+      const word: Word = {
+        text: wordText,
+        originalText: wordText,
+        x: 24 + Math.random() * Math.max(1, maxWordX - 24),
+        y: offset - index * 80,
+        speed: lastWordSpeed,
+        originalSpeed: lastWordSpeed,
+        color: WORD_FILL,
+        currentIndex: 0
+      };
+
+      this.createWordSprite(word);
+      this.words.push(word);
+    });
+  }
+
+  private measureWordWidth(text: string) {
+    this.measureContext.font = WORD_FONT;
+    return this.measureContext.measureText(text).width;
+  }
+
+  private createWordSprite(word: Word) {
+    const texture = this.renderWordTexture(word);
+    texture.minFilter = THREE.LinearFilter;
+    texture.magFilter = THREE.LinearFilter;
+    texture.generateMipmaps = false;
+
+    const material = new THREE.SpriteMaterial({
+      map: texture,
+      transparent: true,
+      depthTest: false,
+      depthWrite: false
+    });
+    const sprite = new THREE.Sprite(material);
+    word.texture = texture;
+    word.material = material;
+    word.sprite = sprite;
+    sprite.renderOrder = 10;
+    this.syncWordSprite(word);
+    this.scene.add(sprite);
+  }
+
+  private renderWordTexture(word: Word) {
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    this.measureContext.font = WORD_FONT;
+
+    let width = 24;
+    for (const char of word.text) {
+      width += this.measureContext.measureText(char === ' ' ? '⎵' : char).width;
+    }
+    width = Math.max(72, Math.ceil(width + 28));
+    const height = 76;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.ceil(width * dpr);
+    canvas.height = Math.ceil(height * dpr);
+    canvas.style.width = `${width}px`;
+    canvas.style.height = `${height}px`;
+
+    const context = canvas.getContext('2d')!;
+    context.scale(dpr, dpr);
+    context.clearRect(0, 0, width, height);
+    context.font = WORD_FONT;
+    context.textBaseline = 'alphabetic';
+    context.shadowColor = word.color === WORD_DANGER ? 'rgba(255, 0, 64, 0.9)' : 'rgba(125, 249, 255, 0.42)';
+    context.shadowBlur = word.color === WORD_DANGER ? 20 : 12;
+
+    let offsetX = 12;
+    const baseline = 54;
+    for (let i = 0; i < word.text.length; i++) {
+      const char = word.text[i];
+      const printable = char === ' ' ? '⎵' : char;
+      if (char === ' ') {
+        context.fillStyle = i === word.currentIndex && word.color === WORD_DANGER ? WORD_DANGER : WORD_MUTED;
+      } else {
+        context.fillStyle = i === word.currentIndex && word.color === WORD_DANGER ? WORD_DANGER : word.color;
+      }
+      context.fillText(printable, offsetX, baseline);
+      offsetX += this.measureContext.measureText(printable).width;
+    }
+
+    word.width = width;
+    word.height = height;
+    return new THREE.CanvasTexture(canvas);
+  }
+
+  private updateWordTexture(word: Word) {
+    if (!word.sprite || !word.material) return;
+    const oldTexture = word.texture;
+    const nextTexture = this.renderWordTexture(word);
+    nextTexture.minFilter = THREE.LinearFilter;
+    nextTexture.magFilter = THREE.LinearFilter;
+    nextTexture.generateMipmaps = false;
+    word.texture = nextTexture;
+    word.material.map = nextTexture;
+    word.material.needsUpdate = true;
+    oldTexture?.dispose();
+    this.syncWordSprite(word);
+  }
+
+  private syncWordSprite(word: Word) {
+    if (!word.sprite) return;
+    const width = word.width || 120;
+    const height = word.height || 76;
+    word.sprite.scale.set(width, height, 1);
+    word.sprite.position.set(word.x + width / 2, LOGICAL_HEIGHT - word.y + height / 2 - WORD_FONT_SIZE, 0);
+  }
+
+  private removeWord(word: Word) {
+    if (word.sprite) {
+      this.scene.remove(word.sprite);
+    }
+    word.texture?.dispose();
+    word.material?.dispose();
+    word.sprite = undefined;
+    word.texture = undefined;
+    word.material = undefined;
+  }
+
+  private clearWords() {
+    this.words.forEach(word => this.removeWord(word));
+    this.words = [];
+  }
+
+  animate(timestamp = performance.now()) {
+    this.animationFrame = null;
+    const deltaTime = Math.max(0, timestamp - this.lastTimestamp);
+    this.lastTimestamp = timestamp;
+
+    if (this.fractalUniforms) {
+      this.fractalUniforms.uTime.value = timestamp * 0.001;
+    }
+    if (this.deepFractalUniforms) {
+      this.deepFractalUniforms.uTime.value = timestamp * 0.001;
+    }
+    if (this.fractalTunnelUniforms) {
+      this.fractalTunnelUniforms.uTime.value = timestamp * 0.001;
+    }
+    if (this.kleinianAtmoUniforms) {
+      this.kleinianAtmoUniforms.uTime.value = timestamp * 0.001;
+    }
+    if (this.aestrethraUniforms) {
+      this.aestrethraUniforms.uTime.value = timestamp * 0.001;
+    }
+    if (this.tubesUniforms) {
+      this.tubesUniforms.uTime.value = timestamp * 0.001;
+    }
+    if (this.hyperspaceUniforms) {
+      this.hyperspaceUniforms.uTime.value = timestamp * 0.001;
+    }
+    if (this.fractalWorldsUniforms) {
+      this.fractalWorldsUniforms.uTime.value = timestamp * 0.001;
+    }
+
+    if (this.pause || this.isGameOver) {
+      this.renderer.render(this.scene, this.camera);
+      return;
+    }
+
+    this.timeElapsed += deltaTime;
+
+    if (this.WPM === 30 || this.WPM === 101) {
+      const speedIncrease = 0.00001;
+      this.words.forEach(word => {
+        word.speed += speedIncrease;
+      });
+    }
+
+    if (this.ambientParticles) {
+      this.ambientParticles.position.y = Math.sin(timestamp * 0.00035) * 8;
+      this.ambientParticles.position.x = Math.cos(timestamp * 0.00022) * 5;
+    }
+
+    this.words.forEach(word => {
+      word.y += word.speed * deltaTime;
+      this.syncWordSprite(word);
+    });
+
+    this.updateHud();
+    this.renderer.render(this.scene, this.camera);
+
+    if (this.words.length > 0 && this.words[0].y > LOGICAL_HEIGHT) {
+      this.gameOver();
+      return;
+    }
+
+    this.animationFrame = requestAnimationFrame(this.animate.bind(this));
+  }
+
+  pauseGame() {
+    if (this.isGameOver) return;
+    this.pause = true;
+    const paused = document.getElementById('GamePaused');
+    if (paused) paused.style.display = 'block';
+  }
+
+  resumeGame() {
+    if (this.isGameOver) return;
+    this.pause = false;
+    this.lastTimestamp = performance.now();
+    const paused = document.getElementById('GamePaused');
+    if (paused) paused.style.display = 'none';
+    if (this.animationFrame === null) {
+      this.animate(this.lastTimestamp);
+    }
+  }
+
+  shuffleArray<T>(array: T[]) {
+    for (let i = array.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [array[i], array[j]] = [array[j], array[i]];
+    }
+    return array;
+  }
+
+  async gameOver() {
+    if (this.isGameOver) return;
+    this.isGameOver = true;
+    if (this.animationFrame !== null) {
+      cancelAnimationFrame(this.animationFrame);
+      this.animationFrame = null;
+    }
+
+    const endTime = Date.now();
+    const timeElapsed = endTime - this.startTime;
+    const precision = this.keystrokes === 0 ? 100 : ((this.keystrokes - this.typos) / this.keystrokes) * 100;
+
+    localStorage.setItem('precision', precision.toString());
+    localStorage.setItem('mode', this.mode);
+    localStorage.setItem('playerName', this.playerName);
+    localStorage.setItem('timeElapsed', this.timeElapsed.toString());
+
+    try {
+      const response = await fetch('/score', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          token: this.token,
+          name: this.playerName,
+          score: this.score,
+          language: this.language,
+          WPM: this.WPM,
+          keystrokes: this.keystrokes,
+          timeElapsed,
+          typos: this.typos,
+          mode: this.mode
+            + (this.addNumbersSetting ? '+N' : '')
+            + (this.applyGrammarSetting ? '+P' : '')
+        })
+      });
+
+      if (!response.ok) {
+        console.error('Failed to send score to server');
+      }
+    } catch (error) {
+      console.error('Failed to send score to server', error);
+    }
+
+    window.location.href = `/game-over.html?score=${this.score}&language=${this.language}&WPM=${this.WPM}`;
+  }
+
+  setPlayerName(newName: string) {
+    if (newName.length >= 3 && newName.length <= 30) {
+      localStorage.setItem('playerName', newName);
+      this.playerName = newName;
+    } else {
+      throw new Error('Player name must be between 3 and 30 characters.');
+    }
+  }
+}
+
+async function populateLanguages(languageInput: HTMLSelectElement, selectedLanguage: string) {
+  try {
+    const response = await fetch('/languages');
+    const languages = await response.json();
+    languageInput.innerHTML = '';
+    languages.forEach((language: string) => {
+      const option = document.createElement('option');
+      option.value = language;
+      option.text = language;
+      languageInput.appendChild(option);
+    });
+    languageInput.value = selectedLanguage;
+  } catch (error) {
+    console.error('Error:', error);
+  }
+}
+
+const gameStage = document.getElementById('game') as HTMLElement;
+const wpmInput = document.getElementById('wpm') as HTMLSelectElement;
+const modeInput = document.getElementById('mode') as HTMLSelectElement;
+const languageInput = document.getElementById('language') as HTMLSelectElement;
+const playerNameInput = document.getElementById('player-name') as HTMLInputElement;
+
+Game.create(gameStage, undefined, 30, 'english').then(async game => {
+  await populateLanguages(languageInput, game.getLanguage());
+  game.initialize();
+
+  modeInput.value = game.getMode();
+  modeInput.addEventListener('change', () => {
+    game.setMode(modeInput.value as GameMode);
+  });
+  modeInput.addEventListener('focus', () => game.pauseGame());
+  modeInput.addEventListener('blur', () => game.resumeGame());
+
+  wpmInput.value = game.getWPM().toString();
+  wpmInput.addEventListener('change', () => {
+    const newWPM = Number(wpmInput.value);
+    game.setWPM(newWPM);
+  });
+  wpmInput.addEventListener('focus', () => game.pauseGame());
+  wpmInput.addEventListener('blur', () => game.resumeGame());
+
+  languageInput.addEventListener('change', () => {
+    game.setLanguage(languageInput.value);
+  });
+  languageInput.addEventListener('focus', () => game.pauseGame());
+  languageInput.addEventListener('blur', () => game.resumeGame());
+
+  playerNameInput.addEventListener('focus', () => game.pauseGame());
+  playerNameInput.addEventListener('blur', () => game.resumeGame());
+
+  let playerName = localStorage.getItem('playerName');
+  if (!playerName) {
+    playerName = `Player${Math.floor(Math.random() * 1000000)}`;
+    localStorage.setItem('playerName', playerName);
+    game.setPlayerName(playerName);
+  }
+  playerNameInput.value = playerName;
+
+  playerNameInput.addEventListener('change', () => {
+    game.setPlayerName(playerNameInput.value);
+    localStorage.setItem('playerName', playerNameInput.value);
+  });
+}).catch(error => {
+  console.error('Failed to initialize KeyboardRage:', error);
+});

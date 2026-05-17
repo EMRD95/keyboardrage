@@ -7,7 +7,7 @@
     <meta name="description" content="Keyboard Rage is an exciting typing game designed to improve your typing skills while having fun. Choose your WPM and challenge yourself to score higher!">
     <meta name="keywords" content="Typing game, Keyboard Rage, Learn Typing, Improve typing speed, Fun typing game, Learn keyboard skills">
     <meta name="author" content="EMRD95">
-    
+
     <!-- Open Graph / Facebook -->
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://keyboardrage.com/">
@@ -21,164 +21,183 @@
     <meta property="twitter:title" content="Keyboard Rage - Improve your Typing Skills">
     <meta property="twitter:description" content="Keyboard Rage is an exciting typing game designed to improve your typing skills while having fun. Choose your WPM and challenge yourself to score higher!">
     <meta property="twitter:image" content="https://keyboardrage.com/logo.png">
-    
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" type="text/css" href="styles.css">
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "/node_modules/three/build/three.module.js"
+        }
+      }
+    </script>
   </head>
-  <body>
-	<input id="hidden-input" type="text" style="opacity: 0; position: absolute;" 
-		   autocomplete="off"
-		   autocapitalize="off"
-		   autocorrect="off"
-		   data-gramm="false"
-		   data-gramm_editor="false"
-		   data-enable-grammarly="false"
-		   list="autocompleteOff"
-		   spellcheck="false"
-		   autocapitalize="none">
+  <body data-theme="default">
+    <input id="hidden-input" type="text" class="sr-input"
+      autocomplete="off"
+      autocapitalize="off"
+      autocorrect="off"
+      data-gramm="false"
+      data-gramm_editor="false"
+      data-enable-grammarly="false"
+      list="autocompleteOff"
+      spellcheck="false">
 
+    <iframe id="myVideo" title="KeyboardRage ambient theme video" frameborder="0" allow="autoplay; encrypted-media" allowfullscreen></iframe>
+    <div id="overlay" aria-hidden="true"></div>
 
-	<div id="game-container">
-	<canvas id="game" width="800" height="600"></canvas>
-	  <div id="game-overlay">
-		<p>Game Over! Final Score: <span id="final-score"></span></p>
-		<button id="play-again">Play Again</button>
-	  </div>
-	  <p id="score">Score: <span id="current-score"></span></p>
-	  <div id="capsLockIndicator" style="display:none;">CAPS LOCK IS ON</div>
-	  <div id="GamePaused" style="display:none;">Game Paused</div>
-	</div>
+    <main id="app-shell">
+      <section class="hero-panel" aria-label="KeyboardRage game">
+        <header class="topbar">
+          <div class="brand-block">
+            <div class="brand-mark">KR</div>
+            <div>
+              <p class="eyebrow">KeyboardRage / Three.js Draft</p>
+              <h1>Type before the drop.</h1>
+            </div>
+          </div>
+          <div class="session-pills" aria-label="Current session stats">
+            <span class="pill">WPM <strong id="hud-wpm">30⇢∞</strong></span>
+            <span class="pill">Theme <strong id="theme-label">Default</strong></span>
+            <span class="pill">Mode <strong id="mode-label">Rage</strong></span>
+          </div>
+        </header>
 
-	<div id="wpm-container">
-	  <label for="wpm">WPM:</label>
-	  <select id="wpm">
-		<option value="30" selected title="Ranked">30⇢∞ &#9733;</option>
-		<option value="40" title="Practice">40</option>
-		<option value="50" title="Ranked">50 &#9733;</option>
-		<option value="60" title="Practice">60</option>
-		<option value="70" title="Practice">70</option>
-		<option value="80" title="Practice">80</option>
-		<option value="90" title="Practice">90</option>
-		<option value="100" title="Ranked">100 &#9733;</option>
-		<option value="101" title="Ranked">100⇢∞ &#9733;</option>
-		<option value="110" title="Practice">110</option>
-		<option value="120" title="Practice">120</option>
-		<option value="130" title="Practice">130</option>
-		<option value="140" title="Practice">140</option>
-		<option value="150" title="Ranked">150 &#9733;</option>
-		<option value="160" title="Practice">160</option>
-		<option value="170" title="Practice">170</option>
-		<option value="180" title="Practice">180</option>
-		<option value="190" title="Practice">190</option>
-		<option value="200" title="Ranked">200 &#9733;</option>
-		<option value="210" title="Practice">210</option>
-		<option value="220" title="Practice">220</option>
-		<option value="230" title="Practice">230</option>
-		<option value="240" title="Practice">240</option>
-		<option value="250" title="Ranked">250 &#9733;</option>
-		<option value="260" title="Practice">260</option>
-		<option value="270" title="Practice">270</option>
-		<option value="280" title="Practice">280</option>
-		<option value="290" title="Practice">290</option>
-		<option value="300" title="Ranked">300 &#9733;</option>
-		<option value="310" title="Practice">310</option>
-		<option value="320" title="Practice">320</option>
-		<option value="330" title="Practice">330</option>
-		<option value="340" title="Practice">340</option>
-		<option value="350" title="Ranked">350 &#9733;</option>
-		<option value="360" title="Practice">360</option>
-		<option value="370" title="Practice">370</option>
-		<option value="380" title="Practice">380</option>
-		<option value="390" title="Practice">390</option>
-		<option value="400" title="Ranked">400 &#9733;</option>
-	  </select>
-	</div>
+        <div id="game-container">
+          <div id="game" class="game-stage" role="application" aria-label="KeyboardRage playfield" tabindex="0">
+            <div class="stage-chrome stage-grid" aria-hidden="true"></div>
+            <div class="stage-chrome stage-vignette" aria-hidden="true"></div>
+            <div id="game-overlay">
+              <p>Game Over! Final Score: <span id="final-score"></span></p>
+              <button id="play-again">Play Again</button>
+            </div>
+          </div>
 
-	<div id="player-name-container">
-	<label for="player-name">Player Name:</label>
-	  <input type="text" id="player-name" required minlength="3" maxlength="30" pattern=".{3,}">
-	</div>
+          <div class="game-footer">
+            <p id="score" class="score-card">Score <span id="current-score">0</span></p>
+            <p class="model-card">Manual WPM model preserved: words fall from <code>(WPM × 20) ÷ 60 ÷ 60 ÷ averageChars</code>.</p>
+            <p class="hint-card">Type the first falling word. Tab pauses. Space is shown as <strong>⎵</strong>.</p>
+          </div>
 
-	<button id="settings-button">Settings</button>
-	<div id="settings-menu" style="display: none">
-		<div id="settings-container">
-			<label for="language" title="Change language">Language</label>
-			<select id="language">
-			  <!-- options will be filled by script -->
-			</select>
-		</div>
+          <div id="capsLockIndicator" style="display:none;">CAPS LOCK IS ON</div>
+          <div id="GamePaused" style="display:none;">Game Paused</div>
+        </div>
+      </section>
 
-<div id="settings-container">
-	<label for="mode" title="Change game mode">Mode</label>
-	<select id="mode">
-		<option value="rage" title="Typo increases word speed">Rage Mode 🛈</option>
-		<option value="precision" title="Word resets on typo">Precision Mode 🛈</option>
-		<option value="fast" title="Game continues despite typos">Fast Mode 🛈</option>
-	</select>
-</div>
+      <aside class="control-panel" aria-label="KeyboardRage controls">
+        <div class="panel-heading">
+          <p class="eyebrow">Run setup</p>
+          <h2>Calibrate the fall</h2>
+        </div>
 
+        <div id="wpm-container" class="control-group">
+          <label for="wpm">WPM</label>
+          <select id="wpm">
+            <option value="30" selected title="Ranked">30⇢∞ ★</option>
+            <option value="40" title="Practice">40</option>
+            <option value="50" title="Ranked">50 ★</option>
+            <option value="60" title="Practice">60</option>
+            <option value="70" title="Practice">70</option>
+            <option value="80" title="Practice">80</option>
+            <option value="90" title="Practice">90</option>
+            <option value="100" title="Ranked">100 ★</option>
+            <option value="101" title="Ranked">100⇢∞ ★</option>
+            <option value="110" title="Practice">110</option>
+            <option value="120" title="Practice">120</option>
+            <option value="130" title="Practice">130</option>
+            <option value="140" title="Practice">140</option>
+            <option value="150" title="Ranked">150 ★</option>
+            <option value="160" title="Practice">160</option>
+            <option value="170" title="Practice">170</option>
+            <option value="180" title="Practice">180</option>
+            <option value="190" title="Practice">190</option>
+            <option value="200" title="Ranked">200 ★</option>
+            <option value="210" title="Practice">210</option>
+            <option value="220" title="Practice">220</option>
+            <option value="230" title="Practice">230</option>
+            <option value="240" title="Practice">240</option>
+            <option value="250" title="Ranked">250 ★</option>
+            <option value="260" title="Practice">260</option>
+            <option value="270" title="Practice">270</option>
+            <option value="280" title="Practice">280</option>
+            <option value="290" title="Practice">290</option>
+            <option value="300" title="Ranked">300 ★</option>
+            <option value="310" title="Practice">310</option>
+            <option value="320" title="Practice">320</option>
+            <option value="330" title="Practice">330</option>
+            <option value="340" title="Practice">340</option>
+            <option value="350" title="Ranked">350 ★</option>
+            <option value="360" title="Practice">360</option>
+            <option value="370" title="Practice">370</option>
+            <option value="380" title="Practice">380</option>
+            <option value="390" title="Practice">390</option>
+            <option value="400" title="Ranked">400 ★</option>
+          </select>
+        </div>
 
-	<div id="settings-container">
-		<label for="checkbox" title="Change Options">Options</label>
-			<div>
-			<input type="checkbox" id="grammar" name="grammar">
-			<label for="grammar">Punctuation</label>
-			</div>
+        <div id="player-name-container" class="control-group">
+          <label for="player-name">Player Name</label>
+          <input type="text" id="player-name" required minlength="3" maxlength="30" pattern=".{3,}" placeholder="Player name">
+        </div>
 
-			<div>
-			<input type="checkbox" id="addNumbers" name="addNumbers">
-			<label for="addNumbers">Numbers</label>
-			</div>
-	</div>
-		
-	<div id="settings-container">
-	<label for="theme" title="Change theme">Themes</label>
-	  <select id="theme" name="theme">
-		<option value="default">Default</option>
-		<option value="highway">Highway (YT)</option>
-		<option value="ocean">Ocean (YT)</option>
-		<option value="psychedelic">Kaleidoscopic</option>
-		<option value="psychedelic-spin">Kaleidoscopic Spin</option>
-		<option value="psy2">Fractals (YT)</option>
-		<option value="rollercoaster">Rollercoaster (YT)</option>
-		<option value="space">Space (YT)</option>
-		<option value="space2">Space 2 (YT)</option>
-	  </select>
-	</div>
-	</div>
+        <button id="settings-button" type="button">Settings</button>
+        <div id="settings-menu" class="settings-card" style="display: none">
+          <div id="settings-container" class="control-group">
+            <label for="language" title="Change language">Language</label>
+            <select id="language"><!-- options filled by game.ts --></select>
+          </div>
 
-<div id="overlay"></div>
-<iframe id="myVideo" frameborder="0" allow="autoplay; encrypted-media" allowfullscreen></iframe>
+          <div id="settings-container" class="control-group">
+            <label for="mode" title="Change game mode">Mode</label>
+            <select id="mode">
+              <option value="rage" title="Typo increases word speed">Rage Mode 🛈</option>
+              <option value="precision" title="Word resets on typo">Precision Mode 🛈</option>
+              <option value="fast" title="Game continues despite typos">Fast Mode 🛈</option>
+            </select>
+          </div>
 
+          <div id="settings-container" class="control-group option-stack">
+            <label title="Change Options">Options</label>
+            <label class="toggle-row" for="grammar"><input type="checkbox" id="grammar" name="grammar"> Punctuation</label>
+            <label class="toggle-row" for="addNumbers"><input type="checkbox" id="addNumbers" name="addNumbers"> Numbers</label>
+          </div>
 
-	
+          <div id="settings-container" class="control-group">
+            <label for="theme" title="Change theme">Themes</label>
+            <select id="theme" name="theme">
+              <!-- options filled from themes/registry.ts -->
+            </select>
+          </div>
+        </div>
+      </aside>
+    </main>
+
     <script type="module" src="game.js"></script>
-	<script>
-	const gameCanvas = document.querySelector('#game');
-	const hiddenInput = document.querySelector('#hidden-input');
+    <script>
+      const gameStage = document.querySelector('#game');
+      const hiddenInput = document.querySelector('#hidden-input');
 
-	gameCanvas.addEventListener('click', () => {
-		// Check if on mobile
-		if (navigator.userAgentData && navigator.userAgentData.mobile) {
-			hiddenInput.focus();
-		} else if (/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)) {
-			hiddenInput.focus();
-		}
-	});
+      gameStage.addEventListener('click', () => {
+        if (navigator.userAgentData && navigator.userAgentData.mobile) {
+          hiddenInput.focus();
+        } else if (/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)) {
+          hiddenInput.focus();
+        }
+      });
 
-
-	hiddenInput.addEventListener('input', (event) => {
-		const inputValue = event.target.value;
-		if (inputValue.length > 0) {
-			// Generate a keydown event
-			const keyEvent = new KeyboardEvent('keydown', {key: inputValue});
-			window.dispatchEvent(keyEvent);
-			// Reset the hidden input
-			event.target.value = '';
-		}
-		// Prevent the original event from propagating
-		event.stopImmediatePropagation();
-	});
-	</script>
-
+      hiddenInput.addEventListener('input', (event) => {
+        const inputValue = event.target.value;
+        if (inputValue.length > 0) {
+          for (const key of inputValue) {
+            const keyEvent = new KeyboardEvent('keydown', { key });
+            window.dispatchEvent(keyEvent);
+          }
+          event.target.value = '';
+        }
+        event.stopImmediatePropagation();
+      });
+    </script>
   </body>
 </html>

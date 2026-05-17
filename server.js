@@ -9,7 +9,7 @@ const fs = require('fs');
 const ip = require('ip');
 
 const app = express();
-app.set('trust proxy', true);
+app.set('trust proxy', 1);
 app.use(bodyParser.json());
 
 app.listen(3000, () => console.log('Server listening on port 3000'));
@@ -151,28 +151,33 @@ if (!supportedWPMs.includes(scoreData.WPM)) {
 	  ip: req.headers['x-forwarded-for']?.split(',')[0].trim() || req.connection.remoteAddress
 	};
 
-  // Find the highest score for the given name, WPM, and language
-  const highestScoreEntry = await Score.findOne({ name: scoreData.name, WPM: scoreData.WPM, language: scoreData.language }).sort({ score: -1 });
-
-  if (highestScoreEntry) {
-    const highestScore = highestScoreEntry.score;
-
-    // If the new score is less than or equal to the highest score, return a response saying the new score should be higher.
-    if (scoreData.score <= highestScore) {
-      return res.status(400).send('Score should be higher than the previous best score');
-    }
-
-    // If the new score is higher, delete all scores with the same name, language, and WPM but with a score lower than the previous highest score
-    await Score.deleteMany({ 
-      name: scoreData.name, 
-      WPM: scoreData.WPM, 
-      language: scoreData.language, 
-      score: { $lte: highestScore }
-    });
+  if (mongoose.connection.readyState !== 1) {
+    tokens = tokens.filter(t => t !== token);  // Remove the used token
+    return res.status(202).send({ message: 'Score accepted locally, but MongoDB is unavailable so it was not persisted.' });
   }
 
-  const newScore = new Score(newScoreData);
   try {
+    // Find the highest score for the given name, WPM, and language
+    const highestScoreEntry = await Score.findOne({ name: scoreData.name, WPM: scoreData.WPM, language: scoreData.language }).sort({ score: -1 });
+
+    if (highestScoreEntry) {
+      const highestScore = highestScoreEntry.score;
+
+      // If the new score is less than or equal to the highest score, return a response saying the new score should be higher.
+      if (scoreData.score <= highestScore) {
+        return res.status(400).send('Score should be higher than the previous best score');
+      }
+
+      // If the new score is higher, delete all scores with the same name, language, and WPM but with a score lower than the previous highest score
+      await Score.deleteMany({ 
+        name: scoreData.name, 
+        WPM: scoreData.WPM, 
+        language: scoreData.language, 
+        score: { $lte: highestScore }
+      });
+    }
+
+    const newScore = new Score(newScoreData);
     const score = await newScore.save();
     tokens = tokens.filter(t => t !== token);  // Remove the used token
     return res.status(200).send(score);
@@ -209,6 +214,10 @@ app.get('/leaderboard/:language/:WPM', async (req, res) => {
   const page = parseInt(req.query.page) || 1;
   const limit = parseInt(req.query.limit) || 10;
   const skip = (page - 1) * limit;
+
+  if (mongoose.connection.readyState !== 1) {
+    return res.status(200).send([]);
+  }
 
   try {
     const scores = await Score.aggregate([
@@ -262,6 +271,10 @@ app.get('/latest-scores', async (req, res) => {
   const page = parseInt(req.query.page) || 1;
   const limit = parseInt(req.query.limit) || 10;
   const skip = (page - 1) * limit;
+
+  if (mongoose.connection.readyState !== 1) {
+    return res.status(200).send([]);
+  }
 
   try {
     const scores = await Score.aggregate([
