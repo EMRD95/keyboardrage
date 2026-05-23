@@ -46,6 +46,7 @@ export type ThreeThemeUpdateInfo = {
   activeWord?: string;
   activeWordSourceIndex?: number;
   language?: string;
+  frequencyLimit?: number;
 };
 
 export type ThreeThemeColorInfo = {

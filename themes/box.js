@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { GRANITE_BOX_EMBEDDING_MODEL, GRANITE_BOX_MAX_DOTS_PER_LANGUAGE, GRANITE_BOX_WORD_POINTS, GRANITE_BOX_WORD_POINTS_BY_LANGUAGE, getGraniteBoxWordPoints, resolveGraniteBoxPointIndex } from './box-embedding-data.js';
+import { isFrenchGalaxyLanguage, loadFrenchGalaxyData } from './french-galaxy-data.js';
 import { buildExpandedBoxPointPositions } from './box-point-layout.js';
 const BOX_RENDER_ORDER = -91;
 const BOX_DISPLAY_VERTEX_SHADER = `
@@ -31,7 +32,13 @@ const MATRIX_BOX_SPEED = 0.24;
 const MATRIX_TUNNEL_RADIUS = 0.50;
 const MATRIX_TUNNEL_LENGTH = 6.7;
 const ACTIVE_DOT_COLOR = new THREE.Color('#ff174d');
-const BASE_DOT_BRIGHT = new THREE.Color('#d9fff7');
+const BASE_DOT_BRIGHT = new THREE.Color('#b8ffd2');
+function sparseDotScale(pointCount) {
+    // Do not move/scale the boxes themselves by frequency. Only make sparse point
+    // clouds a little more readable inside the same fixed boxes.
+    const density = THREE.MathUtils.clamp(pointCount / 10000, 0.02, 1);
+    return THREE.MathUtils.clamp(1 / Math.pow(density, 0.12), 1, 1.42);
+}
 function normalizeMatrixLetters(value, stripAccents = false) {
     let normalized = value.trim().toLowerCase().normalize(stripAccents ? 'NFKD' : 'NFKC');
     if (stripAccents) {
@@ -90,6 +97,9 @@ export class BoxMatrixBackground {
         this.highlightGeometry = new THREE.BufferGeometry();
         this.wordPoints = GRANITE_BOX_WORD_POINTS;
         this.wordIndex = new Map();
+        this.sourceIndexToPointIndex = new Map();
+        this.frenchPointSet = null;
+        this.frenchLoadStarted = false;
         this.boxes = [];
         this.accent = new THREE.Color('#22ffd6');
         this.accent2 = new THREE.Color('#ff174d');
@@ -140,20 +150,22 @@ export class BoxMatrixBackground {
             blending: THREE.AdditiveBlending
         });
         this.pointMaterial = new THREE.PointsMaterial({
-            size: 0.020,
+            size: 0.012,
             sizeAttenuation: true,
             vertexColors: true,
             transparent: true,
-            opacity: 0.88,
+            opacity: 0.24,
+            depthTest: true,
             depthWrite: false,
-            blending: THREE.AdditiveBlending
+            blending: THREE.NormalBlending
         });
         this.highlightMaterial = new THREE.PointsMaterial({
             color: ACTIVE_DOT_COLOR,
-            size: 0.075,
-            sizeAttenuation: true,
+            size: 20,
+            sizeAttenuation: false,
             transparent: true,
             opacity: 1.0,
+            depthTest: false,
             depthWrite: false,
             blending: THREE.AdditiveBlending
         });
@@ -191,25 +203,29 @@ export class BoxMatrixBackground {
         this.matrixCamera.updateProjectionMatrix();
         this.renderTarget.setSize(Math.max(1, Math.floor(width * pixelRatio)), Math.max(1, Math.floor(height * pixelRatio)));
     }
-    update({ deltaTime, activeWord, activeWordSourceIndex, language }) {
+    update({ deltaTime, activeWord, activeWordSourceIndex, language, frequencyLimit }) {
         const dt = Math.min(Math.max(deltaTime * 0.001, 0), 0.05);
         this.animTime += dt;
         const pointLanguage = language || 'english';
-        this.updatePointLanguage(pointLanguage);
+        this.updatePointLanguage(pointLanguage, frequencyLimit);
         this.updateActiveWord(activeWord || '', activeWordSourceIndex, pointLanguage);
         if (!this.visible)
             return;
         const cycle = MATRIX_BOX_COUNT * MATRIX_BOX_SPACING;
         const travel = (this.animTime * MATRIX_BOX_SPEED) % cycle;
         const pulse = Math.sin(this.animTime * 7.5) * 0.5 + 0.5;
-        this.highlightMaterial.size = this.activeIndex >= 0 ? 0.070 + pulse * 0.028 : 0.070;
-        this.highlightMaterial.opacity = this.activeIndex >= 0 ? 0.78 + pulse * 0.22 : 0.0;
+        const dotScale = sparseDotScale(this.wordPoints.length);
+        this.pointMaterial.size = 0.024 * dotScale;
+        this.pointMaterial.opacity = 0.32 + (dotScale - 1) * 0.08;
+        this.highlightMaterial.size = this.activeIndex >= 0 ? 13 + pulse * 4 : 13;
+        this.highlightMaterial.opacity = this.activeIndex >= 0 ? 0.82 + pulse * 0.12 : 0.0;
         this.tunnelMesh.rotation.z = this.animTime * 0.045;
         this.boxes.forEach(({ root }, index) => {
             const lane = (index * MATRIX_BOX_SPACING - travel + cycle) % cycle;
             const z = MATRIX_NEAR_Z + lane;
             const sway = this.animTime * 0.55 + index * 1.7;
             root.position.set(Math.sin(sway) * 0.018, Math.cos(sway * 0.8) * 0.014, z);
+            root.scale.setScalar(1);
             root.rotation.x = Math.sin(this.animTime * 0.34 + index) * 0.18;
             root.rotation.y = Math.cos(this.animTime * 0.29 + index * 0.7) * 0.16;
             root.rotation.z = this.animTime * 0.10 + index * 0.27;
@@ -248,9 +264,15 @@ export class BoxMatrixBackground {
         this.basePointColors = new Float32Array(this.wordPoints.length * 3);
         this.livePointColors = new Float32Array(this.wordPoints.length * 3);
         this.wordIndex.clear();
+        this.sourceIndexToPointIndex.clear();
         this.wordPoints.forEach(([word], index) => {
             this.addWordIndex(word, index);
         });
+        if (this.frenchPointSet) {
+            this.frenchPointSet.sourceIndexToPointIndex.forEach((pointIndex, sourceIndex) => {
+                this.sourceIndexToPointIndex.set(sourceIndex, pointIndex);
+            });
+        }
         this.pointGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
         this.pointGeometry.setAttribute('color', new THREE.BufferAttribute(this.livePointColors, 3));
         this.pointGeometry.computeBoundingSphere();
@@ -269,6 +291,8 @@ export class BoxMatrixBackground {
             const highlight = new THREE.Points(this.highlightGeometry, this.highlightMaterial);
             highlight.visible = false;
             highlight.frustumCulled = false;
+            points.renderOrder = 1;
+            highlight.renderOrder = 999;
             root.add(shell, grid, points, highlight);
             this.matrixScene.add(root);
             this.boxes.push({ root, highlight });
@@ -280,8 +304,12 @@ export class BoxMatrixBackground {
         this.wordPoints.forEach(([, x, y, z], index) => {
             const depthTint = THREE.MathUtils.clamp((z + 0.82) / 1.64, 0, 1);
             const verticalTint = THREE.MathUtils.clamp((y + 0.82) / 1.64, 0, 1);
-            color.copy(this.accent).lerp(BASE_DOT_BRIGHT, 0.16 + depthTint * 0.30);
-            color.offsetHSL((x * 0.015) + (verticalTint * 0.018), 0, 0.04 * verticalTint);
+            const electricBand = Math.sin((x * 8.5) + (y * 5.0) + (z * 6.0)) * 0.5 + 0.5;
+            const depthGlow = 0.55 + depthTint * 0.45;
+            color.setRGB(0.020 + verticalTint * 0.028 + electricBand * 0.010, 0.34 + depthTint * 0.18 + electricBand * 0.055, 0.065 + depthTint * 0.060 + electricBand * 0.040);
+            color.multiplyScalar(depthGlow);
+            color.lerp(BASE_DOT_BRIGHT, 0.018);
+            color.offsetHSL((x * 0.006) + (verticalTint * 0.006), 0.035, 0.010 * verticalTint);
             this.basePointColors[index * 3] = color.r;
             this.basePointColors[index * 3 + 1] = color.g;
             this.basePointColors[index * 3 + 2] = color.b;
@@ -293,7 +321,39 @@ export class BoxMatrixBackground {
         if (attr)
             attr.needsUpdate = true;
     }
-    updatePointLanguage(language) {
+    updatePointLanguage(language, frequencyLimit) {
+        if (isFrenchGalaxyLanguage(language)) {
+            if (!this.frenchLoadStarted) {
+                this.frenchLoadStarted = true;
+                loadFrenchGalaxyData()
+                    .then((data) => {
+                    this.frenchPointSet = data.getPointSet(frequencyLimit);
+                    this.wordPoints = this.frenchPointSet.points;
+                    this.activeWord = '';
+                    this.activeSourceIndex = undefined;
+                    this.activeIndex = -1;
+                    this.buildPointCloudGeometry();
+                    this.hideHighlights();
+                })
+                    .catch((error) => console.error('Failed to load French galaxy data for Box Matrix:', error));
+            }
+            else {
+                loadFrenchGalaxyData().then((data) => {
+                    const nextPointSet = data.getPointSet(frequencyLimit);
+                    if (this.frenchPointSet === nextPointSet && this.wordPoints === nextPointSet.points)
+                        return;
+                    this.frenchPointSet = nextPointSet;
+                    this.wordPoints = nextPointSet.points;
+                    this.activeWord = '';
+                    this.activeSourceIndex = undefined;
+                    this.activeIndex = -1;
+                    this.buildPointCloudGeometry();
+                    this.hideHighlights();
+                }).catch(() => undefined);
+            }
+            return;
+        }
+        this.frenchPointSet = null;
         const nextPoints = getGraniteBoxWordPoints(language);
         if (nextPoints === this.wordPoints)
             return;
@@ -302,6 +362,9 @@ export class BoxMatrixBackground {
         this.activeSourceIndex = undefined;
         this.activeIndex = -1;
         this.buildPointCloudGeometry();
+        this.hideHighlights();
+    }
+    hideHighlights() {
         this.boxes.forEach(({ highlight }) => {
             highlight.visible = false;
         });
@@ -327,7 +390,8 @@ export class BoxMatrixBackground {
             return;
         this.activeWord = normalized;
         this.activeSourceIndex = sourceIndex;
-        const clusterIndex = resolveGraniteBoxPointIndex(language, sourceIndex);
+        const routedIndex = sourceIndex !== undefined ? this.sourceIndexToPointIndex.get(sourceIndex) : undefined;
+        const clusterIndex = routedIndex !== undefined ? routedIndex : resolveGraniteBoxPointIndex(language, sourceIndex);
         const index = clusterIndex >= 0 ? clusterIndex : (normalized ? this.lookupWordIndex(rawWord) : -1);
         this.activeIndex = index;
         this.livePointColors.set(this.basePointColors);

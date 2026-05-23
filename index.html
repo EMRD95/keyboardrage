@@ -158,6 +158,16 @@
             </select>
           </div>
 
+          <div id="settings-container" class="control-group">
+            <label for="frequency-limit" title="Limit loaded words for large frequency lists">Frequency</label>
+            <select id="frequency-limit">
+              <option value="200">Top 200</option>
+              <option value="1000" selected>Top 1k</option>
+              <option value="2000">Top 2k</option>
+              <option value="10000">Top 10k</option>
+            </select>
+          </div>
+
           <div id="settings-container" class="control-group option-stack">
             <label title="Change Options">Options</label>
             <label class="toggle-row" for="grammar"><input type="checkbox" id="grammar" name="grammar"> Punctuation</label>

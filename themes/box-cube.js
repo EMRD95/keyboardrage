@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { GRANITE_BOX_EMBEDDING_MODEL, GRANITE_BOX_MAX_DOTS_PER_LANGUAGE, GRANITE_BOX_WORD_POINTS, GRANITE_BOX_WORD_POINTS_BY_LANGUAGE, getGraniteBoxWordPoints, resolveGraniteBoxPointIndex } from './box-embedding-data.js';
+import { isFrenchGalaxyLanguage, loadFrenchGalaxyData } from './french-galaxy-data.js';
 import { buildExpandedBoxPointPositions } from './box-point-layout.js';
 const BOX_CUBE_RENDER_ORDER = -90;
 const CUBE_SIZE = 1.92;
@@ -7,7 +8,22 @@ const CUBE_GRID_DIVISIONS = 10;
 const CUBE_POINT_SCALE = CUBE_SIZE * 0.46;
 const CUBE_BASE_ROTATION = new THREE.Euler(-0.28, 0.62, 0.10);
 const ACTIVE_DOT_COLOR = new THREE.Color('#ff174d');
-const BASE_DOT_BRIGHT = new THREE.Color('#ecfffb');
+const BASE_DOT_BRIGHT = new THREE.Color('#00ff33');
+function getSparsityMetrics(pointCount) {
+    // Use log10 to handle the massive range gracefully
+    // Math.log10(300000) is ~5.47 | Math.log10(200) is ~2.30
+    const logCount = Math.log10(Math.max(pointCount, 200));
+    // 0.0 means completely dense (300k+), 1.0 means extremely sparse (<=200)
+    const sparsity = THREE.MathUtils.clamp(1.0 - (logCount - 2.3) / (5.47 - 2.3), 0, 1);
+    // Use a Smoothstep curve so the visual transition feels natural
+    const easeSparsity = sparsity * sparsity * (3 - 2 * sparsity);
+    return {
+        // Base size 0.015 (at 300k), scaling up to 0.09 (at 200)
+        size: 0.015 + (easeSparsity * 0.075),
+        // Base opacity 0.15 (at 300k), scaling up to 0.90 (at 200)
+        opacity: 0.15 + (easeSparsity * 0.75)
+    };
+}
 const CUBE_DISPLAY_VERTEX_SHADER = `
   varying vec2 vUv;
   void main() {
@@ -82,6 +98,9 @@ export class BoxCubeBackground {
         this.lightSphereGeometry = new THREE.SphereGeometry(0.042, 18, 10);
         this.wordPoints = GRANITE_BOX_WORD_POINTS;
         this.wordIndex = new Map();
+        this.sourceIndexToPointIndex = new Map();
+        this.frenchPointSet = null;
+        this.frenchLoadStarted = false;
         this.lightOrbits = [];
         this.accent = new THREE.Color('#6dfff2');
         this.accent2 = new THREE.Color('#ff174d');
@@ -143,29 +162,32 @@ export class BoxCubeBackground {
             blending: THREE.AdditiveBlending
         });
         this.pointMaterial = new THREE.PointsMaterial({
-            size: 0.040,
+            size: 0.015, // Reduced from 0.026 to handle 300k density
             sizeAttenuation: true,
             vertexColors: true,
             transparent: true,
-            opacity: 0.92,
+            opacity: 0.15, // Lowered base opacity
+            depthTest: true,
             depthWrite: false,
-            blending: THREE.AdditiveBlending
+            blending: THREE.AdditiveBlending // Caps overlaps at pure green, never white
         });
         this.highlightMaterial = new THREE.PointsMaterial({
             color: ACTIVE_DOT_COLOR,
-            size: 0.155,
-            sizeAttenuation: true,
+            size: 22,
+            sizeAttenuation: false,
             transparent: true,
             opacity: 1.0,
+            depthTest: false,
             depthWrite: false,
             blending: THREE.AdditiveBlending
         });
         this.highlightHaloMaterial = new THREE.PointsMaterial({
             color: ACTIVE_DOT_COLOR,
-            size: 0.255,
-            sizeAttenuation: true,
+            size: 56,
+            sizeAttenuation: false,
             transparent: true,
-            opacity: 0.38,
+            opacity: 0.46,
+            depthTest: false,
             depthWrite: false,
             blending: THREE.AdditiveBlending
         });
@@ -187,6 +209,9 @@ export class BoxCubeBackground {
         activeHalo.visible = false;
         activeDot.name = 'BoxCubeActiveDot';
         activeHalo.name = 'BoxCubeActiveHalo';
+        cubePoints.renderOrder = 1;
+        activeHalo.renderOrder = 998;
+        activeDot.renderOrder = 999;
         this.cubeRoot.add(cubeFace, cubeShell, cubeGrid, cubePoints, activeHalo, activeDot);
         this.cubeScene.add(this.cubeRoot);
         this.createRotatingLights();
@@ -205,11 +230,11 @@ export class BoxCubeBackground {
         this.cubeCamera.updateProjectionMatrix();
         this.renderTarget.setSize(Math.max(1, Math.floor(width * pixelRatio)), Math.max(1, Math.floor(height * pixelRatio)));
     }
-    update({ deltaTime, activeWord, activeWordSourceIndex, language }) {
+    update({ deltaTime, activeWord, activeWordSourceIndex, language, frequencyLimit }) {
         const dt = Math.min(Math.max(deltaTime * 0.001, 0), 0.05);
         this.animTime += dt;
         const pointLanguage = language || 'english';
-        this.updatePointLanguage(pointLanguage);
+        this.updatePointLanguage(pointLanguage, frequencyLimit);
         this.updateActiveWord(activeWord || '', activeWordSourceIndex, pointLanguage);
         if (!this.visible)
             return;
@@ -217,16 +242,20 @@ export class BoxCubeBackground {
         this.cubeRoot.rotation.x = CUBE_BASE_ROTATION.x + Math.sin(t * 0.31) * 0.13;
         this.cubeRoot.rotation.y = CUBE_BASE_ROTATION.y + t * 0.115;
         this.cubeRoot.rotation.z = CUBE_BASE_ROTATION.z + Math.sin(t * 0.23 + 0.7) * 0.075;
+        this.cubeRoot.scale.setScalar(1);
         // Keep the cube itself visually stable: no shell opacity or face-emissive pulsing.
         // Only the active red marker breathes, so the semantic target remains easy to find.
         const markerPulse = Math.sin(t * 4.2) * 0.5 + 0.5;
-        this.pointMaterial.size = 0.037;
+        // Dynamically apply logarithmic size/opacity based on dataset size
+        const metrics = getSparsityMetrics(this.wordPoints.length);
+        this.pointMaterial.size = metrics.size;
+        this.pointMaterial.opacity = metrics.opacity;
         this.shellMaterial.opacity = 0.82;
         this.faceMaterial.emissiveIntensity = 0.045;
-        this.highlightMaterial.size = this.activeIndex >= 0 ? 0.145 + markerPulse * 0.030 : 0.145;
-        this.highlightMaterial.opacity = this.activeIndex >= 0 ? 0.90 + markerPulse * 0.10 : 0.0;
-        this.highlightHaloMaterial.size = this.activeIndex >= 0 ? 0.245 + markerPulse * 0.055 : 0.245;
-        this.highlightHaloMaterial.opacity = this.activeIndex >= 0 ? 0.22 + markerPulse * 0.08 : 0.0;
+        this.highlightMaterial.size = this.activeIndex >= 0 ? 15 + markerPulse * 5 : 15;
+        this.highlightMaterial.opacity = this.activeIndex >= 0 ? 0.84 + markerPulse * 0.12 : 0.0;
+        this.highlightHaloMaterial.size = this.activeIndex >= 0 ? 36 + markerPulse * 10 : 36;
+        this.highlightHaloMaterial.opacity = this.activeIndex >= 0 ? 0.26 + markerPulse * 0.10 : 0.0;
         this.lightOrbits.forEach((orbit, index) => {
             orbit.root.rotation.y = t * orbit.speed + orbit.phase;
             orbit.root.rotation.x = Math.sin(t * (0.19 + index * 0.04) + orbit.phase) * orbit.tilt;
@@ -306,9 +335,15 @@ export class BoxCubeBackground {
         this.basePointColors = new Float32Array(this.wordPoints.length * 3);
         this.livePointColors = new Float32Array(this.wordPoints.length * 3);
         this.wordIndex.clear();
+        this.sourceIndexToPointIndex.clear();
         this.wordPoints.forEach(([word], index) => {
             this.addWordIndex(word, index);
         });
+        if (this.frenchPointSet) {
+            this.frenchPointSet.sourceIndexToPointIndex.forEach((pointIndex, sourceIndex) => {
+                this.sourceIndexToPointIndex.set(sourceIndex, pointIndex);
+            });
+        }
         this.pointGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
         this.pointGeometry.setAttribute('color', new THREE.BufferAttribute(this.livePointColors, 3));
         this.pointGeometry.computeBoundingSphere();
@@ -319,9 +354,11 @@ export class BoxCubeBackground {
         const color = new THREE.Color();
         this.wordPoints.forEach(([, x, y, z], index) => {
             const semanticDepth = THREE.MathUtils.clamp((z + 0.82) / 1.64, 0, 1);
-            const semanticHeight = THREE.MathUtils.clamp((y + 0.82) / 1.64, 0, 1);
-            color.copy(this.accent).lerp(BASE_DOT_BRIGHT, 0.20 + semanticDepth * 0.34);
-            color.offsetHSL(x * 0.018, 0.03, semanticHeight * 0.045);
+            const electricBand = Math.sin((x * 8.5) + (y * 5.0) + (z * 6.0)) * 0.5 + 0.5;
+            // Calculate only the green intensity. Keep R and B strictly at 0.
+            const greenIntensity = 0.2 + (semanticDepth * 0.5) + (electricBand * 0.3);
+            color.setRGB(0, greenIntensity, 0);
+            color.lerp(BASE_DOT_BRIGHT, 0.4);
             this.basePointColors[index * 3] = color.r;
             this.basePointColors[index * 3 + 1] = color.g;
             this.basePointColors[index * 3 + 2] = color.b;
@@ -333,7 +370,39 @@ export class BoxCubeBackground {
         if (attr)
             attr.needsUpdate = true;
     }
-    updatePointLanguage(language) {
+    updatePointLanguage(language, frequencyLimit) {
+        if (isFrenchGalaxyLanguage(language)) {
+            if (!this.frenchLoadStarted) {
+                this.frenchLoadStarted = true;
+                loadFrenchGalaxyData()
+                    .then((data) => {
+                    this.frenchPointSet = data.getPointSet(frequencyLimit);
+                    this.wordPoints = this.frenchPointSet.points;
+                    this.activeWord = '';
+                    this.activeSourceIndex = undefined;
+                    this.activeIndex = -1;
+                    this.buildPointCloudGeometry();
+                    this.hideActiveDot();
+                })
+                    .catch((error) => console.error('Failed to load French galaxy data for Box Cube:', error));
+            }
+            else {
+                loadFrenchGalaxyData().then((data) => {
+                    const nextPointSet = data.getPointSet(frequencyLimit);
+                    if (this.frenchPointSet === nextPointSet && this.wordPoints === nextPointSet.points)
+                        return;
+                    this.frenchPointSet = nextPointSet;
+                    this.wordPoints = nextPointSet.points;
+                    this.activeWord = '';
+                    this.activeSourceIndex = undefined;
+                    this.activeIndex = -1;
+                    this.buildPointCloudGeometry();
+                    this.hideActiveDot();
+                }).catch(() => undefined);
+            }
+            return;
+        }
+        this.frenchPointSet = null;
         const nextPoints = getGraniteBoxWordPoints(language);
         if (nextPoints === this.wordPoints)
             return;
@@ -342,6 +411,9 @@ export class BoxCubeBackground {
         this.activeSourceIndex = undefined;
         this.activeIndex = -1;
         this.buildPointCloudGeometry();
+        this.hideActiveDot();
+    }
+    hideActiveDot() {
         const activeDot = this.cubeRoot.getObjectByName('BoxCubeActiveDot');
         const activeHalo = this.cubeRoot.getObjectByName('BoxCubeActiveHalo');
         if (activeDot)
@@ -370,7 +442,8 @@ export class BoxCubeBackground {
             return;
         this.activeWord = normalized;
         this.activeSourceIndex = sourceIndex;
-        const clusterIndex = resolveGraniteBoxPointIndex(language, sourceIndex);
+        const routedIndex = sourceIndex !== undefined ? this.sourceIndexToPointIndex.get(sourceIndex) : undefined;
+        const clusterIndex = routedIndex !== undefined ? routedIndex : resolveGraniteBoxPointIndex(language, sourceIndex);
         const index = clusterIndex >= 0 ? clusterIndex : (normalized ? this.lookupWordIndex(rawWord) : -1);
         this.activeIndex = index;
         this.livePointColors.set(this.basePointColors);

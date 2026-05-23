@@ -76,6 +76,7 @@ class Game {
   private addNumbersSetting: boolean = localStorage.getItem('addNumbers') === 'true';
   private addNumbersCheckbox: HTMLInputElement;
   private theme: string = localStorage.getItem('theme') || 'default';
+  private frequencyLimit: number = Number(localStorage.getItem('frequencyLimit') || '1000') || 1000;
   private themeSelector: HTMLSelectElement;
 
   private constructor(container: HTMLElement, playerName: string, WPM: number = 60, language: string = 'english') {
@@ -157,6 +158,10 @@ class Game {
 
   getMode() {
     return this.mode;
+  }
+
+  getFrequencyLimit() {
+    return this.frequencyLimit;
   }
 
   private resizeRenderer() {
@@ -355,7 +360,7 @@ class Game {
 
   closeSettingsMenuIfClickedOutside(event: MouseEvent) {
     const path = event.composedPath();
-    const inputFields = ['player-name', 'wpm', 'mode', 'language', 'theme', 'grammar', 'addNumbers'];
+    const inputFields = ['player-name', 'wpm', 'mode', 'language', 'frequency-limit', 'theme', 'grammar', 'addNumbers'];
     if (this.settingsMenu.style.display !== 'none' && !path.includes(this.settingsMenu) && !path.includes(this.settingsButton)) {
       const clickedOnInputField = path.some((element: any) => element.id && inputFields.includes(element.id));
       if (!clickedOnInputField) {
@@ -517,8 +522,14 @@ class Game {
 
   async fetchWords() {
     const response = await fetch(`/words/${this.language}.json`);
-    const data = (await response.json()) as { words: string[]; charLength: number };
-    this.allWords = this.shuffleArray(data.words.map((word, sourceIndex) => ({
+    const data = (await response.json()) as {
+      words: string[];
+      charLength: number;
+      frequencyOptions?: number[];
+    };
+    const limit = Math.max(1, Math.min(data.words.length, this.frequencyLimit || data.words.length));
+    const selectedWords = data.words.slice(0, limit);
+    this.allWords = this.shuffleArray(selectedWords.map((word, sourceIndex) => ({
       text: this.addRandomNumbers(this.applyGrammar(word)),
       sourceIndex
     })));
@@ -569,6 +580,19 @@ class Game {
       this.WPM = newWPM;
       this.originalWPM = newWPM;
       this.updateHud();
+      this.restart(this.WPM);
+    }
+  }
+
+  setFrequencyLimit(newLimit: number) {
+    const cleanLimit = Math.max(1, Math.floor(newLimit));
+    if (cleanLimit !== this.frequencyLimit) {
+      localStorage.setItem('frequencyLimit', cleanLimit.toString());
+      this.frequencyLimit = cleanLimit;
+      this.clearWords();
+      this.allWords = [];
+      this.wordList = [];
+      this.wordIndex = 0;
       this.restart(this.WPM);
     }
   }
@@ -852,7 +876,14 @@ class Game {
     const activeWord = this.words[0]?.originalText ?? '';
     const activeWordSourceIndex = this.words[0]?.sourceIndex;
     for (const instance of this.threeThemeInstances.values()) {
-      instance.update({ timestamp, deltaTime, activeWord, activeWordSourceIndex, language: this.language });
+      instance.update({
+        timestamp,
+        deltaTime,
+        activeWord,
+        activeWordSourceIndex,
+        language: this.language,
+        frequencyLimit: this.frequencyLimit
+      });
     }
 
     if (this.pause || this.isGameOver) {
@@ -975,17 +1006,48 @@ class Game {
 async function populateLanguages(languageInput: HTMLSelectElement, selectedLanguage: string) {
   try {
     const response = await fetch('/languages');
-    const languages = await response.json();
+    const fetchedLanguages = await response.json();
+    const languages = Array.from(new Set([...(Array.isArray(fetchedLanguages) ? fetchedLanguages : []), 'english', 'french']));
     languageInput.innerHTML = '';
-    languages.forEach((language: string) => {
+    languages.forEach((language) => {
       const option = document.createElement('option');
       option.value = language;
       option.text = language;
       languageInput.appendChild(option);
     });
-    languageInput.value = selectedLanguage;
+    languageInput.value = languages.includes(selectedLanguage) ? selectedLanguage : 'english';
   } catch (error) {
     console.error('Error:', error);
+    languageInput.innerHTML = '';
+    ['english', 'french'].forEach((language) => {
+      const option = document.createElement('option');
+      option.value = language;
+      option.text = language;
+      languageInput.appendChild(option);
+    });
+    languageInput.value = selectedLanguage === 'french' ? 'french' : 'english';
+  }
+}
+
+async function populateFrequencyLimits(frequencyInput: HTMLSelectElement, language: string, selectedLimit: number) {
+  try {
+    const response = await fetch(`/words/${language}.json`);
+    const data = (await response.json()) as { words: string[]; frequencyOptions?: number[] };
+    const options = data.frequencyOptions && data.frequencyOptions.length > 0
+      ? data.frequencyOptions
+      : [200, 1000, 2000, 10000, data.words.length].filter((value, index, arr) => value <= data.words.length && arr.indexOf(value) === index);
+    frequencyInput.innerHTML = '';
+    options.forEach((limit) => {
+      const option = document.createElement('option');
+      option.value = String(limit);
+      option.text = limit >= 1000 ? `Top ${Math.round(limit / 1000)}k` : `Top ${limit}`;
+      if (limit === data.words.length) option.text = `All ${limit.toLocaleString()}`;
+      frequencyInput.appendChild(option);
+    });
+    const selected = options.includes(selectedLimit) ? selectedLimit : (options.find((value) => value >= selectedLimit) || options[options.length - 1]);
+    frequencyInput.value = String(selected);
+  } catch (error) {
+    console.error('Frequency options error:', error);
   }
 }
 
@@ -993,10 +1055,12 @@ const gameStage = document.getElementById('game') as HTMLElement;
 const wpmInput = document.getElementById('wpm') as HTMLSelectElement;
 const modeInput = document.getElementById('mode') as HTMLSelectElement;
 const languageInput = document.getElementById('language') as HTMLSelectElement;
+const frequencyInput = document.getElementById('frequency-limit') as HTMLSelectElement;
 const playerNameInput = document.getElementById('player-name') as HTMLInputElement;
 
 Game.create(gameStage, undefined, 30, 'english').then(async game => {
   await populateLanguages(languageInput, game.getLanguage());
+  await populateFrequencyLimits(frequencyInput, game.getLanguage(), game.getFrequencyLimit());
   game.initialize();
 
   modeInput.value = game.getMode();
@@ -1015,10 +1079,23 @@ Game.create(gameStage, undefined, 30, 'english').then(async game => {
   wpmInput.addEventListener('blur', () => game.resumeGame());
 
   languageInput.addEventListener('change', () => {
-    game.setLanguage(languageInput.value);
+    populateFrequencyLimits(frequencyInput, languageInput.value, game.getFrequencyLimit()).then(() => {
+      const selectedLimit = Number(frequencyInput.value);
+      if (Number.isFinite(selectedLimit)) {
+        game.setFrequencyLimit(selectedLimit);
+      }
+      game.setLanguage(languageInput.value);
+    });
   });
   languageInput.addEventListener('focus', () => game.pauseGame());
   languageInput.addEventListener('blur', () => game.resumeGame());
+
+  frequencyInput.value = game.getFrequencyLimit().toString();
+  frequencyInput.addEventListener('change', () => {
+    game.setFrequencyLimit(Number(frequencyInput.value));
+  });
+  frequencyInput.addEventListener('focus', () => game.pauseGame());
+  frequencyInput.addEventListener('blur', () => game.resumeGame());
 
   playerNameInput.addEventListener('focus', () => game.pauseGame());
   playerNameInput.addEventListener('blur', () => game.resumeGame());

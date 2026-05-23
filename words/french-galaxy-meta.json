@@ -1,0 +1,26 @@
+{
+  "name": "french",
+  "source": "words_emb_merged/french.json",
+  "count": 302443,
+  "format": "KRG1 uint32 count + int16 xyz[count]",
+  "coordinateScale": 0.82,
+  "normalization": {
+    "center": [
+      1.4535000324249268,
+      3.238600015640259,
+      1.394700050354004
+    ],
+    "robustPercentile": 98.0,
+    "scale": 9.30106258392334,
+    "clamp": [
+      -0.82,
+      0.82
+    ]
+  },
+  "lod": {
+    "defaultVisibleDots": 1000,
+    "maxVisibleDots": 302443,
+    "oneWordOneDot": true,
+    "activeWordExactCoordinate": true
+  }
+}
