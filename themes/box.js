@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { GRANITE_BOX_EMBEDDING_MODEL, GRANITE_BOX_MAX_DOTS_PER_LANGUAGE, GRANITE_BOX_WORD_POINTS, GRANITE_BOX_WORD_POINTS_BY_LANGUAGE, getGraniteBoxWordPoints, resolveGraniteBoxPointIndex } from './box-embedding-data.js';
-import { isFrenchGalaxyLanguage, loadFrenchGalaxyData } from './french-galaxy-data.js';
+import { isGalaxyLanguage, loadGalaxyData } from './galaxy-data.js';
 import { buildExpandedBoxPointPositions } from './box-point-layout.js';
 const BOX_RENDER_ORDER = -91;
 const BOX_DISPLAY_VERTEX_SHADER = `
@@ -98,8 +98,8 @@ export class BoxMatrixBackground {
         this.wordPoints = GRANITE_BOX_WORD_POINTS;
         this.wordIndex = new Map();
         this.sourceIndexToPointIndex = new Map();
-        this.frenchPointSet = null;
-        this.frenchLoadStarted = false;
+        this.galaxyPointSet = null;
+        this.galaxyLoadStarted = false;
         this.boxes = [];
         this.accent = new THREE.Color('#22ffd6');
         this.accent2 = new THREE.Color('#ff174d');
@@ -260,23 +260,47 @@ export class BoxMatrixBackground {
         this.tunnelMaterial.dispose();
     }
     buildPointCloudGeometry() {
-        const positions = buildExpandedBoxPointPositions(this.wordPoints, MATRIX_POINT_SCALE);
+        const positions = this.buildPointPositions();
         this.basePointColors = new Float32Array(this.wordPoints.length * 3);
         this.livePointColors = new Float32Array(this.wordPoints.length * 3);
         this.wordIndex.clear();
         this.sourceIndexToPointIndex.clear();
-        this.wordPoints.forEach(([word], index) => {
-            this.addWordIndex(word, index);
-        });
-        if (this.frenchPointSet) {
-            this.frenchPointSet.sourceIndexToPointIndex.forEach((pointIndex, sourceIndex) => {
+        if (!this.galaxyPointSet) {
+            this.wordPoints.forEach(([word], index) => {
+                this.addWordIndex(word, index);
+            });
+        }
+        if (this.galaxyPointSet) {
+            this.galaxyPointSet.sourceIndexToPointIndex.forEach((pointIndex, sourceIndex) => {
                 this.sourceIndexToPointIndex.set(sourceIndex, pointIndex);
             });
         }
         this.pointGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
         this.pointGeometry.setAttribute('color', new THREE.BufferAttribute(this.livePointColors, 3));
-        this.pointGeometry.computeBoundingSphere();
+        // Manual bounding sphere avoids NaN during Three.js auto-computation on huge position arrays
+        this.pointGeometry.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 0, 0), 100);
+        this.pointGeometry.setDrawRange(0, Infinity);
         this.rebuildPointColors();
+    }
+    buildPointPositions() {
+        // For galaxy data use the precomputed axis stats (exact same as buildExpandedBoxPointPositions)
+        // so dot positions are identical to the old stats-pipeline output.
+        if (this.galaxyPointSet) {
+            const positions = new Float32Array(this.wordPoints.length * 3);
+            const target = MATRIX_POINT_SCALE;
+            const [sx, sy, sz] = this.galaxyPointSet.axisStats;
+            for (let i = 0; i < this.wordPoints.length; i += 1) {
+                const expand = (v, s) => {
+                    const n = Math.min(1, Math.max(-1, (v - s.center) / s.halfRange));
+                    return Math.sign(n) * Math.pow(Math.abs(n), 0.72) * target;
+                };
+                positions[i * 3] = expand(this.wordPoints[i][1], sx);
+                positions[i * 3 + 1] = expand(this.wordPoints[i][2], sy);
+                positions[i * 3 + 2] = expand(this.wordPoints[i][3], sz);
+            }
+            return positions;
+        }
+        return buildExpandedBoxPointPositions(this.wordPoints, MATRIX_POINT_SCALE);
     }
     createMatrixBoxes() {
         for (let i = 0; i < MATRIX_BOX_COUNT; i += 1) {
@@ -322,38 +346,33 @@ export class BoxMatrixBackground {
             attr.needsUpdate = true;
     }
     updatePointLanguage(language, frequencyLimit) {
-        if (isFrenchGalaxyLanguage(language)) {
-            if (!this.frenchLoadStarted) {
-                this.frenchLoadStarted = true;
-                loadFrenchGalaxyData()
+        if (isGalaxyLanguage(language)) {
+            if (!this.galaxyLoadStarted) {
+                this.galaxyLoadStarted = true;
+                // Hide old Granite dots during fetch (drawRange=0 instead of clearing
+                // attributes, which would trigger NaN bounding spheres)
+                this.pointGeometry.setDrawRange(0, 0);
+                loadGalaxyData(language)
                     .then((data) => {
-                    this.frenchPointSet = data.getPointSet(frequencyLimit);
-                    this.wordPoints = this.frenchPointSet.points;
+                    this.galaxyPointSet = data.getPointSet(frequencyLimit);
+                    this.wordPoints = this.galaxyPointSet.points;
                     this.activeWord = '';
                     this.activeSourceIndex = undefined;
                     this.activeIndex = -1;
                     this.buildPointCloudGeometry();
                     this.hideHighlights();
                 })
-                    .catch((error) => console.error('Failed to load French galaxy data for Box Matrix:', error));
+                    .catch((error) => console.error('Failed to load galaxy data for Box Matrix:', error));
             }
             else {
-                loadFrenchGalaxyData().then((data) => {
-                    const nextPointSet = data.getPointSet(frequencyLimit);
-                    if (this.frenchPointSet === nextPointSet && this.wordPoints === nextPointSet.points)
-                        return;
-                    this.frenchPointSet = nextPointSet;
-                    this.wordPoints = nextPointSet.points;
-                    this.activeWord = '';
-                    this.activeSourceIndex = undefined;
-                    this.activeIndex = -1;
-                    this.buildPointCloudGeometry();
-                    this.hideHighlights();
+                loadGalaxyData(language).then((data) => {
+                    // Only update the frequency gate — geometry stays (full cloud, no blink)
+                    data.getPointSet(frequencyLimit);
                 }).catch(() => undefined);
             }
             return;
         }
-        this.frenchPointSet = null;
+        this.galaxyPointSet = null;
         const nextPoints = getGraniteBoxWordPoints(language);
         if (nextPoints === this.wordPoints)
             return;
@@ -391,7 +410,12 @@ export class BoxMatrixBackground {
         this.activeWord = normalized;
         this.activeSourceIndex = sourceIndex;
         const routedIndex = sourceIndex !== undefined ? this.sourceIndexToPointIndex.get(sourceIndex) : undefined;
-        const clusterIndex = routedIndex !== undefined ? routedIndex : resolveGraniteBoxPointIndex(language, sourceIndex);
+        // Gate: words beyond the frequency limit are visible but not "active"
+        const gatedIndex = (routedIndex !== undefined && this.galaxyPointSet &&
+            sourceIndex !== undefined && sourceIndex >= this.galaxyPointSet.frequencyLimit)
+            ? undefined
+            : routedIndex;
+        const clusterIndex = gatedIndex !== undefined ? gatedIndex : resolveGraniteBoxPointIndex(language, sourceIndex);
         const index = clusterIndex >= 0 ? clusterIndex : (normalized ? this.lookupWordIndex(rawWord) : -1);
         this.activeIndex = index;
         this.livePointColors.set(this.basePointColors);

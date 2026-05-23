@@ -120,7 +120,7 @@ class HyperspaceTunnelBackground {
     }
     loadGalaxyTunnelTexture() {
         const loader = new THREE.TextureLoader();
-        loader.load('/assets/galaxyTexture.jpg', (texture) => {
+        loader.load('/textures/galaxyTexture.jpg', (texture) => {
             texture.wrapS = THREE.MirroredRepeatWrapping;
             texture.wrapT = THREE.MirroredRepeatWrapping;
             texture.repeat.set(this.textureParams.repeatX, this.textureParams.repeatY);

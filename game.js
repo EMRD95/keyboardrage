@@ -468,7 +468,7 @@ class Game {
         return word;
     }
     async fetchWords() {
-        const response = await fetch(`/words/${this.language}.json`);
+        const response = await fetch(`/words/${this.language}/words.json`);
         const data = (await response.json());
         const limit = Math.max(1, Math.min(data.words.length, this.frequencyLimit || data.words.length));
         const selectedWords = data.words.slice(0, limit);
@@ -476,7 +476,8 @@ class Game {
             text: this.addRandomNumbers(this.applyGrammar(word)),
             sourceIndex
         })));
-        this.averageCharLength = data.charLength;
+        const freqKey = String(this.frequencyLimit || data.words.length);
+        this.averageCharLength = data.charLengthByFrequency?.[freqKey] ?? data.charLength;
         if (this.applyGrammarSetting) {
             this.averageCharLength += 1;
         }
@@ -663,7 +664,7 @@ class Game {
         const offset = this.words.length > 0 ? this.words[this.words.length - 1].y - 80 : 0;
         const lastWordSpeed = this.words.length > 0
             ? this.words[this.words.length - 1].speed
-            : (this.WPM * 20) / 60 / 60 / this.averageCharLength;
+            : (this.WPM * 18) / 60 / 60 / (this.averageCharLength + 1);
         shuffledList.forEach((entry, index) => {
             const wordText = entry.text;
             const textWidth = this.measureWordWidth(wordText);
@@ -931,7 +932,7 @@ async function populateLanguages(languageInput, selectedLanguage) {
 }
 async function populateFrequencyLimits(frequencyInput, language, selectedLimit) {
     try {
-        const response = await fetch(`/words/${language}.json`);
+        const response = await fetch(`/words/${language}/words.json`);
         const data = (await response.json());
         const options = data.frequencyOptions && data.frequencyOptions.length > 0
             ? data.frequencyOptions

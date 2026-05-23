@@ -1,0 +1,26 @@
+{
+  "name": "english",
+  "source": "words_emb_merged/english.json",
+  "count": 352781,
+  "format": "KRG1 uint32 count + int16 xyz[count]",
+  "coordinateScale": 0.82,
+  "normalization": {
+    "center": [
+      5.587900161743164,
+      5.9070000648498535,
+      6.581600189208984
+    ],
+    "robustPercentile": 98.0,
+    "scale": 8.97468090057373,
+    "clamp": [
+      -0.82,
+      0.82
+    ]
+  },
+  "lod": {
+    "defaultVisibleDots": 1000,
+    "maxVisibleDots": 352781,
+    "oneWordOneDot": true,
+    "activeWordExactCoordinate": true
+  }
+}

@@ -158,7 +158,7 @@ class HyperspaceTunnelBackground implements ThreeThemeRuntime {
   private loadGalaxyTunnelTexture() {
     const loader = new THREE.TextureLoader();
     loader.load(
-      '/assets/galaxyTexture.jpg',
+      '/textures/galaxyTexture.jpg',
       (texture) => {
         texture.wrapS = THREE.MirroredRepeatWrapping;
         texture.wrapT = THREE.MirroredRepeatWrapping;

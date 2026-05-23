@@ -1,0 +1,851 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>KeyboardRage Galaxy — Three.js Fly-through</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #000; overflow: hidden; font-family: 'Courier New', monospace; color: #0f0; }
+#info {
+  position: fixed; top: 10px; left: 10px; z-index: 100;
+  background: rgba(0,0,0,0.8); padding: 10px 14px; border: 1px solid #0f03;
+  border-radius: 4px; font-size: 12px; pointer-events: none;
+}
+#info .count { color: #0f0; font-size: 14px; }
+#info .hint { color: #0f06; margin-top: 4px; }
+#loading {
+  position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+  display: flex; align-items: center; justify-content: center;
+  background: #000; z-index: 1000; flex-direction: column;
+}
+#loading .bar { width: 300px; height: 4px; background: #111; margin-top: 16px; border-radius: 2px; }
+#loading .bar-fill { height: 100%; background: #0f0; width: 0%; transition: width 0.3s; border-radius: 2px; }
+#loading p { color: #0f0; font-size: 14px; }
+#tooltip {
+  position: fixed; display: none; background: rgba(0,0,0,0.9);
+  border: 1px solid #0f06; padding: 6px 10px; border-radius: 3px;
+  font-size: 11px; color: #0f0; pointer-events: none; z-index: 200;
+  max-width: 300px;
+}
+#lang-panel {
+  position: fixed; top: 10px; right: 10px; z-index: 100;
+  background: rgba(0,0,0,0.85); padding: 10px 14px; border: 1px solid #0f03;
+  border-radius: 4px; font-size: 11px; max-height: 80vh; overflow-y: auto;
+  min-width: 180px;
+}
+#lang-panel h3 { color: #0f0; margin-bottom: 6px; font-size: 12px; }
+#lang-panel .lang-item { padding: 2px 0; display: flex; align-items: center; gap: 6px; }
+#lang-panel .lang-item:hover { color: #fff; }
+#lang-panel .swatch { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+#lang-panel .lang-count { color: #0f06; margin-left: auto; }
+#toggle-langs {
+  position: fixed; top: 10px; right: 10px; z-index: 101;
+  background: rgba(0,0,0,0.85); border: 1px solid #0f03;
+  color: #0f0; font-family: 'Courier New', monospace; font-size: 12px;
+  padding: 6px 10px; border-radius: 4px; cursor: pointer;
+  display: none;
+}
+#toggle-langs:hover { border-color: #0f06; color: #fff; }
+
+#toggle-neighbors {
+  position: fixed; bottom: 10px; right: 10px; z-index: 101;
+  background: rgba(0,0,0,0.85); border: 1px solid #0f03;
+  color: #0f0; font-family: 'Courier New', monospace; font-size: 12px;
+  padding: 6px 10px; border-radius: 4px; cursor: pointer;
+}
+#toggle-neighbors:hover { border-color: #0f08; color: #fff; }
+#neighbor-panel {
+  position: fixed; bottom: 10px; left: 10px; right: 10px; max-height: 34vh; z-index: 110;
+  background: rgba(0,0,0,0.92); border: 1px solid #0f04; border-radius: 4px;
+  color: #bfffbf; font-size: 11px; display: none; overflow: hidden;
+  box-shadow: 0 0 18px rgba(0,255,0,0.08);
+}
+#neighbor-header { display:flex; align-items:center; gap:10px; padding:8px 10px; border-bottom:1px solid #0f03; }
+#neighbor-title { color:#fff; font-weight:bold; flex:1; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
+#neighbor-panel button, #neighbor-panel select, #neighbor-panel input {
+  background:#020; border:1px solid #0f04; color:#0f0; font:11px 'Courier New',monospace;
+  padding:2px 5px; border-radius:3px;
+}
+#neighbor-panel input { width:54px; }
+#neighbor-panel label { display:flex; align-items:center; gap:4px; color:#0f9; }
+#neighbor-status { color:#ffb; padding:0 10px 6px 10px; }
+#neighbor-table-wrap { overflow:auto; max-height: calc(34vh - 72px); }
+#neighbor-table { width:100%; border-collapse:collapse; table-layout:fixed; }
+#neighbor-table th, #neighbor-table td { border-bottom:1px solid #0f02; padding:4px 6px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+#neighbor-table th:nth-child(1), #neighbor-table td:nth-child(1) { width:44px; }
+#neighbor-table th:nth-child(2), #neighbor-table td:nth-child(2) { width:150px; }
+#neighbor-table th:nth-child(3), #neighbor-table td:nth-child(3) { width:110px; }
+#neighbor-table th:nth-child(4), #neighbor-table td:nth-child(4) { width:92px; }
+#neighbor-table th:nth-child(5), #neighbor-table td:nth-child(5) { width:92px; }
+#neighbor-table th:nth-child(6), #neighbor-table td:nth-child(6) { width:80px; }
+#neighbor-table td.definition-cell { white-space:normal; line-height:1.35; color:#dfffd6; max-height:4.1em; }
+#selected-definition {
+  display:none; margin:0 10px 8px 10px; padding:8px; border:1px solid #0f03; border-radius:3px;
+  background:rgba(0,64,0,0.35); color:#efffe8; line-height:1.35; max-height:12vh; overflow:auto;
+}
+#selected-definition .def-title { color:#fff; font-weight:bold; margin-bottom:4px; }
+#neighbor-table th { position:sticky; top:0; background:#020; color:#8f8; text-align:left; z-index:1; }
+#neighbor-table tr:hover { background:rgba(0,255,0,0.10); cursor:pointer; }
+#neighbor-table .num { text-align:right; color:#efe; font-variant-numeric: tabular-nums; }
+#neighbor-svg {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 5;
+  pointer-events: none;
+  overflow: hidden;
+}
+#neighbor-svg line.neighbor-halo { stroke: rgba(0,0,0,0.90); stroke-width: 5; stroke-linecap: round; }
+#neighbor-svg line.neighbor-link { stroke: rgba(255,204,51,0.96); stroke-width: 2.2; stroke-linecap: round; }
+#neighbor-svg circle.neighbor-dot { fill: rgba(255,204,51,0.98); stroke: rgba(0,0,0,0.9); stroke-width: 2; }
+#neighbor-svg circle.neighbor-query { fill: rgba(255,255,255,0.98); stroke: rgba(255,204,51,0.9); stroke-width: 2.5; }
+
+</style>
+</head>
+<body>
+<div id="loading">
+  <p id="load-text">Loading galaxy data...</p>
+  <div class="bar"><div class="bar-fill" id="load-bar"></div></div>
+</div>
+<div id="info">
+  <div class="count" id="point-count">—</div>
+  <div class="hint">Three.js fly-through · Drag to steer · WASD/ZQSD or arrows move · R/F up/down</div>
+</div>
+<div id="tooltip"></div>
+<button id="toggle-langs">☰ Languages</button>
+<div id="lang-panel"><h3 id="lang-header">Languages ▾</h3><div id="lang-list"></div></div>
+<button id="toggle-neighbors">Inspect semantic neighbors: on</button>
+<div id="neighbor-panel" style="display:block;">
+  <div id="neighbor-header">
+    <div id="neighbor-title">Semantic neighbors</div>
+    <label>K <input id="neighbor-k" type="number" min="1" max="200" value="100"></label>
+    <label>filter
+      <select id="neighbor-language">
+        <option value="all">all</option>
+        <option value="same">same language</option>
+        <option value="cross">cross-language</option>
+      </select>
+    </label>
+    <label><input id="neighbor-lines" type="checkbox" checked> lines</label>
+    <label><input id="neighbor-table-toggle" type="checkbox" checked> table</label>
+    <button id="neighbor-refresh">refresh</button>
+    <button id="neighbor-close">hide</button>
+  </div>
+  <div id="neighbor-status">Opt-in mode: click a point to query original-embedding semantic neighbors. No continuous raycasting.</div>
+  <div id="selected-definition"></div>
+  <div id="neighbor-table-wrap"><table id="neighbor-table"></table></div>
+</div>
+<svg id="neighbor-svg" aria-hidden="true"></svg>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+  }
+}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { FlyControls } from 'three/addons/controls/FlyControls.js';
+
+const DBLCLICK_MS = 300;
+let lastClickTime = 0;
+
+async function main() {
+  const loadBar = document.getElementById('load-bar');
+  const loadText = document.getElementById('load-text');
+
+  // Fetch binary data
+  loadText.textContent = 'Downloading galaxy_data.bin...';
+  const resp = await fetch('galaxy_data.bin');
+  const totalBytes = parseInt(resp.headers.get('content-length') || '0');
+  const reader = resp.body.getReader();
+  const chunks = [];
+  let received = 0;
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    chunks.push(value);
+    received += value.length;
+    if (totalBytes) {
+      loadBar.style.width = (received / totalBytes * 100) + '%';
+    }
+  }
+
+  // Concatenate chunks
+  const allData = new Uint8Array(received);
+  let offset = 0;
+  for (const chunk of chunks) {
+    allData.set(chunk, offset);
+    offset += chunk.length;
+  }
+
+  loadText.textContent = 'Parsing data...';
+  loadBar.style.width = '100%';
+
+  // Parse: header (uint32 count + uint16 nLangs) + float32 xyz + uint8 rgb + uint8 langIdx
+  const view = new DataView(allData.buffer);
+  const n = view.getUint32(0, true);
+  const nLangs = view.getUint16(4, true);
+  document.getElementById('point-count').textContent = n.toLocaleString() + ' words';
+
+  const xyzStart = 8;
+  const xyzBytes = n * 3 * 4;
+  const rgbStart = xyzStart + xyzBytes;
+  const langStart = rgbStart + n * 3 + ((n * 3) % 2); // +1 if padding byte added
+
+  const xyz = new Float32Array(allData.buffer, xyzStart, n * 3);
+  const rgb = new Uint8Array(allData.buffer, rgbStart, n * 3);
+  const langIdx = new Uint16Array(allData.buffer, langStart, n);
+
+  // Center and scale the data
+  let cx = 0, cy = 0, cz = 0;
+  for (let i = 0; i < n; i++) {
+    cx += xyz[i*3]; cy += xyz[i*3+1]; cz += xyz[i*3+2];
+  }
+  cx /= n; cy /= n; cz /= n;
+
+  let maxDist = 0;
+  for (let i = 0; i < n; i++) {
+    const dx = xyz[i*3]-cx, dy = xyz[i*3+1]-cy, dz = xyz[i*3+2]-cz;
+    const d = Math.sqrt(dx*dx + dy*dy + dz*dz);
+    if (d > maxDist) maxDist = d;
+  }
+  const scale = 100 / maxDist;
+
+  loadText.textContent = 'Building galaxy...';
+
+  // Three.js setup
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x000000);
+  // Subtle fog for depth
+  scene.fog = new THREE.FogExp2(0x000000, 0.003);
+
+  const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.01, 5000);
+  camera.position.set(0, -170, 25);
+  camera.lookAt(0, 0, 0);
+
+  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setPixelRatio(1);
+  document.body.appendChild(renderer.domElement);
+
+  const controls = new FlyControls(camera, renderer.domElement);
+  controls.movementSpeed = 18;
+  controls.rollSpeed = Math.PI / 12;
+  controls.dragToLook = true;
+  controls.autoForward = false;
+
+  // FlyControls can get its internal drag-to-look status stuck after repeated
+  // clicks/selection interactions. Keep mouse-look button-gated, but capture the
+  // pointer while pressed so drag-look continues even if the cursor leaves the
+  // canvas/window bounds. Stop only on release/cancel/blur.
+  let mouseLookActive = false;
+  let activePointerId = null;
+  function stopMouseLook(e) {
+    if (activePointerId !== null) {
+      try { renderer.domElement.releasePointerCapture(activePointerId); } catch (_) {}
+    }
+    activePointerId = null;
+    mouseLookActive = false;
+    controls._status = 0;
+    if (controls._moveState) {
+      controls._moveState.yawLeft = 0;
+      controls._moveState.pitchDown = 0;
+    }
+    if (controls._rotationVector) {
+      controls._rotationVector.x = 0;
+      controls._rotationVector.y = 0;
+    }
+  }
+  renderer.domElement.addEventListener('pointerdown', (e) => {
+    mouseLookActive = true;
+    activePointerId = e.pointerId;
+    try { renderer.domElement.setPointerCapture(e.pointerId); } catch (_) {}
+    controls._status = 1;
+  });
+  renderer.domElement.addEventListener('pointerup', stopMouseLook);
+  renderer.domElement.addEventListener('pointercancel', stopMouseLook);
+  window.addEventListener('pointerup', stopMouseLook);
+  window.addEventListener('blur', stopMouseLook);
+  renderer.domElement.addEventListener('lostpointercapture', () => {
+    if (mouseLookActive) stopMouseLook();
+  });
+  renderer.domElement.addEventListener('pointermove', () => {
+    if (!mouseLookActive) stopMouseLook();
+  }, true);
+
+  const clock = new THREE.Clock();
+
+  // Build geometry
+  const positions = new Float32Array(n * 3);
+  const colors = new Float32Array(n * 3);
+  // Keep original colors for toggle restore
+  const baseColors = new Float32Array(n * 3);
+
+  for (let i = 0; i < n; i++) {
+    positions[i*3]   = (xyz[i*3]   - cx) * scale;
+    positions[i*3+1] = (xyz[i*3+1] - cy) * scale;
+    positions[i*3+2] = (xyz[i*3+2] - cz) * scale;
+    const r = rgb[i*3] / 255, g = rgb[i*3+1] / 255, b = rgb[i*3+2] / 255;
+    colors[i*3] = r; colors[i*3+1] = g; colors[i*3+2] = b;
+    baseColors[i*3] = r; baseColors[i*3+1] = g; baseColors[i*3+2] = b;
+  }
+
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+
+  // Galaxy-style material: small points, normal blending preserves distinct colors
+  const material = new THREE.PointsMaterial({
+    size: 0.06,
+    vertexColors: true,
+    transparent: true,
+    opacity: 0.95,
+    blending: THREE.NormalBlending,
+    depthWrite: false,
+    sizeAttenuation: true,
+  });
+
+  const points = new THREE.Points(geometry, material);
+  scene.add(points);
+
+  // Ambient glow — a few dim point lights for atmosphere
+  const ambientLight = new THREE.AmbientLight(0x111111);
+  scene.add(ambientLight);
+
+
+  // Semantic neighbor overlay: tiny dynamic geometries, independent from the 2.8M base cloud.
+  const neighborLineGeom = new THREE.BufferGeometry();
+  const neighborLineMat = new THREE.LineBasicMaterial({ color: 0xffcc33, transparent: true, opacity: 0.95, depthWrite: false, depthTest: false });
+  const neighborLinesObj = new THREE.LineSegments(neighborLineGeom, neighborLineMat);
+  neighborLinesObj.renderOrder = 1000;
+  scene.add(neighborLinesObj);
+
+  const neighborMarkerGeom = new THREE.BufferGeometry();
+  const neighborMarkerMat = new THREE.PointsMaterial({ size: 0.9, vertexColors: true, transparent: true, opacity: 1.0, depthWrite: false, depthTest: false, sizeAttenuation: true });
+  const neighborMarkersObj = new THREE.Points(neighborMarkerGeom, neighborMarkerMat);
+  neighborMarkersObj.renderOrder = 1001;
+  scene.add(neighborMarkersObj);
+
+  // Load language metadata for panel — with per-language toggle checkboxes
+  const langVisible = new Uint8Array(512).fill(1); // track visible langs (max 512)
+  const langNameByIndex = [];
+  const colorAttr = geometry.getAttribute('color');
+
+  function applyLangVisibility() {
+    for (let i = 0; i < n; i++) {
+      const li = langIdx[i];
+      if (langVisible[li]) {
+        colors[i*3]   = baseColors[i*3];
+        colors[i*3+1] = baseColors[i*3+1];
+        colors[i*3+2] = baseColors[i*3+2];
+      } else {
+        colors[i*3] = 0; colors[i*3+1] = 0; colors[i*3+2] = 0;
+      }
+    }
+    colorAttr.needsUpdate = true;
+  }
+
+  try {
+    const metaResp = await fetch('galaxy_meta.json');
+    const meta = await metaResp.json();
+
+    const langList = document.getElementById('lang-list');
+
+    // All / None quick buttons
+    const btnRow = document.createElement('div');
+    btnRow.style.cssText = 'display:flex;gap:8px;margin-bottom:8px;';
+    const btnAll = document.createElement('button');
+    btnAll.textContent = 'All';
+    const btnNone = document.createElement('button');
+    btnNone.textContent = 'None';
+    [btnAll, btnNone].forEach(b => {
+      b.style.cssText = 'background:transparent;border:1px solid #0f04;color:#0f0;font:11px Courier New,monospace;padding:2px 8px;border-radius:3px;cursor:pointer;flex:1;';
+      b.onmouseenter = () => b.style.borderColor = '#0f08';
+      b.onmouseleave = () => b.style.borderColor = '#0f04';
+    });
+    btnRow.appendChild(btnAll);
+    btnRow.appendChild(btnNone);
+    langList.appendChild(btnRow);
+
+    const checkboxes = [];
+    const panelLanguages = [...meta.languages]
+      .filter(lang => lang.count >= 100)
+      .sort((a, b) => b.count - a.count);
+    const hiddenSmallCount = meta.languages.length - panelLanguages.length;
+    langVisible.fill(0);
+    meta.languages.forEach(lang => { langNameByIndex[lang.index] = lang.name; });
+    panelLanguages.forEach(lang => { langVisible[lang.index] = 1; });
+    applyLangVisibility();
+
+    const panelNote = document.createElement('div');
+    panelNote.style.cssText = 'color:#0f7;font-size:10px;margin-bottom:6px;line-height:1.25;max-width:150px;';
+    panelNote.innerHTML = `Sorted by word count · top 10 use distinct colors<br>${hiddenSmallCount} languages under 100 hidden`;
+    langList.appendChild(panelNote);
+
+    panelLanguages.forEach((lang, displayRank) => {
+      const div = document.createElement('div');
+      div.className = 'lang-item';
+      if (displayRank < 10) div.style.fontWeight = 'bold';
+
+      const cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.checked = true;
+      cb.style.cssText = 'accent-color:#0f0;cursor:pointer;margin:0;';
+      cb.dataset.langIdx = lang.index;
+      checkboxes.push(cb);
+
+      const swatch = document.createElement('span');
+      swatch.className = 'swatch';
+      swatch.style.background = lang.color;
+      swatch.style.border = displayRank < 10 ? '1px solid rgba(255,255,255,0.75)' : 'none';
+      swatch.title = displayRank < 10 ? `Top ${displayRank + 1}` : '';
+
+      const rankSpan = document.createElement('span');
+      rankSpan.textContent = `${displayRank + 1}.`;
+      rankSpan.style.cssText = 'width:24px;color:#0f8;text-align:right;';
+
+      const nameSpan = document.createElement('span');
+      nameSpan.textContent = lang.name.replace(/_/g, ' ');
+      nameSpan.style.flex = '1';
+
+      const countSpan = document.createElement('span');
+      countSpan.className = 'lang-count';
+      countSpan.textContent = lang.count.toLocaleString();
+
+      cb.addEventListener('change', () => {
+        langVisible[lang.index] = cb.checked ? 1 : 0;
+        applyLangVisibility();
+      });
+
+      div.appendChild(cb);
+      div.appendChild(rankSpan);
+      div.appendChild(swatch);
+      div.appendChild(nameSpan);
+      div.appendChild(countSpan);
+      langList.appendChild(div);
+    });
+
+    btnAll.addEventListener('click', () => {
+      checkboxes.forEach(cb => { cb.checked = true; langVisible[cb.dataset.langIdx] = 1; });
+      applyLangVisibility();
+    });
+    btnNone.addEventListener('click', () => {
+      checkboxes.forEach(cb => { cb.checked = false; langVisible[cb.dataset.langIdx] = 0; });
+      applyLangVisibility();
+    });
+
+  } catch(e) {
+    console.warn('Could not load meta:', e);
+  }
+
+  // Toggle language panel visibility (collapse/expand the sidebar)
+  const langPanel = document.getElementById('lang-panel');
+  const langHeader = document.getElementById('lang-header');
+  const toggleBtn = document.getElementById('toggle-langs');
+  let panelOpen = true;
+
+  langHeader.style.cursor = 'pointer';
+  langHeader.addEventListener('click', () => {
+    panelOpen = false;
+    langPanel.style.display = 'none';
+    toggleBtn.style.display = 'block';
+  });
+  toggleBtn.addEventListener('click', () => {
+    panelOpen = true;
+    langPanel.style.display = '';
+    toggleBtn.style.display = 'none';
+  });
+
+  // Load word labels for hover (sparse — we store indices)
+  // We'll do raycasting on the points for hover detection
+  const raycaster = new THREE.Raycaster();
+  raycaster.params.Points.threshold = 1.5;
+  const mouse = new THREE.Vector2();
+  const tooltip = document.getElementById('tooltip');
+
+  // For hover word lookup, we need the word list. Load it as a separate compact file.
+  // To avoid loading 2.8M strings eagerly, we do lazy load on first hover.
+  let wordStrings = null;
+  async function ensureWordData() {
+    if (wordStrings) return;
+    loadText.textContent = 'Loading word labels...';
+    document.getElementById('loading').style.display = 'flex';
+    try {
+      const r = await fetch('galaxy_words.json');
+      wordStrings = await r.json();
+    } catch(e) {
+      wordStrings = [];
+    }
+    document.getElementById('loading').style.display = 'none';
+  }
+
+
+  // Semantic neighbors UI/API. In fly mode, raycasting is click-only and opt-in.
+  const NEIGHBOR_API = 'http://localhost:8703';
+  const neighborToggle = document.getElementById('toggle-neighbors');
+  const neighborPanel = document.getElementById('neighbor-panel');
+  const neighborTitle = document.getElementById('neighbor-title');
+  const neighborStatus = document.getElementById('neighbor-status');
+  const neighborTable = document.getElementById('neighbor-table');
+  const selectedDefinition = document.getElementById('selected-definition');
+  const neighborTableWrap = document.getElementById('neighbor-table-wrap');
+  const neighborKInput = document.getElementById('neighbor-k');
+  const neighborLangSelect = document.getElementById('neighbor-language');
+  const neighborLinesToggle = document.getElementById('neighbor-lines');
+  const neighborTableToggle = document.getElementById('neighbor-table-toggle');
+  const neighborRefresh = document.getElementById('neighbor-refresh');
+  const neighborClose = document.getElementById('neighbor-close');
+  const neighborSvg = document.getElementById('neighbor-svg');
+  let semanticNeighborsEnabled = true;
+  let selectedNeighborIndex = -1;
+  let lastNeighborPayload = null;
+  let svgNeighborIds = [];
+  const svgTmpA = new THREE.Vector3();
+  const svgTmpB = new THREE.Vector3();
+  const SVG_NEAR_CLIP = 0.18;
+
+  function setNeighborPanelVisible(visible) {
+    neighborPanel.style.display = visible ? 'block' : 'none';
+    neighborToggle.textContent = visible ? 'Inspect semantic neighbors: on' : 'Inspect semantic neighbors: off';
+    semanticNeighborsEnabled = visible;
+    if (!visible) clearNeighborOverlay();
+  }
+
+  neighborToggle.addEventListener('click', () => setNeighborPanelVisible(!semanticNeighborsEnabled));
+  neighborClose.addEventListener('click', () => setNeighborPanelVisible(false));
+  neighborLinesToggle.addEventListener('change', () => drawNeighborOverlay(lastNeighborPayload));
+  neighborTableToggle.addEventListener('change', () => {
+    neighborTableWrap.style.display = neighborTableToggle.checked ? '' : 'none';
+  });
+  neighborRefresh.addEventListener('click', () => {
+    if (selectedNeighborIndex >= 0) querySemanticNeighbors(selectedNeighborIndex);
+  });
+
+  function clearNeighborOverlay() {
+    neighborLineGeom.setAttribute('position', new THREE.BufferAttribute(new Float32Array(0), 3));
+    neighborMarkerGeom.setAttribute('position', new THREE.BufferAttribute(new Float32Array(0), 3));
+    neighborMarkerGeom.setAttribute('color', new THREE.BufferAttribute(new Float32Array(0), 3));
+    svgNeighborIds = [];
+    neighborSvg.replaceChildren();
+    if (selectedDefinition) {
+      selectedDefinition.style.display = 'none';
+      selectedDefinition.innerHTML = '';
+    }
+    lastNeighborPayload = null;
+  }
+
+  function drawNeighborOverlay(payload) {
+    if (!payload) {
+      clearNeighborOverlay();
+      return;
+    }
+    lastNeighborPayload = payload;
+    const qid = payload.query.id;
+    const neigh = payload.neighbors || [];
+
+    const markerPositions = new Float32Array((1 + neigh.length) * 3);
+    const markerColors = new Float32Array((1 + neigh.length) * 3);
+    markerPositions[0] = positions[qid*3];
+    markerPositions[1] = positions[qid*3+1];
+    markerPositions[2] = positions[qid*3+2];
+    markerColors[0] = 1.0; markerColors[1] = 1.0; markerColors[2] = 1.0;
+
+    const linePositions = new Float32Array(neigh.length * 2 * 3);
+    neigh.forEach((r, j) => {
+      const id = r.id;
+      const mi = (j + 1) * 3;
+      markerPositions[mi] = positions[id*3];
+      markerPositions[mi+1] = positions[id*3+1];
+      markerPositions[mi+2] = positions[id*3+2];
+      markerColors[mi] = 1.0; markerColors[mi+1] = 0.58; markerColors[mi+2] = 0.05;
+
+      const li = j * 6;
+      linePositions[li] = positions[qid*3];
+      linePositions[li+1] = positions[qid*3+1];
+      linePositions[li+2] = positions[qid*3+2];
+      linePositions[li+3] = positions[id*3];
+      linePositions[li+4] = positions[id*3+1];
+      linePositions[li+5] = positions[id*3+2];
+    });
+
+    neighborMarkerGeom.setAttribute('position', new THREE.BufferAttribute(markerPositions, 3));
+    neighborMarkerGeom.setAttribute('color', new THREE.BufferAttribute(markerColors, 3));
+    neighborLineGeom.setAttribute('position', new THREE.BufferAttribute(neighborLinesToggle.checked ? linePositions : new Float32Array(0), 3));
+    svgNeighborIds = neighborLinesToggle.checked ? neigh.map(r => r.id) : [];
+    updateSvgNeighborOverlay();
+  }
+
+  function worldPointToCameraSpace(idx, out) {
+    return out.set(positions[idx*3], positions[idx*3+1], positions[idx*3+2]).applyMatrix4(camera.matrixWorldInverse);
+  }
+
+  function cameraSpaceToScreen(v) {
+    const p = v.clone().applyMatrix4(camera.projectionMatrix);
+    if (p.z < -1 || p.z > 1) return null;
+    return {
+      x: (p.x * 0.5 + 0.5) * window.innerWidth,
+      y: (-p.y * 0.5 + 0.5) * window.innerHeight
+    };
+  }
+
+  function clippedSegmentToScreen(fromIdx, toIdx) {
+    const a = worldPointToCameraSpace(fromIdx, svgTmpA).clone();
+    const b = worldPointToCameraSpace(toIdx, svgTmpB).clone();
+    const nearZ = -Math.max(camera.near * 2.0, SVG_NEAR_CLIP);
+
+    // Three.js cameras look down -Z. If both endpoints are behind/too close to
+    // the near plane, there is no stable 2D segment to draw.
+    if (a.z >= nearZ && b.z >= nearZ) return null;
+
+    // If one endpoint is behind the camera/near plane, clip the segment to the
+    // near plane instead of dropping it. This keeps strings visible when the
+    // user flies directly onto the selected point or through a neighbor line.
+    if (a.z >= nearZ) {
+      const t = (nearZ - a.z) / (b.z - a.z);
+      a.lerp(b, THREE.MathUtils.clamp(t, 0, 1));
+    } else if (b.z >= nearZ) {
+      const t = (nearZ - b.z) / (a.z - b.z);
+      b.lerp(a, THREE.MathUtils.clamp(t, 0, 1));
+    }
+
+    const s1 = cameraSpaceToScreen(a);
+    const s2 = cameraSpaceToScreen(b);
+    if (!s1 || !s2) return null;
+    return { from: s1, to: s2 };
+  }
+
+  function updateSvgNeighborOverlay() {
+    if (!neighborLinesToggle.checked || !lastNeighborPayload || svgNeighborIds.length === 0) {
+      neighborSvg.replaceChildren();
+      return;
+    }
+    const qid = lastNeighborPayload.query.id;
+    const ns = 'http://www.w3.org/2000/svg';
+    const frag = document.createDocumentFragment();
+    const visibleDots = [];
+    const queryDots = [];
+    svgNeighborIds.forEach(id => {
+      const seg = clippedSegmentToScreen(qid, id);
+      if (!seg) return;
+      visibleDots.push(seg.to);
+      queryDots.push(seg.from);
+      ['neighbor-halo', 'neighbor-link'].forEach(cls => {
+        const line = document.createElementNS(ns, 'line');
+        line.setAttribute('class', cls);
+        line.setAttribute('x1', seg.from.x.toFixed(1));
+        line.setAttribute('y1', seg.from.y.toFixed(1));
+        line.setAttribute('x2', seg.to.x.toFixed(1));
+        line.setAttribute('y2', seg.to.y.toFixed(1));
+        frag.appendChild(line);
+      });
+    });
+    visibleDots.forEach(p => {
+      const c = document.createElementNS(ns, 'circle');
+      c.setAttribute('class', 'neighbor-dot');
+      c.setAttribute('cx', p.x.toFixed(1));
+      c.setAttribute('cy', p.y.toFixed(1));
+      c.setAttribute('r', '4.2');
+      frag.appendChild(c);
+    });
+    // Draw the selected/query marker when it projects normally. When the camera
+    // is exactly on top of it, draw clipped near-plane markers for each visible
+    // string endpoint instead of making the whole overlay disappear.
+    const qScreen = cameraSpaceToScreen(worldPointToCameraSpace(qid, svgTmpA));
+    const markerPoints = qScreen ? [qScreen] : queryDots;
+    markerPoints.forEach(p => {
+      const qc = document.createElementNS(ns, 'circle');
+      qc.setAttribute('class', 'neighbor-query');
+      qc.setAttribute('cx', p.x.toFixed(1));
+      qc.setAttribute('cy', p.y.toFixed(1));
+      qc.setAttribute('r', '5.2');
+      frag.appendChild(qc);
+    });
+    neighborSvg.replaceChildren(frag);
+  }
+
+  function renderNeighborTable(payload) {
+    const rows = payload.neighbors || [];
+    neighborTitle.textContent = `${payload.query.word} [${payload.query.language}] — semantic neighbors`;
+    const visibleInfo = Array.isArray(payload.visible_languages) ? ` · visible_langs=${payload.visible_languages.length}` : '';
+    neighborStatus.textContent = `${rows.length} shown · metric=${payload.metric} · space=${payload.space} · ${payload.rerank || 'exact rerank'} · candidates=${payload.candidates_examined ?? 'n/a'}${visibleInfo}`;
+    if (selectedDefinition) {
+      selectedDefinition.style.display = 'block';
+      selectedDefinition.innerHTML = `<div class="def-title">Selected: ${escapeHtml(payload.query.word)} [${escapeHtml(payload.query.language)}]</div>${escapeHtml(payload.query.definition || '(no definition)')}`;
+    }
+    const headers = ['rank','word','language','cosine','distance','proj_3d','definition'];
+    neighborTable.innerHTML = '<thead><tr>' + headers.map(h => `<th>${h}</th>`).join('') + '</tr></thead><tbody>' +
+      rows.map(r => `<tr data-id="${r.id}">
+        <td class="num">${r.rank}</td>
+        <td title="${escapeHtml(r.word)}">${escapeHtml(r.word)}</td>
+        <td>${escapeHtml(r.language)}</td>
+        <td class="num">${Number(r.cosine_similarity).toFixed(6)}</td>
+        <td class="num">${Number(r.cosine_distance).toFixed(6)}</td>
+        <td class="num">${Number(r.projected_distance_3d).toFixed(3)}</td>
+        <td class="definition-cell" title="${escapeHtml(r.definition || '')}">${escapeHtml(r.definition || '')}</td>
+      </tr>`).join('') + '</tbody>';
+    neighborTable.querySelectorAll('tr[data-id]').forEach(tr => {
+      tr.addEventListener('click', () => {
+        const id = Number(tr.dataset.id);
+        focusPoint(id);
+        selectedNeighborIndex = id;
+        querySemanticNeighbors(id);
+      });
+    });
+  }
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+
+  async function querySemanticNeighbors(idx) {
+    setNeighborPanelVisible(true);
+    selectedNeighborIndex = idx;
+    const k = Math.max(1, Math.min(200, Number(neighborKInput.value || 100)));
+    const lang = neighborLangSelect.value || 'all';
+    const visibleLanguages = langNameByIndex
+      .filter((name, index) => name && langVisible[index])
+      .map(name => String(name));
+    neighborStatus.textContent = `Querying semantic backend for point #${idx.toLocaleString()} within ${visibleLanguages.length} visible languages ...`;
+    try {
+      const params = new URLSearchParams({
+        k: String(k),
+        candidates: String(Math.max(1000, Math.min(5000, k * 100))),
+        language: lang,
+      });
+      if (visibleLanguages.length > 0) {
+        params.set('visible_languages', visibleLanguages.join(','));
+      }
+      const url = `${NEIGHBOR_API}/neighbors/${idx}?${params.toString()}`;
+      const resp = await fetch(url);
+      if (!resp.ok) throw new Error(`${resp.status} ${await resp.text()}`);
+      const payload = await resp.json();
+      renderNeighborTable(payload);
+      drawNeighborOverlay(payload);
+    } catch (err) {
+      clearNeighborOverlay();
+      neighborTitle.textContent = 'Semantic neighbors — backend unavailable';
+      neighborStatus.textContent = `Could not query ${NEIGHBOR_API}. Start it with: cd galaxy && ./launch_semantic_neighbors.sh. Build index first if needed. Error: ${err.message}`;
+      neighborTable.innerHTML = '';
+    }
+  }
+
+  function pickVisiblePointOnce(clientX, clientY) {
+    // The default THREE.Points raycaster chooses along a 3D ray with a world-unit
+    // threshold. In this dense galaxy that can select a point that is close on a
+    // different depth axis, not the dot visibly under the mouse. For click-only
+    // inspection, scan in screen space and choose the visible point whose
+    // projected pixel position is closest to the actual pointer.
+    camera.updateMatrixWorld();
+    const rect = renderer.domElement.getBoundingClientRect();
+    const targetX = clientX - rect.left;
+    const targetY = clientY - rect.top;
+    const width = rect.width || window.innerWidth;
+    const height = rect.height || window.innerHeight;
+    const m = camera.projectionMatrix.clone().multiply(camera.matrixWorldInverse).elements;
+    const maxPixelDist = 10;
+    const maxD2 = maxPixelDist * maxPixelDist;
+    let bestIdx = -1;
+    let bestD2 = maxD2;
+    let bestDepth = Infinity;
+
+    for (let i = 0; i < n; i++) {
+      if (!langVisible[langIdx[i]]) continue;
+      const j = i * 3;
+      const x = positions[j], y = positions[j + 1], z = positions[j + 2];
+      const cx = m[0] * x + m[4] * y + m[8]  * z + m[12];
+      const cy = m[1] * x + m[5] * y + m[9]  * z + m[13];
+      const cz = m[2] * x + m[6] * y + m[10] * z + m[14];
+      const cw = m[3] * x + m[7] * y + m[11] * z + m[15];
+      if (cw <= 0) continue;
+      const ndcZ = cz / cw;
+      if (ndcZ < -1 || ndcZ > 1) continue;
+      const sx = (cx / cw * 0.5 + 0.5) * width;
+      const sy = (-cy / cw * 0.5 + 0.5) * height;
+      const dx = sx - targetX;
+      const dy = sy - targetY;
+      const d2 = dx * dx + dy * dy;
+      // Primary criterion: closest rendered pixel to the mouse. Depth is only a
+      // tie-breaker for overlapping dots in the exact same screen pixel.
+      if (d2 < bestD2 || (Math.abs(d2 - bestD2) < 0.01 && ndcZ < bestDepth)) {
+        bestD2 = d2;
+        bestDepth = ndcZ;
+        bestIdx = i;
+      }
+    }
+    return bestIdx;
+  }
+
+  function focusPoint(idx) {
+    if (idx < 0) return;
+    const target = new THREE.Vector3(positions[idx*3], positions[idx*3+1], positions[idx*3+2]);
+    const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion).normalize();
+    camera.position.copy(target).addScaledVector(forward, -8);
+    camera.lookAt(target);
+  }
+
+  renderer.domElement.addEventListener('click', (e) => {
+    if (!semanticNeighborsEnabled) return;
+    const idx = pickVisiblePointOnce(e.clientX, e.clientY);
+    if (idx !== -1) querySemanticNeighbors(idx);
+  });
+
+  // Mouse tracking
+  let mouseX = 0, mouseY = 0;
+  renderer.domElement.addEventListener('mousemove', (e) => {
+    mouseX = e.clientX;
+    mouseY = e.clientY;
+    mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+    mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+  });
+
+  // Double-click jump disabled for performance: raycasting 2.8M points is CPU-heavy.
+  // Re-enable later only behind an explicit "inspect" mode.
+
+  // Animation loop
+  let hoveredIndex = -1;
+  let frameCount = 0;
+
+  function animate() {
+    requestAnimationFrame(animate);
+    const delta = clock.getDelta();
+    controls.update(delta);
+
+    // Continuous hover raycasting disabled for CPU: intersecting 2.8M points
+    // every few frames makes the browser heat up. Labels/nearest-word inspection
+    // should be added later as an explicit opt-in mode.
+    hoveredIndex = -1;
+    tooltip.style.display = 'none';
+
+    renderer.render(scene, camera);
+    updateSvgNeighborOverlay();
+  }
+
+  animate();
+
+  // Hide loading screen
+  document.getElementById('loading').style.display = 'none';
+
+  // Handle resize
+  window.addEventListener('resize', () => {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    updateSvgNeighborOverlay();
+  });
+
+  // Do not auto-load 2.8M labels on startup in fly mode; load later when label tools are added.
+  // setTimeout(() => ensureWordData(), 2000);
+}
+
+main().catch(err => {
+  document.getElementById('load-text').textContent = 'Error: ' + err.message;
+  console.error(err);
+});
+</script>
+</body>
+</html>
