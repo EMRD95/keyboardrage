@@ -36,8 +36,11 @@ MonkeyType words ──► kaikki.org Wiktionary ──► Granite embeddings �
 
 ## Phase 1: Raw Word Lists → words_emb (with Wiktionary enrichment)
 
+**Source:** [MonkeyType languages](https://github.com/monkeytypegame/monkeytype/tree/master/frontend/static/languages)
+— raw word lists (`english.json`, `french.json`, etc.) from the MonkeyType repo.
+Clone to `/tmp/monkeytype-src` or set `MONKEYTYPE_LANGUAGES_DIR` env var.
+
 **Script:** `old_stuffs/process_monkeytype.py`
-**Source:** `/tmp/monkeytype-src/frontend/static/languages/*.json`
 **Output:** `words_emb/*.json`
 
 Copies MonkeyType word lists and enriches each word with definitions from
@@ -79,6 +82,9 @@ Lookup indices cached in `.kaikki_lookup/`.
 GPU recommended (RTX 3090 used in this project). Batch size: 512.
 
 ## Phase 3: Merge into words_emb_merged (deduplication)
+
+**Note:** `words_emb_merged/` is NOT tracked in git (>100 MB per file for English,
+French, Spanish). It is reproducible from Phase 2 output. Keep a local backup.
 
 **Script:** `old_stuffs/merge_words_emb_by_language.py`
 **Source:** `words_emb/*.json` (108 files)
