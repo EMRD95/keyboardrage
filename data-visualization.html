@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Data Visualization</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <script>document.documentElement.dataset.infoTheme = localStorage.getItem('infoPageTheme') || 'night';</script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.1/css/all.min.css" />
+  <link rel="stylesheet" type="text/css" href="styles.css">
+  <script src="info-page-theme.js" defer></script>
+  <style>
+    .data-viz-content {
+      max-width: 820px;
+      margin: 32px auto;
+      padding: 0 18px 48px;
+      line-height: 1.55;
+    }
+    .data-viz-links {
+      margin: 18px 0 28px;
+    }
+    .data-viz-links p {
+      margin: 0 0 12px;
+    }
+    .data-viz-links a,
+    .data-viz-content a {
+      font-weight: 700;
+    }
+    .data-viz-links a {
+      display: block;
+      border-radius: 6px;
+      padding: 11px 14px;
+    }
+  </style>
+</head>
+<body class="info-page data-visualization-page">
+  <header>
+    <div class="header-container">
+      <a href="/index.html" id="home-icon-link">
+        <i class="fas fa-home"></i>
+      </a>
+      <a href="https://github.com/EMRD95/keyboardrage" id="github-icon-link" target="_blank">
+        <i class="fab fa-github"></i>
+      </a>
+      <a href="/faq.html" id="faq-link">
+        <i class="fas fa-question-circle"></i>
+        FAQ
+      </a>
+      <a href="/data-visualization.html" id="data-viz-link">
+        <i class="fas fa-project-diagram"></i>
+        Data Viz
+      </a>
+      <button type="button" id="info-theme-toggle" class="info-theme-toggle" aria-label="Switch to day theme" title="Switch theme">☀</button>
+    </div>
+  </header>
+
+  <main class="data-viz-content">
+    <h1>Data Visualization</h1>
+    <p>KeyboardRage includes exploratory views of the multilingual word dataset. They are built from the same word entries and definition embeddings from <a href="https://huggingface.co/ibm-granite/granite-embedding-97m-multilingual-r2" target="_blank" rel="noopener">IBM Granite Embedding 97M Multilingual R2</a>, but they are meant for visual inspection rather than perfect automatic clustering.</p>
+
+    <div class="data-viz-links">
+      <p><a href="http://localhost:8888/galaxy/galaxy_fly_three.html">Open 3D Galaxy view</a></p>
+      <p><a href="/galaxy/atlas_language.html">Open 2D Atlas view</a></p>
+    </div>
+
+    <h2>3D Galaxy</h2>
+    <p>The 3D Galaxy was rebuilt from the existing Granite vectors with UMAP using cosine distance, 50 neighbors, and min_dist 0.01. This pulls many true semantic neighbors closer together in the 3D view, so the yellow neighbor links are usually shorter and easier to inspect.</p>
+    <p>Limitation: this is still a 384-dimensional embedding compressed into only three visible coordinates, so some semantic relationships will remain far apart or visually mixed. For precision, the neighbor panel does not trust 3D distance; it queries the original Granite embeddings with FAISS candidates and exact cosine reranking.</p>
+
+    <h2>2D Atlas</h2>
+    <p>The 2D Atlas view loads the generated atlas_data.parquet file containing each word, language, definition, and 3D coordinates. It is useful for broad dataset browsing, language-colored overview, and quick visual filtering with Atlas' built-in interface.</p>
+  </main>
+</body>
+</html>

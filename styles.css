@@ -728,6 +728,281 @@ body:not([data-theme]) .header-container {
   margin-top: 28px;
 }
 
+/* Neutral academic layout for standalone information pages. */
+body.info-page {
+  --info-bg: #0b0d10;
+  --info-panel: #13171d;
+  --info-panel-soft: #1b2027;
+  --info-border: #3a414c;
+  --info-text: #eef1f5;
+  --info-muted: #b8c0ca;
+  --info-link: #8fc7ff;
+  --info-link-hover: #c7e3ff;
+  --info-heading: #ffffff;
+  min-height: 100vh;
+  color: var(--info-text);
+  background: var(--info-bg);
+  font-size: 18px;
+  line-height: 1.65;
+}
+
+html[data-info-theme="day"] body.info-page {
+  --info-bg: #f4f1ea;
+  --info-panel: #fffdf8;
+  --info-panel-soft: #f8f5ee;
+  --info-border: #c9c0b2;
+  --info-text: #1e2329;
+  --info-muted: #5e6670;
+  --info-link: #174f8a;
+  --info-link-hover: #0b3158;
+  --info-heading: #151a20;
+}
+
+body.info-page::before {
+  display: none;
+}
+
+body.info-page header {
+  background: var(--info-panel);
+  border-bottom: 1px solid var(--info-border);
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.04);
+}
+
+body.info-page .header-container {
+  width: min(1080px, calc(100vw - 32px));
+  padding: 12px 0;
+  gap: 14px;
+  justify-content: flex-start;
+  flex-wrap: wrap;
+}
+
+body.info-page #home-icon-link,
+body.info-page #github-icon-link,
+body.info-page #faq-link,
+body.info-page #data-viz-link,
+body.info-page .info-theme-toggle,
+body.info-page a {
+  color: var(--info-link);
+  text-decoration: underline;
+  text-decoration-thickness: 1.5px;
+  text-underline-offset: 3px;
+}
+
+body.info-page #home-icon-link,
+body.info-page #github-icon-link,
+body.info-page #faq-link,
+body.info-page #data-viz-link,
+body.info-page .info-theme-toggle {
+  min-height: 42px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border: 1px solid var(--info-border);
+  border-radius: 6px;
+  background: var(--info-panel-soft);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+body.info-page #home-icon-link:hover,
+body.info-page #github-icon-link:hover,
+body.info-page #faq-link:hover,
+body.info-page #data-viz-link:hover,
+body.info-page .info-theme-toggle:hover,
+body.info-page a:hover {
+  color: var(--info-link-hover);
+  border-color: var(--info-link);
+}
+
+body.info-page h1,
+body.info-page h2,
+body.info-page h3,
+body.info-page #ScoreTitle,
+body.info-page #LatestScoresTitle,
+body.info-page #MotivationMessage {
+  color: var(--info-heading);
+  text-shadow: none;
+}
+
+body.info-page h1 {
+  width: min(900px, calc(100vw - 32px));
+  margin: 34px auto 18px;
+  font-size: clamp(2rem, 4vw, 3.1rem);
+  line-height: 1.15;
+}
+
+body.info-page h2 {
+  font-size: clamp(1.35rem, 2.3vw, 1.75rem);
+  line-height: 1.25;
+}
+
+body.info-page p,
+body.info-page li,
+body.info-page td,
+body.info-page th {
+  font-size: 1rem;
+}
+
+body.info-page #gameOverContainer,
+body.info-page .faq-content,
+body.info-page .data-viz-content {
+  width: min(900px, calc(100vw - 32px));
+  margin: 24px auto;
+  padding: 28px 32px;
+  color: var(--info-text);
+  border: 1px solid var(--info-border);
+  border-radius: 10px;
+  background: var(--info-panel);
+  box-shadow: 0 10px 30px rgba(31, 35, 39, 0.08);
+  backdrop-filter: none;
+}
+
+body.info-page .faq-content,
+body.info-page .data-viz-content {
+  text-align: left;
+}
+
+body.info-page #gameOverContainer {
+  text-align: center;
+}
+
+body.info-page #gameOverContainer h1,
+body.info-page .data-viz-content h1 {
+  width: auto;
+  margin: 0 0 14px;
+}
+
+body.info-page #gameOverContainer #playerName,
+body.info-page #gameOverContainer #score,
+body.info-page #gameOverContainer #language,
+body.info-page #gameOverContainer #WPM,
+body.info-page #gameOverContainer #mode,
+body.info-page #gameOverContainer #options,
+body.info-page #gameOverContainer #precision,
+body.info-page #gameOverContainer #timeElapsed {
+  color: var(--info-text);
+  text-shadow: none;
+  font-size: 1.08rem;
+}
+
+body.info-page #play-again,
+body.info-page #previous-page,
+body.info-page #next-page,
+body.info-page #previous-page-latest-scores,
+body.info-page #next-page-latest-scores,
+body.info-page button {
+  color: #ffffff;
+  background: #1f4f7a;
+  border: 1px solid #173a5a;
+  border-radius: 6px;
+  box-shadow: none;
+  font-size: 1rem;
+  text-decoration: none;
+}
+
+body.info-page #play-again:hover,
+body.info-page #previous-page:hover,
+body.info-page #next-page:hover,
+body.info-page #previous-page-latest-scores:hover,
+body.info-page #next-page-latest-scores:hover,
+body.info-page button:hover {
+  color: #ffffff;
+  background: #173a5a;
+  transform: none;
+  filter: none;
+  box-shadow: none;
+}
+
+body.info-page .info-theme-toggle,
+body.info-page .info-theme-toggle:hover {
+  color: var(--info-link);
+  background: var(--info-panel-soft);
+  border: 1px solid var(--info-border);
+  border-radius: 6px;
+  box-shadow: none;
+  transform: none;
+  filter: none;
+  min-width: 42px;
+  min-height: 42px;
+  justify-content: center;
+  padding: 8px 11px;
+  line-height: 1;
+  font: 700 1.15rem 'Inter', system-ui, sans-serif;
+}
+
+body.info-page .info-theme-toggle:hover {
+  color: var(--info-link-hover);
+  border-color: var(--info-link);
+}
+
+body.info-page #MotivationMessage,
+body.info-page #ScoreTitle,
+body.info-page #LatestScoresTitle,
+body.info-page #motivationalMessage,
+body.info-page #pagination,
+body.info-page #leaderboard,
+body.info-page #latest-scores {
+  width: min(920px, calc(100vw - 32px));
+}
+
+body.info-page #leaderboard,
+body.info-page #latest-scores {
+  color: var(--info-text);
+  border: 1px solid var(--info-border);
+  border-radius: 8px;
+  background: var(--info-panel);
+  box-shadow: 0 10px 30px rgba(31, 35, 39, 0.06);
+  backdrop-filter: none;
+}
+
+body.info-page #leaderboard th,
+body.info-page #latest-scores th {
+  color: var(--info-heading);
+  background: var(--info-panel-soft);
+  font-size: 0.9rem;
+  letter-spacing: 0.04em;
+}
+
+body.info-page #leaderboard td,
+body.info-page #latest-scores td,
+body.info-page #leaderboard th,
+body.info-page #latest-scores th {
+  border-bottom: 1px solid var(--info-border);
+}
+
+body.info-page #leaderboard tr:nth-child(even),
+body.info-page #latest-scores tr:nth-child(even) {
+  background: var(--info-panel-soft);
+}
+
+body.info-page .data-viz-links a {
+  display: block;
+  color: var(--info-link);
+  border: 1px solid var(--info-border);
+  border-left: 4px solid var(--info-link);
+  background: var(--info-panel-soft);
+  box-shadow: none;
+}
+
+body.info-page .data-viz-links a:hover {
+  color: var(--info-link-hover);
+  border-color: var(--info-link);
+  border-left-color: var(--info-link-hover);
+}
+
+@media screen and (max-width: 700px) {
+  body.info-page {
+    font-size: 16px;
+  }
+
+  body.info-page #gameOverContainer,
+  body.info-page .faq-content,
+  body.info-page .data-viz-content {
+    padding: 22px 18px;
+  }
+}
+
 ::-webkit-scrollbar {
   width: 10px;
   height: 10px;

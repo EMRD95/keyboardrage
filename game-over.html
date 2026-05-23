@@ -4,10 +4,12 @@
   <meta charset="utf-8">
   <title>Game Over</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <script>document.documentElement.dataset.infoTheme = localStorage.getItem('infoPageTheme') || 'night';</script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.1/css/all.min.css" />
   <link rel="stylesheet" type="text/css" href="styles.css">
+  <script src="info-page-theme.js" defer></script>
 </head>
-<body>
+<body class="info-page">
   <header>
     <div class="header-container">
       <a href="/index.html" id="home-icon-link">
@@ -20,9 +22,14 @@
         <i class="fas fa-question-circle"></i>
         FAQ
       </a>
+      <a href="/data-visualization.html" id="data-viz-link">
+        <i class="fas fa-project-diagram"></i>
+        Data Viz
+      </a>
+      <button type="button" id="info-theme-toggle" class="info-theme-toggle" aria-label="Switch to day theme" title="Switch theme">☀</button>
     </div>
   </header>
-  
+
 <div id="gameOverContainer">
   <h1>Game Over</h1>
   <div id="playerName"></div>
@@ -35,13 +42,13 @@
   <div id="timeElapsed"></div>
 </div>
 
-  
-  <a id="play-again" href="/index.html" role="button">Play Again <br> ⎵</a>
+
+  <a id="play-again" href="/index.html" role="button">Play Again</a>
 	<h4 id="MotivationMessage">Practice mode, ranked modes are the WPM with a &#9733;</h4>
 <h2 id="ScoreTitle">Top Scores <small id="ScoreSubtitle" class="small-text"></small></h2>
 <table id="leaderboard">
   <tr>
-    <th>Rank</th> 
+    <th>Rank</th>
     <th>Player</th>
     <th>Score</th>
     <th>Mode</th>
@@ -57,7 +64,7 @@
 
 <div id="motivationalMessage"></div>
 
-<h2 id="LatestScoresTitle">Latest Scores <small id="LatestScoresSubtitle" class="small-text">For all the game</small></h2>
+<h2 id="LatestScoresTitle">Latest Scores <small id="LatestScoresSubtitle" class="small-text">For all games</small></h2>
 <table id="latest-scores">
   <tr>
     <th>Player</th>
@@ -75,7 +82,7 @@
 <button id="next-page-latest-scores">Next</button>
 </div>
 
-  <script src="game-over.js"></script>
+  <script src="game-over.js?v=info-page-20260523"></script>
 
 </body>
 </html>

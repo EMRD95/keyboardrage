@@ -4,22 +4,32 @@ const score = urlParams.get('score');
 const language = urlParams.get('language');
 const WPM = urlParams.get('WPM');
 
+function displayValue(value, fallback = '—') {
+  return value === null || value === undefined || value === '' || value === 'null' ? fallback : value;
+}
+
+function displayNumber(value, fallback = '—') {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : fallback;
+}
+
 const scoreElement = document.getElementById('score');
-scoreElement.textContent = `Score: ${score}`;
+scoreElement.textContent = `Score: ${displayValue(score)}`;
 
 const languageElement = document.getElementById('language');
-languageElement.textContent = `Language: ${language}`;
+languageElement.textContent = `Language: ${displayValue(language)}`;
 
 const WPMElement = document.getElementById('WPM');
-WPMElement.textContent = `WPM: ${WPM}`;
+WPMElement.textContent = `WPM: ${displayValue(WPM)}`;
 
 const mode = localStorage.getItem('mode');
 const precision = localStorage.getItem('precision');
 
-const precisionFormatted = parseFloat(precision).toFixed(2);
+const precisionNumeric = parseFloat(precision);
+const precisionFormatted = Number.isFinite(precisionNumeric) ? precisionNumeric.toFixed(2) : '—';
 
 const modeElement = document.getElementById('mode');
-modeElement.textContent = `Mode: ${mode}`;
+modeElement.textContent = `Mode: ${displayValue(mode)}`;
 
 if ((mode === 'fast' && parseFloat(precision) < 90) && ['30', '50', '100', '101', '150', '200', '250', '300', '350', '400'].includes(WPM)) {
   const precisionWarning = document.createElement('div');
@@ -49,16 +59,16 @@ optionsElement.textContent = optionsText;
 
 
 const precisionElement = document.getElementById('precision');
-precisionElement.textContent = `Precision: ${precisionFormatted}%`;
+precisionElement.textContent = precisionFormatted === '—' ? 'Precision: —' : `Precision: ${precisionFormatted}%`;
 
 const playerName = localStorage.getItem('playerName');
 
 const playerNameElement = document.getElementById('playerName');
-playerNameElement.textContent = `Name: ${playerName}`;
+playerNameElement.textContent = `Name: ${displayValue(playerName)}`;
 
 const timeElapsed = localStorage.getItem('timeElapsed');
 
-let timeElapsedInSeconds = Math.round(Number(timeElapsed) / 1000);
+let timeElapsedInSeconds = Math.round(displayNumber(timeElapsed, 0) / 1000);
 
 let timeElapsedDisplay;
 if (timeElapsedInSeconds < 60) {
@@ -76,7 +86,11 @@ timeElapsedElement.textContent = `Time Elapsed: ${timeElapsedDisplay}`;
 
 function updateScoreSubtitle() {
   const scoreSubtitle = document.getElementById('ScoreSubtitle');
-  scoreSubtitle.textContent = `For ${WPM} WPM ${language}`;
+  if (WPM && language) {
+    scoreSubtitle.textContent = `For ${WPM} WPM ${language}`;
+  } else {
+    scoreSubtitle.textContent = '';
+  }
 }
 
 // Call this function every time you update the WPM or language
@@ -98,6 +112,12 @@ document.getElementById('previous-page').addEventListener('click', () => {
 });
 
 function fetchLeaderboard() {
+  if (!language || !WPM) {
+    document.getElementById('ScoreTitle').style.display = 'none';
+    document.getElementById('leaderboard').style.display = 'none';
+    document.getElementById('pagination').style.display = 'none';
+    return;
+  }
   fetch(`/leaderboard/${language}/${WPM}?page=${currentPage}`)
     .then(response => response.json())
     .then(data => {
@@ -165,13 +185,13 @@ function fetchLeaderboard() {
         scoreCell.textContent = score.score;
         row.appendChild(scoreCell);
 
-        const modeCell = document.createElement('td'); 
-        modeCell.textContent = score.mode; 
-        row.appendChild(modeCell); 
+        const modeCell = document.createElement('td');
+        modeCell.textContent = score.mode;
+        row.appendChild(modeCell);
 
-        const precisionCell = document.createElement('td'); 
+        const precisionCell = document.createElement('td');
         precisionCell.textContent = parseFloat(score.precision).toFixed(2);
-        row.appendChild(precisionCell); 
+        row.appendChild(precisionCell);
 
         const dateCell = document.createElement('td');
         const date = new Date(score.timestamp);

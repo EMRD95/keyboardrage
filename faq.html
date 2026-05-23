@@ -3,10 +3,12 @@
 <head>
   <meta charset="utf-8">
   <title>FAQ</title>
+  <script>document.documentElement.dataset.infoTheme = localStorage.getItem('infoPageTheme') || 'night';</script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.1/css/all.min.css" />
   <link rel="stylesheet" type="text/css" href="styles.css">
+  <script src="info-page-theme.js" defer></script>
 </head>
-<body>
+<body class="info-page">
   <header>
     <div class="header-container">
       <a href="/index.html" id="home-icon-link">
@@ -19,23 +21,31 @@
         <i class="fas fa-question-circle"></i>
         FAQ
       </a>
+      <a href="/data-visualization.html" id="data-viz-link">
+        <i class="fas fa-project-diagram"></i>
+        Data Viz
+      </a>
+      <button type="button" id="info-theme-toggle" class="info-theme-toggle" aria-label="Switch to day theme" title="Switch theme">☀</button>
     </div>
   </header>
-  
+
   <h1>Frequently Asked Questions</h1>
 
   <div class="faq-content">
     <h2>How do I pause the game?</h2>
     <p>You can pause the game at any time by pressing the "Tab" key on your keyboard. This will freeze the game, allowing you to take a break or attend to other tasks.</p>
-    
+
     <h2>How do I play the game again?</h2>
     <p>To resume the game after pausing, click on any part of the page and the game will resume. If you changed any parameters, such as WPM or language, the game will restart, allowing your changes to take effect.</p>
-    
+
     <h2>What happens when all the words from the word list have been used?</h2>
     <p>The game cycles through a list of words. If you reach the end of the list, it may appear as if there are no more words. However, once you press the final characters (usually a space), the list will recycle and new words will appear.</p>
-    
+
     <h2>How do I set my player name?</h2>
     <p>Enter your player name or username in the 'Player Name' box before the game ends. Please make sure your player name is between 3 and 30 characters. Your player name will be saved when you click outside of the input field.</p>
+
+    <h2>Where can I explore the word embedding visualizations?</h2>
+    <p>See the <a href="/data-visualization.html">Data Visualization</a> page for the 3D Galaxy and Apple Embedding Atlas links, plus a short note about the methods used.</p>
 
     <h2>Where can I find the source code of the game?</h2>
     <p>The source code for the game can be found on our GitHub repository at <a href="https://github.com/EMRD95/keyboardrage" target="_blank">https://github.com/EMRD95/keyboardrage</a>. Feel free to explore, and we welcome any contributions!</p>
