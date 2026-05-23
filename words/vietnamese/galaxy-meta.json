@@ -1,0 +1,23 @@
+{
+  "name": "vietnamese",
+  "source": "words_emb_merged/vietnamese.json",
+  "count": 4295,
+  "format": "KRG1 uint32 count + int16 xyz[count]",
+  "coordinateScale": 0.82,
+  "normalization": {
+    "center": [
+      5.341688632965088,
+      4.798361301422119,
+      6.940927028656006
+    ],
+    "method": "mean centered, max-distance scaled",
+    "scale": 18.415205001831055,
+    "clamp": null
+  },
+  "lod": {
+    "defaultVisibleDots": 1000,
+    "maxVisibleDots": 4295,
+    "oneWordOneDot": true,
+    "activeWordExactCoordinate": true
+  }
+}

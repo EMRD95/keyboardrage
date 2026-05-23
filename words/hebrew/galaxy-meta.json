@@ -1,0 +1,23 @@
+{
+  "name": "hebrew",
+  "source": "words_emb_merged/hebrew.json",
+  "count": 2921,
+  "format": "KRG1 uint32 count + int16 xyz[count]",
+  "coordinateScale": 0.82,
+  "normalization": {
+    "center": [
+      5.1971306800842285,
+      4.987460613250732,
+      6.609592437744141
+    ],
+    "method": "mean centered, max-distance scaled",
+    "scale": 19.67778778076172,
+    "clamp": null
+  },
+  "lod": {
+    "defaultVisibleDots": 1000,
+    "maxVisibleDots": 2921,
+    "oneWordOneDot": true,
+    "activeWordExactCoordinate": true
+  }
+}

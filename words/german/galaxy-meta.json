@@ -1,0 +1,23 @@
+{
+  "name": "german",
+  "source": "words_emb_merged/german.json",
+  "count": 82472,
+  "format": "KRG1 uint32 count + int16 xyz[count]",
+  "coordinateScale": 0.82,
+  "normalization": {
+    "center": [
+      5.873006343841553,
+      4.383195877075195,
+      5.803288459777832
+    ],
+    "method": "mean centered, max-distance scaled",
+    "scale": 19.45901870727539,
+    "clamp": null
+  },
+  "lod": {
+    "defaultVisibleDots": 1000,
+    "maxVisibleDots": 82472,
+    "oneWordOneDot": true,
+    "activeWordExactCoordinate": true
+  }
+}

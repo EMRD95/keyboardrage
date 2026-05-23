@@ -1,0 +1,23 @@
+{
+  "name": "chinese_simplified",
+  "source": "words_emb_merged/chinese_simplified.json",
+  "count": 16291,
+  "format": "KRG1 uint32 count + int16 xyz[count]",
+  "coordinateScale": 0.82,
+  "normalization": {
+    "center": [
+      4.790013313293457,
+      5.142923831939697,
+      6.8993072509765625
+    ],
+    "method": "mean centered, max-distance scaled",
+    "scale": 19.229373931884766,
+    "clamp": null
+  },
+  "lod": {
+    "defaultVisibleDots": 1000,
+    "maxVisibleDots": 16291,
+    "oneWordOneDot": true,
+    "activeWordExactCoordinate": true
+  }
+}

@@ -58,10 +58,21 @@ const ScoreSchema = new mongoose.Schema({
 function loadSupportedLanguages() {
   try {
     const languages = JSON.parse(fs.readFileSync(path.join(__dirname, 'words', 'languagelist.json'), 'utf8'));
-    return Array.isArray(languages) ? Array.from(new Set([...languages, 'english', 'french'])) : ['english', 'french'];
+    const list = Array.isArray(languages) ? Array.from(new Set([...languages, 'english', 'french'])) : ['english', 'french'];
+    return list.map(code => {
+      let count = 0;
+      try {
+        const wordsPath = path.join(__dirname, 'words', code, 'words.json');
+        if (fs.existsSync(wordsPath)) {
+          const data = JSON.parse(fs.readFileSync(wordsPath, 'utf8'));
+          count = (data.words || []).length;
+        }
+      } catch (e) { /* use 0 */ }
+      return { code, count };
+    }).sort((a, b) => b.count - a.count);
   } catch (err) {
-    console.error('Failed to load languages.json', err);
-    return ['english', 'french'];
+    console.error('Failed to load languages', err);
+    return [{ code: 'english', count: 352781 }, { code: 'french', count: 302443 }];
   }
 }
 
@@ -134,7 +145,7 @@ if (typeof scoreData.score !== 'number' || !Number.isInteger(scoreData.score) ||
     return res.status(400).send('Invalid score');
 }
 
-if (!loadSupportedLanguages().includes(scoreData.language)) {
+if (!loadSupportedLanguages().some(l => l.code === scoreData.language)) {
     return res.status(400).send('Invalid language');
 }
 

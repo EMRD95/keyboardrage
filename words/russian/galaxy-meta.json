@@ -1,0 +1,23 @@
+{
+  "name": "russian",
+  "source": "words_emb_merged/russian.json",
+  "count": 161704,
+  "format": "KRG1 uint32 count + int16 xyz[count]",
+  "coordinateScale": 0.82,
+  "normalization": {
+    "center": [
+      7.730014324188232,
+      -0.552906334400177,
+      6.167532920837402
+    ],
+    "method": "mean centered, max-distance scaled",
+    "scale": 23.137426376342773,
+    "clamp": null
+  },
+  "lod": {
+    "defaultVisibleDots": 1000,
+    "maxVisibleDots": 161704,
+    "oneWordOneDot": true,
+    "activeWordExactCoordinate": true
+  }
+}

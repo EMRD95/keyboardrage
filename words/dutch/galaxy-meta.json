@@ -1,0 +1,23 @@
+{
+  "name": "dutch",
+  "source": "words_emb_merged/dutch.json",
+  "count": 3303,
+  "format": "KRG1 uint32 count + int16 xyz[count]",
+  "coordinateScale": 0.82,
+  "normalization": {
+    "center": [
+      5.109493732452393,
+      4.822628974914551,
+      6.4189958572387695
+    ],
+    "method": "mean centered, max-distance scaled",
+    "scale": 18.625097274780273,
+    "clamp": null
+  },
+  "lod": {
+    "defaultVisibleDots": 1000,
+    "maxVisibleDots": 3303,
+    "oneWordOneDot": true,
+    "activeWordExactCoordinate": true
+  }
+}

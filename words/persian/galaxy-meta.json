@@ -1,0 +1,23 @@
+{
+  "name": "persian",
+  "source": "words_emb_merged/persian.json",
+  "count": 8695,
+  "format": "KRG1 uint32 count + int16 xyz[count]",
+  "coordinateScale": 0.82,
+  "normalization": {
+    "center": [
+      5.4290618896484375,
+      5.168323516845703,
+      6.538448810577393
+    ],
+    "method": "mean centered, max-distance scaled",
+    "scale": 20.165225982666016,
+    "clamp": null
+  },
+  "lod": {
+    "defaultVisibleDots": 1000,
+    "maxVisibleDots": 8695,
+    "oneWordOneDot": true,
+    "activeWordExactCoordinate": true
+  }
+}

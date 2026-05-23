@@ -1,0 +1,23 @@
+{
+  "name": "indonesian",
+  "source": "words_emb_merged/indonesian.json",
+  "count": 5635,
+  "format": "KRG1 uint32 count + int16 xyz[count]",
+  "coordinateScale": 0.82,
+  "normalization": {
+    "center": [
+      5.069507122039795,
+      5.033221244812012,
+      6.672117710113525
+    ],
+    "method": "mean centered, max-distance scaled",
+    "scale": 18.676931381225586,
+    "clamp": null
+  },
+  "lod": {
+    "defaultVisibleDots": 1000,
+    "maxVisibleDots": 5635,
+    "oneWordOneDot": true,
+    "activeWordExactCoordinate": true
+  }
+}

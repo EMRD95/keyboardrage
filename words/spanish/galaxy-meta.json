@@ -1,0 +1,23 @@
+{
+  "name": "spanish",
+  "source": "words_emb_merged/spanish.json",
+  "count": 404480,
+  "format": "KRG1 uint32 count + int16 xyz[count]",
+  "coordinateScale": 0.82,
+  "normalization": {
+    "center": [
+      2.448800802230835,
+      0.5019910931587219,
+      2.582401990890503
+    ],
+    "method": "mean centered, max-distance scaled",
+    "scale": 22.185129165649414,
+    "clamp": null
+  },
+  "lod": {
+    "defaultVisibleDots": 1000,
+    "maxVisibleDots": 404480,
+    "oneWordOneDot": true,
+    "activeWordExactCoordinate": true
+  }
+}

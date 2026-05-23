@@ -22,7 +22,6 @@ import numpy as np
 ROOT = Path(__file__).resolve().parents[1]
 OUT_DIR = ROOT / "words"
 CUBE_LIMIT = 0.82
-ROBUST_PERCENTILE = 98.0
 
 
 def main() -> None:
@@ -46,12 +45,16 @@ def main() -> None:
     words = [entry["word"] for entry in entries]
     coords = np.array([entry["embedding_3d"] for entry in entries], dtype=np.float32)
 
-    center = np.median(coords, axis=0)
+    # Use the same coordinate normalization as galaxy/3D_galaxy/galaxy_fly_three.html:
+    # center by mean and scale by max Euclidean distance. This avoids the old
+    # robust-percentile cube clipping that put ~2% of points exactly on cube faces.
+    center = np.mean(coords, axis=0)
     centered = coords - center
-    scale = float(np.percentile(np.max(np.abs(centered), axis=1), ROBUST_PERCENTILE))
+    dist = np.linalg.norm(centered, axis=1)
+    scale = float(np.max(dist))
     if not np.isfinite(scale) or scale <= 0:
-        scale = float(np.max(np.abs(centered))) or 1.0
-    normalized = np.clip(centered / scale * CUBE_LIMIT, -CUBE_LIMIT, CUBE_LIMIT)
+        scale = 1.0
+    normalized = centered / scale * CUBE_LIMIT
     quantized = np.rint(normalized / CUBE_LIMIT * 32767.0).astype("<i2")
 
     OUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -86,7 +89,7 @@ def main() -> None:
             "kind": "keyboardrage-galaxy-int16-v1",
             "coords": f"/words/{language}/galaxy-coords.bin",
             "meta": f"/words/{language}/galaxy-meta.json",
-            "coordinateSystem": "words_emb embedding_3d, median centered, robust scaled",
+            "coordinateSystem": "words_emb embedding_3d, mean centered, max-distance scaled",
             "sourceIndexAligned": True
         },
         "words": words
@@ -105,9 +108,9 @@ def main() -> None:
         "coordinateScale": CUBE_LIMIT,
         "normalization": {
             "center": [float(x) for x in center],
-            "robustPercentile": ROBUST_PERCENTILE,
+            "method": "mean centered, max-distance scaled",
             "scale": scale,
-            "clamp": [-CUBE_LIMIT, CUBE_LIMIT]
+            "clamp": None
         },
         "lod": {
             "defaultVisibleDots": 1000,

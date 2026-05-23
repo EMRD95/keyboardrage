@@ -1,0 +1,23 @@
+{
+  "name": "bosnian",
+  "source": "words_emb_merged/bosnian.json",
+  "count": 2905,
+  "format": "KRG1 uint32 count + int16 xyz[count]",
+  "coordinateScale": 0.82,
+  "normalization": {
+    "center": [
+      4.986199855804443,
+      4.472802639007568,
+      6.214961528778076
+    ],
+    "method": "mean centered, max-distance scaled",
+    "scale": 19.03353500366211,
+    "clamp": null
+  },
+  "lod": {
+    "defaultVisibleDots": 1000,
+    "maxVisibleDots": 2905,
+    "oneWordOneDot": true,
+    "activeWordExactCoordinate": true
+  }
+}

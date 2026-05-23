@@ -1,0 +1,23 @@
+{
+  "name": "occitan",
+  "source": "words_emb_merged/occitan.json",
+  "count": 2559,
+  "format": "KRG1 uint32 count + int16 xyz[count]",
+  "coordinateScale": 0.82,
+  "normalization": {
+    "center": [
+      5.8489861488342285,
+      5.23594331741333,
+      5.274407386779785
+    ],
+    "method": "mean centered, max-distance scaled",
+    "scale": 18.913070678710938,
+    "clamp": null
+  },
+  "lod": {
+    "defaultVisibleDots": 1000,
+    "maxVisibleDots": 2559,
+    "oneWordOneDot": true,
+    "activeWordExactCoordinate": true
+  }
+}

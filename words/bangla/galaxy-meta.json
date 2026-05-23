@@ -1,0 +1,23 @@
+{
+  "name": "bangla",
+  "source": "words_emb_merged/bangla.json",
+  "count": 2395,
+  "format": "KRG1 uint32 count + int16 xyz[count]",
+  "coordinateScale": 0.82,
+  "normalization": {
+    "center": [
+      5.2448577880859375,
+      5.112810134887695,
+      6.396040916442871
+    ],
+    "method": "mean centered, max-distance scaled",
+    "scale": 19.971227645874023,
+    "clamp": null
+  },
+  "lod": {
+    "defaultVisibleDots": 1000,
+    "maxVisibleDots": 2395,
+    "oneWordOneDot": true,
+    "activeWordExactCoordinate": true
+  }
+}

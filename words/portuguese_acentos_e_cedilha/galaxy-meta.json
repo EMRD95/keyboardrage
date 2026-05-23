@@ -1,0 +1,23 @@
+{
+  "name": "portuguese_acentos_e_cedilha",
+  "source": "words_emb_merged/portuguese_acentos_e_cedilha.json",
+  "count": 1876,
+  "format": "KRG1 uint32 count + int16 xyz[count]",
+  "coordinateScale": 0.82,
+  "normalization": {
+    "center": [
+      4.582115650177002,
+      5.883823394775391,
+      6.03630256652832
+    ],
+    "method": "mean centered, max-distance scaled",
+    "scale": 20.1746826171875,
+    "clamp": null
+  },
+  "lod": {
+    "defaultVisibleDots": 1000,
+    "maxVisibleDots": 1876,
+    "oneWordOneDot": true,
+    "activeWordExactCoordinate": true
+  }
+}

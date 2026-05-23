@@ -19,6 +19,7 @@ import { axiomataTheme } from './axiomata.js';
 import { castleTheme } from './castle.js';
 import { boxTheme } from './box.js';
 import { boxCubeTheme } from './box-cube.js';
+import { milkyWayTheme } from './milky-way.js';
 export const THEME_OPTIONS = [
     defaultTheme,
     highwayTheme,
@@ -40,7 +41,8 @@ export const THEME_OPTIONS = [
     axiomataTheme,
     castleTheme,
     boxTheme,
-    boxCubeTheme
+    boxCubeTheme,
+    milkyWayTheme
 ];
 function isVideoTheme(theme) {
     return theme.kind === 'video';

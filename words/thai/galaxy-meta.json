@@ -1,0 +1,23 @@
+{
+  "name": "thai",
+  "source": "words_emb_merged/thai.json",
+  "count": 12901,
+  "format": "KRG1 uint32 count + int16 xyz[count]",
+  "coordinateScale": 0.82,
+  "normalization": {
+    "center": [
+      5.216376781463623,
+      4.912919998168945,
+      6.666849136352539
+    ],
+    "method": "mean centered, max-distance scaled",
+    "scale": 20.141260147094727,
+    "clamp": null
+  },
+  "lod": {
+    "defaultVisibleDots": 1000,
+    "maxVisibleDots": 12901,
+    "oneWordOneDot": true,
+    "activeWordExactCoordinate": true
+  }
+}

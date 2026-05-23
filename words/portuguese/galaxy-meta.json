@@ -1,0 +1,23 @@
+{
+  "name": "portuguese",
+  "source": "words_emb_merged/portuguese.json",
+  "count": 226092,
+  "format": "KRG1 uint32 count + int16 xyz[count]",
+  "coordinateScale": 0.82,
+  "normalization": {
+    "center": [
+      3.194484233856201,
+      1.5536150932312012,
+      2.3374013900756836
+    ],
+    "method": "mean centered, max-distance scaled",
+    "scale": 21.331592559814453,
+    "clamp": null
+  },
+  "lod": {
+    "defaultVisibleDots": 1000,
+    "maxVisibleDots": 226092,
+    "oneWordOneDot": true,
+    "activeWordExactCoordinate": true
+  }
+}

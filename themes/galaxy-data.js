@@ -5,7 +5,15 @@
 // only gates which source indices are "active" (flash red when typed). Changing the
 // frequency updates a single number — no geometry rebuild, no blink.
 /** Languages that have pre-generated .bin coordinate artifacts. */
-const GALAXY_LANGUAGES = new Set(['english', 'french']);
+const GALAXY_LANGUAGES = new Set([
+    'afrikaans', 'bangla', 'belarusian', 'bosnian', 'chinese_simplified', 'chinese_traditional',
+    'croatian', 'czech', 'danish', 'dutch', 'english', 'esperanto', 'esperanto_h_sistemo',
+    'esperanto_x_sistemo', 'estonian', 'finnish', 'french', 'german', 'greek', 'hebrew',
+    'hungarian', 'indonesian', 'italian', 'korean', 'lithuanian', 'macedonian', 'mongolian',
+    'norwegian_nynorsk', 'occitan', 'persian', 'polish', 'portuguese', 'portuguese_acentos_e_cedilha',
+    'romanian', 'russian', 'serbian', 'serbian_latin', 'slovak', 'slovenian', 'spanish',
+    'swedish', 'thai', 'turkish', 'ukrainian', 'urdu', 'uzbek', 'vietnamese', 'xhosa',
+]);
 const COORDINATE_SCALE = 0.82;
 const CUBE_POINT_SCALE = 0.8832;
 // --- Color precomputation (mirrors box-cube rebuildPointColors) ---

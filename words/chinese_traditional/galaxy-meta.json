@@ -1,0 +1,23 @@
+{
+  "name": "chinese_traditional",
+  "source": "words_emb_merged/chinese_traditional.json",
+  "count": 42294,
+  "format": "KRG1 uint32 count + int16 xyz[count]",
+  "coordinateScale": 0.82,
+  "normalization": {
+    "center": [
+      4.599740505218506,
+      5.18223237991333,
+      7.000754356384277
+    ],
+    "method": "mean centered, max-distance scaled",
+    "scale": 19.905794143676758,
+    "clamp": null
+  },
+  "lod": {
+    "defaultVisibleDots": 1000,
+    "maxVisibleDots": 42294,
+    "oneWordOneDot": true,
+    "activeWordExactCoordinate": true
+  }
+}

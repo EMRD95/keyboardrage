@@ -1,0 +1,23 @@
+{
+  "name": "esperanto_h_sistemo",
+  "source": "words_emb_merged/esperanto_h_sistemo.json",
+  "count": 15460,
+  "format": "KRG1 uint32 count + int16 xyz[count]",
+  "coordinateScale": 0.82,
+  "normalization": {
+    "center": [
+      4.800159454345703,
+      5.802258014678955,
+      5.544820308685303
+    ],
+    "method": "mean centered, max-distance scaled",
+    "scale": 19.914966583251953,
+    "clamp": null
+  },
+  "lod": {
+    "defaultVisibleDots": 1000,
+    "maxVisibleDots": 15460,
+    "oneWordOneDot": true,
+    "activeWordExactCoordinate": true
+  }
+}

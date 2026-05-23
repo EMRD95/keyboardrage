@@ -170,6 +170,7 @@ export class BoxCubeBackground implements ThreeThemeRuntime {
   private readonly sourceIndexToPointIndex = new Map<number, number>();
   private galaxyPointSet: GalaxyPointSet | null = null;
   private galaxyLoadStarted = false;
+  private galaxyLanguage: string | null = null;
   private readonly lightOrbits: LightOrbit[] = [];
 
   private readonly accent = new THREE.Color('#6dfff2');
@@ -505,6 +506,7 @@ private rebuildPointColors() {
     if (isGalaxyLanguage(language)) {
       if (!this.galaxyLoadStarted) {
         this.galaxyLoadStarted = true;
+        this.galaxyLanguage = language;
         // Hide old Granite dots during fetch (drawRange=0 instead of clearing
         // attributes, which would trigger NaN bounding spheres)
         this.pointGeometry.setDrawRange(0, 0);
@@ -519,6 +521,21 @@ private rebuildPointColors() {
             this.hideActiveDot();
           })
           .catch((error) => console.error('Failed to load galaxy data for Box Cube:', error));
+      } else if (language !== this.galaxyLanguage) {
+        // Galaxy language changed (e.g. english → french): full reload
+        this.galaxyLanguage = language;
+        this.pointGeometry.setDrawRange(0, 0);
+        loadGalaxyData(language)
+          .then((data) => {
+            this.galaxyPointSet = data.getPointSet(frequencyLimit);
+            this.wordPoints = this.galaxyPointSet.points;
+            this.activeWord = '';
+            this.activeSourceIndex = undefined;
+            this.activeIndex = -1;
+            this.buildPointCloudGeometry();
+            this.hideActiveDot();
+          })
+          .catch((error) => console.error('Failed to switch galaxy language in Box Cube:', error));
       } else {
         loadGalaxyData(language).then((data) => {
           // Only update the frequency gate — geometry stays (full cloud, no blink)

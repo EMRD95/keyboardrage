@@ -1,0 +1,23 @@
+{
+  "name": "estonian",
+  "source": "words_emb_merged/estonian.json",
+  "count": 2526,
+  "format": "KRG1 uint32 count + int16 xyz[count]",
+  "coordinateScale": 0.82,
+  "normalization": {
+    "center": [
+      5.499189853668213,
+      3.7578179836273193,
+      6.311896800994873
+    ],
+    "method": "mean centered, max-distance scaled",
+    "scale": 19.36806297302246,
+    "clamp": null
+  },
+  "lod": {
+    "defaultVisibleDots": 1000,
+    "maxVisibleDots": 2526,
+    "oneWordOneDot": true,
+    "activeWordExactCoordinate": true
+  }
+}

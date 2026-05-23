@@ -6,16 +6,13 @@
   "coordinateScale": 0.82,
   "normalization": {
     "center": [
-      1.4535000324249268,
-      3.238600015640259,
-      1.394700050354004
+      3.0101318359375,
+      4.461634635925293,
+      1.9465806484222412
     ],
-    "robustPercentile": 98.0,
-    "scale": 9.30106258392334,
-    "clamp": [
-      -0.82,
-      0.82
-    ]
+    "method": "mean centered, max-distance scaled",
+    "scale": 20.53837013244629,
+    "clamp": null
   },
   "lod": {
     "defaultVisibleDots": 1000,

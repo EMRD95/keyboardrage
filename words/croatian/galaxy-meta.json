@@ -1,0 +1,23 @@
+{
+  "name": "croatian",
+  "source": "words_emb_merged/croatian.json",
+  "count": 1074,
+  "format": "KRG1 uint32 count + int16 xyz[count]",
+  "coordinateScale": 0.82,
+  "normalization": {
+    "center": [
+      5.539220333099365,
+      4.076896667480469,
+      6.6098103523254395
+    ],
+    "method": "mean centered, max-distance scaled",
+    "scale": 18.94078254699707,
+    "clamp": null
+  },
+  "lod": {
+    "defaultVisibleDots": 1000,
+    "maxVisibleDots": 1074,
+    "oneWordOneDot": true,
+    "activeWordExactCoordinate": true
+  }
+}

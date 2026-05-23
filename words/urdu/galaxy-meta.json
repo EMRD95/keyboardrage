@@ -1,0 +1,23 @@
+{
+  "name": "urdu",
+  "source": "words_emb_merged/urdu.json",
+  "count": 2331,
+  "format": "KRG1 uint32 count + int16 xyz[count]",
+  "coordinateScale": 0.82,
+  "normalization": {
+    "center": [
+      5.2288312911987305,
+      4.931327819824219,
+      6.443558692932129
+    ],
+    "method": "mean centered, max-distance scaled",
+    "scale": 18.996904373168945,
+    "clamp": null
+  },
+  "lod": {
+    "defaultVisibleDots": 1000,
+    "maxVisibleDots": 2331,
+    "oneWordOneDot": true,
+    "activeWordExactCoordinate": true
+  }
+}

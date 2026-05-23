@@ -1,0 +1,23 @@
+{
+  "name": "danish",
+  "source": "words_emb_merged/danish.json",
+  "count": 6639,
+  "format": "KRG1 uint32 count + int16 xyz[count]",
+  "coordinateScale": 0.82,
+  "normalization": {
+    "center": [
+      4.750250816345215,
+      5.133936882019043,
+      6.59342098236084
+    ],
+    "method": "mean centered, max-distance scaled",
+    "scale": 19.6505126953125,
+    "clamp": null
+  },
+  "lod": {
+    "defaultVisibleDots": 1000,
+    "maxVisibleDots": 6639,
+    "oneWordOneDot": true,
+    "activeWordExactCoordinate": true
+  }
+}

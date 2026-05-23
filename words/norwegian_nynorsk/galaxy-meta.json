@@ -1,0 +1,23 @@
+{
+  "name": "norwegian_nynorsk",
+  "source": "words_emb_merged/norwegian_nynorsk.json",
+  "count": 48215,
+  "format": "KRG1 uint32 count + int16 xyz[count]",
+  "coordinateScale": 0.82,
+  "normalization": {
+    "center": [
+      7.625568866729736,
+      5.913585662841797,
+      6.727280616760254
+    ],
+    "method": "mean centered, max-distance scaled",
+    "scale": 21.92915916442871,
+    "clamp": null
+  },
+  "lod": {
+    "defaultVisibleDots": 1000,
+    "maxVisibleDots": 48215,
+    "oneWordOneDot": true,
+    "activeWordExactCoordinate": true
+  }
+}

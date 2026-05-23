@@ -1,0 +1,23 @@
+{
+  "name": "belarusian",
+  "source": "words_emb_merged/belarusian.json",
+  "count": 4544,
+  "format": "KRG1 uint32 count + int16 xyz[count]",
+  "coordinateScale": 0.82,
+  "normalization": {
+    "center": [
+      5.475197792053223,
+      4.385453224182129,
+      6.185879230499268
+    ],
+    "method": "mean centered, max-distance scaled",
+    "scale": 19.512271881103516,
+    "clamp": null
+  },
+  "lod": {
+    "defaultVisibleDots": 1000,
+    "maxVisibleDots": 4544,
+    "oneWordOneDot": true,
+    "activeWordExactCoordinate": true
+  }
+}

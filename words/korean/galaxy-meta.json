@@ -1,0 +1,23 @@
+{
+  "name": "korean",
+  "source": "words_emb_merged/korean.json",
+  "count": 5031,
+  "format": "KRG1 uint32 count + int16 xyz[count]",
+  "coordinateScale": 0.82,
+  "normalization": {
+    "center": [
+      4.747851371765137,
+      5.029761791229248,
+      6.720208168029785
+    ],
+    "method": "mean centered, max-distance scaled",
+    "scale": 19.61588478088379,
+    "clamp": null
+  },
+  "lod": {
+    "defaultVisibleDots": 1000,
+    "maxVisibleDots": 5031,
+    "oneWordOneDot": true,
+    "activeWordExactCoordinate": true
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "name": "polish",
+  "source": "words_emb_merged/polish.json",
+  "count": 63848,
+  "format": "KRG1 uint32 count + int16 xyz[count]",
+  "coordinateScale": 0.82,
+  "normalization": {
+    "center": [
+      6.13441276550293,
+      4.556202411651611,
+      6.037603378295898
+    ],
+    "method": "mean centered, max-distance scaled",
+    "scale": 19.890100479125977,
+    "clamp": null
+  },
+  "lod": {
+    "defaultVisibleDots": 1000,
+    "maxVisibleDots": 63848,
+    "oneWordOneDot": true,
+    "activeWordExactCoordinate": true
+  }
+}

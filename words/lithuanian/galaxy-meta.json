@@ -1,0 +1,23 @@
+{
+  "name": "lithuanian",
+  "source": "words_emb_merged/lithuanian.json",
+  "count": 1771,
+  "format": "KRG1 uint32 count + int16 xyz[count]",
+  "coordinateScale": 0.82,
+  "normalization": {
+    "center": [
+      4.8513054847717285,
+      4.656274795532227,
+      6.185033321380615
+    ],
+    "method": "mean centered, max-distance scaled",
+    "scale": 19.107852935791016,
+    "clamp": null
+  },
+  "lod": {
+    "defaultVisibleDots": 1000,
+    "maxVisibleDots": 1771,
+    "oneWordOneDot": true,
+    "activeWordExactCoordinate": true
+  }
+}

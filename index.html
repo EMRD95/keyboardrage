@@ -22,9 +22,8 @@
     <meta property="twitter:description" content="Keyboard Rage is an exciting typing game designed to improve your typing skills while having fun. Choose your WPM and challenge yourself to score higher!">
     <meta property="twitter:image" content="https://keyboardrage.com/logo.png">
 
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="fonts/inter.css">
+    <link rel="stylesheet" href="fonts/roboto.css">
     <link rel="stylesheet" type="text/css" href="styles.css">
     <script type="importmap">
       {
@@ -34,7 +33,7 @@
       }
     </script>
   </head>
-  <body data-theme="default">
+  <body data-theme="milky-way">
     <input id="hidden-input" type="text" class="sr-input"
       autocomplete="off"
       autocapitalize="off"
@@ -60,7 +59,7 @@
           </div>
           <div class="session-pills" aria-label="Current session stats">
             <span class="pill">WPM <strong id="hud-wpm">30⇢∞</strong></span>
-            <span class="pill">Theme <strong id="theme-label">Default</strong></span>
+            <span class="pill">Theme <strong id="theme-label">Milky Way (3D)</strong></span>
             <span class="pill">Mode <strong id="mode-label">Rage</strong></span>
           </div>
         </header>
@@ -150,21 +149,30 @@
           </div>
 
           <div id="settings-container" class="control-group">
+            <label for="frequency-limit" title="Limit loaded words for large frequency lists">Frequency</label>
+            <select id="frequency-limit">
+              <option value="200" selected>Top 200</option>
+              <option value="1000">Top 1k</option>
+              <option value="2000">Top 2k</option>
+              <option value="10000">Top 10k</option>
+            </select>
+          </div>
+
+          <div id="settings-container" class="control-group">
+            <label for="semantic-search" title="Type a word to use its 200 closest semantic neighbors">Semantic Similarity</label>
+            <div style="position:relative">
+              <input type="text" id="semantic-search" placeholder="Search a word..." autocomplete="off">
+              <div id="semantic-dropdown" class="semantic-dropdown" style="display:none"></div>
+            </div>
+            <div id="semantic-active" style="display:none;color:var(--accent);font-size:0.85rem;margin-top:4px"></div>
+          </div>
+
+          <div id="settings-container" class="control-group">
             <label for="mode" title="Change game mode">Mode</label>
             <select id="mode">
               <option value="rage" title="Typo increases word speed">Rage Mode 🛈</option>
               <option value="precision" title="Word resets on typo">Precision Mode 🛈</option>
               <option value="fast" title="Game continues despite typos">Fast Mode 🛈</option>
-            </select>
-          </div>
-
-          <div id="settings-container" class="control-group">
-            <label for="frequency-limit" title="Limit loaded words for large frequency lists">Frequency</label>
-            <select id="frequency-limit">
-              <option value="200">Top 200</option>
-              <option value="1000" selected>Top 1k</option>
-              <option value="2000">Top 2k</option>
-              <option value="10000">Top 10k</option>
             </select>
           </div>
 

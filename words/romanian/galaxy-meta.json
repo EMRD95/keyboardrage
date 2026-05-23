@@ -1,0 +1,23 @@
+{
+  "name": "romanian",
+  "source": "words_emb_merged/romanian.json",
+  "count": 80325,
+  "format": "KRG1 uint32 count + int16 xyz[count]",
+  "coordinateScale": 0.82,
+  "normalization": {
+    "center": [
+      5.821992874145508,
+      5.0151448249816895,
+      6.102498531341553
+    ],
+    "method": "mean centered, max-distance scaled",
+    "scale": 19.93979263305664,
+    "clamp": null
+  },
+  "lod": {
+    "defaultVisibleDots": 1000,
+    "maxVisibleDots": 80325,
+    "oneWordOneDot": true,
+    "activeWordExactCoordinate": true
+  }
+}

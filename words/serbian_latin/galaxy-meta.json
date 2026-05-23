@@ -1,0 +1,23 @@
+{
+  "name": "serbian_latin",
+  "source": "words_emb_merged/serbian_latin.json",
+  "count": 4495,
+  "format": "KRG1 uint32 count + int16 xyz[count]",
+  "coordinateScale": 0.82,
+  "normalization": {
+    "center": [
+      6.231266975402832,
+      3.7026636600494385,
+      6.372303009033203
+    ],
+    "method": "mean centered, max-distance scaled",
+    "scale": 18.96823501586914,
+    "clamp": null
+  },
+  "lod": {
+    "defaultVisibleDots": 1000,
+    "maxVisibleDots": 4495,
+    "oneWordOneDot": true,
+    "activeWordExactCoordinate": true
+  }
+}

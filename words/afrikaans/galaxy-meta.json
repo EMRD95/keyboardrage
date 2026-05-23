@@ -1,0 +1,23 @@
+{
+  "name": "afrikaans",
+  "source": "words_emb_merged/afrikaans.json",
+  "count": 2385,
+  "format": "KRG1 uint32 count + int16 xyz[count]",
+  "coordinateScale": 0.82,
+  "normalization": {
+    "center": [
+      5.5831403732299805,
+      4.79146146774292,
+      6.201141357421875
+    ],
+    "method": "mean centered, max-distance scaled",
+    "scale": 19.66538429260254,
+    "clamp": null
+  },
+  "lod": {
+    "defaultVisibleDots": 1000,
+    "maxVisibleDots": 2385,
+    "oneWordOneDot": true,
+    "activeWordExactCoordinate": true
+  }
+}

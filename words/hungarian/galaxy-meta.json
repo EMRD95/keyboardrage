@@ -1,0 +1,23 @@
+{
+  "name": "hungarian",
+  "source": "words_emb_merged/hungarian.json",
+  "count": 2480,
+  "format": "KRG1 uint32 count + int16 xyz[count]",
+  "coordinateScale": 0.82,
+  "normalization": {
+    "center": [
+      5.867504596710205,
+      4.685202598571777,
+      5.951873779296875
+    ],
+    "method": "mean centered, max-distance scaled",
+    "scale": 19.15079689025879,
+    "clamp": null
+  },
+  "lod": {
+    "defaultVisibleDots": 1000,
+    "maxVisibleDots": 2480,
+    "oneWordOneDot": true,
+    "activeWordExactCoordinate": true
+  }
+}

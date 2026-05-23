@@ -5,12 +5,15 @@ import { shouldIgnoreDeadAccentKey, typedKeyPrefixLength } from './typing-input.
 const LOGICAL_WIDTH = 800;
 const LOGICAL_HEIGHT = 600;
 const WORD_FONT_SIZE = 48;
-const WORD_FONT = `700 ${WORD_FONT_SIZE}px "Courier New", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace`;
+const WORD_FONT = `700 ${WORD_FONT_SIZE}px 'Roboto', 'Inter', system-ui, -apple-system, sans-serif`;
 const WORD_FILL = '#f8f8f2';
 const WORD_MUTED = '#777777';
 const WORD_DANGER = '#FF0000';
+const DEFAULT_THEME = 'milky-way';
+const DEFAULT_LANGUAGE = 'english';
+const DEFAULT_FREQUENCY_LIMIT = 200;
 class Game {
-    constructor(container, playerName, WPM = 60, language = 'english') {
+    constructor(container, playerName, WPM = 60, language = DEFAULT_LANGUAGE) {
         this.ambientParticles = null;
         this.ambientParticleMaterial = null;
         this.threeThemeInstances = new Map();
@@ -21,8 +24,20 @@ class Game {
         this.mode = localStorage.getItem('mode') || 'rage';
         this.applyGrammarSetting = localStorage.getItem('applyGrammar') === 'true';
         this.addNumbersSetting = localStorage.getItem('addNumbers') === 'true';
-        this.theme = localStorage.getItem('theme') || 'default';
-        this.frequencyLimit = Number(localStorage.getItem('frequencyLimit') || '1000') || 1000;
+        this.semanticActive = false;
+        this.semanticAllWords = [];
+        this.semanticRawWords = [];
+        this.semanticDebounceTimer = null;
+        this.theme = (() => {
+            const savedTheme = localStorage.getItem('theme');
+            return savedTheme && savedTheme !== 'default' ? savedTheme : DEFAULT_THEME;
+        })();
+        this.frequencyLimit = (() => {
+            const savedLimit = localStorage.getItem('frequencyLimit');
+            if (!savedLimit || savedLimit === '1000')
+                return DEFAULT_FREQUENCY_LIMIT;
+            return Number(savedLimit) || DEFAULT_FREQUENCY_LIMIT;
+        })();
         this.container = container;
         this.scene = new THREE.Scene();
         this.camera = new THREE.OrthographicCamera(0, LOGICAL_WIDTH, LOGICAL_HEIGHT, 0, -1000, 1000);
@@ -69,8 +84,8 @@ class Game {
         this.populateThemeSelector();
         this.themeSelector.value = this.theme;
         if (!this.themeSelector.value) {
-            this.themeSelector.value = 'default';
-            this.theme = 'default';
+            this.themeSelector.value = DEFAULT_THEME;
+            this.theme = DEFAULT_THEME;
         }
         this.themeSelector.addEventListener('change', this.changeTheme.bind(this));
         this.createThemeBackgrounds();
@@ -79,8 +94,10 @@ class Game {
         this.createAmbientParticles();
         this.changeTheme();
         this.updateHud();
+        this.initSemanticSearch();
     }
-    static async create(container, playerName = 'Player', WPM = 60, language = 'english') {
+    static async create(container, playerName = 'Player', WPM = 60, language = DEFAULT_LANGUAGE) {
+        await document.fonts.load('700 48px Roboto');
         const game = new Game(container, playerName, WPM, language);
         await game.fetchToken();
         await game.fetchWords();
@@ -97,6 +114,9 @@ class Game {
     }
     getFrequencyLimit() {
         return this.frequencyLimit;
+    }
+    getTheme() {
+        return this.theme;
     }
     resizeRenderer() {
         const rect = this.container.getBoundingClientRect();
@@ -242,6 +262,11 @@ class Game {
         return accent || '#7df9ff';
     }
     updateThemeVisuals() {
+        if (this.ambientParticles) {
+            // These ambient particles are the Default theme's star layer. Keep them
+            // out of video/CSS/Three.js themes so they don't leak over custom visuals.
+            this.ambientParticles.visible = this.theme === 'default';
+        }
         if (this.ambientParticleMaterial) {
             this.ambientParticleMaterial.color.set(this.currentAccentColor());
         }
@@ -307,7 +332,7 @@ class Game {
         }
     }
     changeTheme() {
-        this.theme = this.themeSelector.value || 'default';
+        this.theme = this.themeSelector.value || DEFAULT_THEME;
         localStorage.setItem('theme', this.theme);
         document.body.setAttribute('data-theme', this.theme);
         const iframe = document.getElementById('myVideo');
@@ -533,6 +558,131 @@ class Game {
             this.restart(this.WPM);
         }
     }
+    initSemanticSearch() {
+        this.semanticSearchInput = document.getElementById('semantic-search');
+        this.semanticDropdown = document.getElementById('semantic-dropdown');
+        this.semanticActiveDiv = document.getElementById('semantic-active');
+        this.semanticSearchInput.addEventListener('input', () => {
+            const q = this.semanticSearchInput.value.trim();
+            if (q.length < 1) {
+                this.semanticDropdown.style.display = 'none';
+                return;
+            }
+            if (this.semanticDebounceTimer)
+                clearTimeout(this.semanticDebounceTimer);
+            this.semanticDebounceTimer = setTimeout(() => this.semanticAutocomplete(q), 200);
+        });
+        this.semanticSearchInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                this.semanticDropdown.style.display = 'none';
+                this.semanticSearchInput.blur();
+            }
+        });
+        this.semanticSearchInput.addEventListener('focus', () => this.pauseGame());
+        this.semanticSearchInput.addEventListener('blur', () => this.resumeGame());
+        document.addEventListener('click', (e) => {
+            if (!this.semanticSearchInput.contains(e.target) &&
+                !this.semanticDropdown.contains(e.target)) {
+                this.semanticDropdown.style.display = 'none';
+            }
+        });
+    }
+    async semanticAutocomplete(q) {
+        try {
+            const resp = await fetch(`http://localhost:8703/search?q=${encodeURIComponent(q)}&limit=8&language=${encodeURIComponent(this.language)}`);
+            if (!resp.ok)
+                return;
+            const data = await resp.json();
+            if (!data.results || data.results.length === 0) {
+                this.semanticDropdown.style.display = 'none';
+                return;
+            }
+            this.semanticDropdown.innerHTML = '';
+            data.results.forEach((r) => {
+                const div = document.createElement('div');
+                div.textContent = `${r.word} (${r.language})`;
+                div.addEventListener('click', () => {
+                    this.semanticDropdown.style.display = 'none';
+                    this.semanticSearchInput.value = r.word;
+                    this.setSemanticSeed(r.id, r.word, r.language);
+                });
+                this.semanticDropdown.appendChild(div);
+            });
+            this.semanticDropdown.style.display = 'block';
+        }
+        catch {
+            // API offline — silently ignore
+        }
+    }
+    async setSemanticSeed(pointId, word, lang) {
+        this.semanticActive = true;
+        this.semanticActiveDiv.style.display = 'block';
+        this.semanticActiveDiv.textContent = `Loading 200 neighbors of "${word}"...`;
+        try {
+            const resp = await fetch(`http://localhost:8703/neighbors/${pointId}?k=200&language=${encodeURIComponent(lang)}`);
+            if (!resp.ok)
+                throw new Error(`HTTP ${resp.status}`);
+            const data = await resp.json();
+            const neighbors = data.neighbors || [];
+            this.semanticRawWords = neighbors.map((n) => n.word);
+            this.semanticAllWords = neighbors.map((n, i) => ({
+                text: this.addRandomNumbers(this.applyGrammar(n.word)),
+                sourceIndex: i,
+            }));
+            const totalChars = neighbors.reduce((sum, n) => sum + n.word.length, 0);
+            this.averageCharLength = neighbors.length > 0 ? totalChars / neighbors.length : 5;
+            if (this.applyGrammarSetting) {
+                this.averageCharLength += 1;
+            }
+            if (this.addNumbersSetting) {
+                this.averageCharLength += 2;
+            }
+            this.semanticActiveDiv.innerHTML = '';
+            this.semanticActiveDiv.textContent =
+                `"${word}" → ${neighbors.length} neighbors (semantic similarity) `;
+            const clearBtn = document.createElement('button');
+            clearBtn.textContent = '✕';
+            clearBtn.style.cssText = 'background:none;border:1px solid var(--accent);color:var(--accent);cursor:pointer;padding:0 5px;margin-left:6px;border-radius:3px;font-size:0.75rem;';
+            clearBtn.addEventListener('click', () => this.clearSemanticMode());
+            this.semanticActiveDiv.appendChild(clearBtn);
+            this.clearWords();
+            this.allWords = this.shuffleArray([...this.semanticAllWords]);
+            this.wordList = [];
+            this.wordIndex = 0;
+            this.nextBatch();
+            this.score = 0;
+            this.timeElapsed = 0;
+            this.keystrokes = 0;
+            this.typos = 0;
+            this.startTime = Date.now();
+            this.isGameOver = false;
+            // Persist across sessions
+            localStorage.setItem('semanticSeedId', String(pointId));
+            localStorage.setItem('semanticSeedWord', word);
+            localStorage.setItem('semanticSeedLang', lang);
+            this.updateHud();
+            this.generateWords();
+            if (!this.pause && this.animationFrame === null) {
+                this.lastTimestamp = performance.now();
+                this.animate(this.lastTimestamp);
+            }
+        }
+        catch (err) {
+            this.semanticActiveDiv.textContent = 'Semantic API unavailable (port 8703)';
+            this.semanticActive = false;
+        }
+    }
+    clearSemanticMode() {
+        this.semanticActive = false;
+        this.semanticAllWords = [];
+        this.semanticRawWords = [];
+        this.semanticActiveDiv.style.display = 'none';
+        localStorage.removeItem('semanticSeedId');
+        localStorage.removeItem('semanticSeedWord');
+        localStorage.removeItem('semanticSeedLang');
+        this.clearWords();
+        this.restart(this.WPM);
+    }
     restart(currentWPM) {
         this.score = 0;
         this.clearWords();
@@ -544,6 +694,28 @@ class Game {
         this.isGameOver = false;
         this.wordIndex = 0;
         this.updateHud();
+        if (this.semanticActive) {
+            // Rebuild word list with current grammar/numbers settings
+            this.semanticAllWords = this.semanticRawWords.map((w, i) => ({
+                text: this.addRandomNumbers(this.applyGrammar(w)),
+                sourceIndex: i,
+            }));
+            const totalChars = this.semanticRawWords.reduce((sum, w) => sum + w.length, 0);
+            this.averageCharLength = this.semanticRawWords.length > 0 ? totalChars / this.semanticRawWords.length : 5;
+            if (this.applyGrammarSetting)
+                this.averageCharLength += 1;
+            if (this.addNumbersSetting)
+                this.averageCharLength += 2;
+            this.allWords = this.shuffleArray([...this.semanticAllWords]);
+            this.wordList = [];
+            this.nextBatch();
+            this.generateWords();
+            if (!this.pause && this.animationFrame === null) {
+                this.lastTimestamp = performance.now();
+                this.animate(this.lastTimestamp);
+            }
+            return;
+        }
         this.fetchWords().then(() => {
             setTimeout(() => {
                 if (!this.isGameOver && this.words.length === 0) {
@@ -904,53 +1076,131 @@ class Game {
         }
     }
 }
-async function populateLanguages(languageInput, selectedLanguage) {
-    try {
-        const response = await fetch('/languages');
-        const fetchedLanguages = await response.json();
-        const languages = Array.from(new Set([...(Array.isArray(fetchedLanguages) ? fetchedLanguages : []), 'english', 'french']));
-        languageInput.innerHTML = '';
-        languages.forEach((language) => {
-            const option = document.createElement('option');
-            option.value = language;
-            option.text = language;
-            languageInput.appendChild(option);
-        });
-        languageInput.value = languages.includes(selectedLanguage) ? selectedLanguage : 'english';
-    }
-    catch (error) {
-        console.error('Error:', error);
-        languageInput.innerHTML = '';
-        ['english', 'french'].forEach((language) => {
-            const option = document.createElement('option');
-            option.value = language;
-            option.text = language;
-            languageInput.appendChild(option);
-        });
-        languageInput.value = selectedLanguage === 'french' ? 'french' : 'english';
+// Global registry so opening one dropdown closes any other
+const allDropdowns = [];
+function closeAllDropdowns() {
+    for (const dd of allDropdowns) {
+        if (dd.menu.style.display !== 'none') {
+            dd.menu.style.display = 'none';
+            dd.onClose();
+        }
     }
 }
-async function populateFrequencyLimits(frequencyInput, language, selectedLimit) {
+function makeCustomDropdown(selectEl, options, selectedValue, onChange, onOpen, onClose) {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'kr-select';
+    const trigger = document.createElement('div');
+    trigger.className = 'kr-trigger';
+    const menu = document.createElement('div');
+    menu.className = 'kr-menu';
+    menu.style.display = 'none';
+    allDropdowns.push({ menu, onClose });
+    let currentOptions = options;
+    const renderMenu = () => {
+        menu.innerHTML = '';
+        currentOptions.forEach(opt => {
+            const row = document.createElement('div');
+            row.className = 'kr-option';
+            row.innerHTML = opt.markup || opt.text;
+            row.addEventListener('click', () => setSelected(opt.value));
+            menu.appendChild(row);
+        });
+    };
+    const setOptions = (opts, selected) => {
+        currentOptions = opts;
+        renderMenu();
+        if (selected !== undefined)
+            setSelected(selected);
+    };
+    const setSelected = (value) => {
+        const opt = currentOptions.find(o => o.value === value);
+        if (opt) {
+            trigger.innerHTML = opt.markup || opt.text;
+        }
+        selectEl.value = value;
+        selectEl.dispatchEvent(new Event('change', { bubbles: true }));
+        onChange(value);
+        menu.style.display = 'none';
+    };
+    renderMenu();
+    trigger.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (menu.style.display !== 'none') {
+            menu.style.display = 'none';
+            onClose();
+        }
+        else {
+            closeAllDropdowns();
+            const rect = trigger.getBoundingClientRect();
+            const menuHeight = Math.min(220, menu.scrollHeight || 220);
+            if (rect.bottom + menuHeight + 8 > window.innerHeight && rect.top > menuHeight) {
+                // Open upward if near bottom and there's room above
+                menu.style.top = '';
+                menu.style.bottom = (window.innerHeight - rect.top) + 'px';
+            }
+            else {
+                menu.style.top = (rect.bottom + 2) + 'px';
+                menu.style.bottom = '';
+            }
+            menu.style.left = rect.left + 'px';
+            menu.style.width = rect.width + 'px';
+            menu.style.display = 'block';
+            onOpen();
+        }
+    });
+    document.addEventListener('click', () => {
+        if (menu.style.display !== 'none') {
+            menu.style.display = 'none';
+            onClose();
+        }
+    });
+    wrapper.appendChild(trigger);
+    // Append to body so it escapes parent clipping (backdrop-filter creates containing block)
+    document.body.appendChild(menu);
+    selectEl.style.display = 'none';
+    selectEl.parentNode.insertBefore(wrapper, selectEl);
+    setSelected(selectedValue);
+    return { setOptions, setSelected, trigger, menu };
+}
+async function populateLanguages(languageInput, selectedLanguage, onChange, onOpen, onClose) {
+    const flagPath = (code) => `/flags/${code}.png`;
+    const fmt = (n) => n >= 1000 ? `${Math.round(n / 1000)}k` : String(n);
+    let languages;
+    try {
+        const response = await fetch('/languages');
+        const fetched = await response.json();
+        languages = Array.isArray(fetched) ? fetched : [{ code: 'english', count: 0 }, { code: 'french', count: 0 }];
+    }
+    catch {
+        console.error('Error fetching languages');
+        languages = [{ code: 'english', count: 0 }, { code: 'french', count: 0 }];
+    }
+    const options = languages.map(({ code, count }) => ({
+        text: code,
+        value: code,
+        markup: `<img src="${flagPath(code)}" width="18" height="14" style="vertical-align:middle;margin-right:6px"> ${code} <span style="color:#888;font-size:0.8em;margin-left:4px">(${fmt(count)})</span>`,
+    }));
+    const match = languages.some(l => l.code === selectedLanguage) ? selectedLanguage : DEFAULT_LANGUAGE;
+    makeCustomDropdown(languageInput, options, match, onChange, onOpen, onClose);
+}
+async function populateFrequencyLimits(frequencyInput, dd, language, selectedLimit) {
     try {
         const response = await fetch(`/words/${language}/words.json`);
         const data = (await response.json());
-        const options = data.frequencyOptions && data.frequencyOptions.length > 0
+        const limits = data.frequencyOptions && data.frequencyOptions.length > 0
             ? data.frequencyOptions
             : [200, 1000, 2000, 10000, data.words.length].filter((value, index, arr) => value <= data.words.length && arr.indexOf(value) === index);
-        frequencyInput.innerHTML = '';
-        options.forEach((limit) => {
-            const option = document.createElement('option');
-            option.value = String(limit);
-            option.text = limit >= 1000 ? `Top ${Math.round(limit / 1000)}k` : `Top ${limit}`;
+        const opts = limits.map((limit) => {
+            let text = limit >= 1000 ? `Top ${Math.round(limit / 1000)}k` : `Top ${limit}`;
             if (limit === data.words.length)
-                option.text = `All ${limit.toLocaleString()}`;
-            frequencyInput.appendChild(option);
+                text = `All ${limit.toLocaleString()}`;
+            return { text, value: String(limit) };
         });
-        const selected = options.includes(selectedLimit) ? selectedLimit : (options.find((value) => value >= selectedLimit) || options[options.length - 1]);
-        frequencyInput.value = String(selected);
+        const selected = limits.includes(selectedLimit) ? String(selectedLimit) : String(limits.find(v => v >= selectedLimit) || limits[limits.length - 1]);
+        dd.setOptions(opts, selected);
     }
-    catch (error) {
-        console.error('Frequency options error:', error);
+    catch {
+        console.error('Frequency options error');
     }
 }
 const gameStage = document.getElementById('game');
@@ -958,17 +1208,44 @@ const wpmInput = document.getElementById('wpm');
 const modeInput = document.getElementById('mode');
 const languageInput = document.getElementById('language');
 const frequencyInput = document.getElementById('frequency-limit');
+const themeInput = document.getElementById('theme');
 const playerNameInput = document.getElementById('player-name');
-Game.create(gameStage, undefined, 30, 'english').then(async (game) => {
-    await populateLanguages(languageInput, game.getLanguage());
-    await populateFrequencyLimits(frequencyInput, game.getLanguage(), game.getFrequencyLimit());
+Game.create(gameStage, undefined, 30, DEFAULT_LANGUAGE).then(async (game) => {
+    const settingsMenu = document.getElementById('settings-menu');
+    const safeResume = () => {
+        if (settingsMenu.style.display === 'none')
+            game.resumeGame();
+    };
+    // Frequency dropdown first (empty), so we have the controller for populateFrequencyLimits
+    const freqDD = makeCustomDropdown(frequencyInput, [], '', (v) => {
+        game.setFrequencyLimit(Number(v));
+    }, () => game.pauseGame(), safeResume);
+    await populateLanguages(languageInput, game.getLanguage(), (code) => {
+        populateFrequencyLimits(frequencyInput, freqDD, code, game.getFrequencyLimit()).then(() => {
+            const selectedLimit = Number(frequencyInput.value);
+            if (Number.isFinite(selectedLimit)) {
+                game.setFrequencyLimit(selectedLimit);
+            }
+            game.setLanguage(code);
+        });
+    }, () => game.pauseGame(), safeResume);
+    await populateFrequencyLimits(frequencyInput, freqDD, game.getLanguage(), game.getFrequencyLimit());
     game.initialize();
-    modeInput.value = game.getMode();
-    modeInput.addEventListener('change', () => {
-        game.setMode(modeInput.value);
-    });
-    modeInput.addEventListener('focus', () => game.pauseGame());
-    modeInput.addEventListener('blur', () => game.resumeGame());
+    // Mode custom dropdown
+    makeCustomDropdown(modeInput, [
+        { text: 'Rage 🛈', value: 'rage' },
+        { text: 'Precision 🛈', value: 'precision' },
+        { text: 'Fast 🛈', value: 'fast' },
+    ], game.getMode(), (v) => {
+        game.setMode(v);
+    }, () => game.pauseGame(), safeResume);
+    // Restore semantic seed from previous session
+    const savedSeedId = localStorage.getItem('semanticSeedId');
+    const savedSeedWord = localStorage.getItem('semanticSeedWord');
+    const savedSeedLang = localStorage.getItem('semanticSeedLang');
+    if (savedSeedId && savedSeedWord && savedSeedLang) {
+        game.setSemanticSeed(Number(savedSeedId), savedSeedWord, savedSeedLang);
+    }
     wpmInput.value = game.getWPM().toString();
     wpmInput.addEventListener('change', () => {
         const newWPM = Number(wpmInput.value);
@@ -976,23 +1253,11 @@ Game.create(gameStage, undefined, 30, 'english').then(async (game) => {
     });
     wpmInput.addEventListener('focus', () => game.pauseGame());
     wpmInput.addEventListener('blur', () => game.resumeGame());
-    languageInput.addEventListener('change', () => {
-        populateFrequencyLimits(frequencyInput, languageInput.value, game.getFrequencyLimit()).then(() => {
-            const selectedLimit = Number(frequencyInput.value);
-            if (Number.isFinite(selectedLimit)) {
-                game.setFrequencyLimit(selectedLimit);
-            }
-            game.setLanguage(languageInput.value);
-        });
-    });
-    languageInput.addEventListener('focus', () => game.pauseGame());
-    languageInput.addEventListener('blur', () => game.resumeGame());
-    frequencyInput.value = game.getFrequencyLimit().toString();
-    frequencyInput.addEventListener('change', () => {
-        game.setFrequencyLimit(Number(frequencyInput.value));
-    });
-    frequencyInput.addEventListener('focus', () => game.pauseGame());
-    frequencyInput.addEventListener('blur', () => game.resumeGame());
+    // Theme custom dropdown — native change handler already bound in constructor
+    const themeOpts = THEME_OPTIONS.map(t => ({ text: t.label, value: t.id }));
+    const themeDD = makeCustomDropdown(themeInput, themeOpts, game.getTheme(), (_v) => {
+        // native change handler does the work
+    }, () => game.pauseGame(), safeResume);
     playerNameInput.addEventListener('focus', () => game.pauseGame());
     playerNameInput.addEventListener('blur', () => game.resumeGame());
     let playerName = localStorage.getItem('playerName');

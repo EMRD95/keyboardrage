@@ -1,0 +1,23 @@
+{
+  "name": "finnish",
+  "source": "words_emb_merged/finnish.json",
+  "count": 9975,
+  "format": "KRG1 uint32 count + int16 xyz[count]",
+  "coordinateScale": 0.82,
+  "normalization": {
+    "center": [
+      5.163412570953369,
+      4.9422807693481445,
+      6.889798641204834
+    ],
+    "method": "mean centered, max-distance scaled",
+    "scale": 19.394363403320312,
+    "clamp": null
+  },
+  "lod": {
+    "defaultVisibleDots": 1000,
+    "maxVisibleDots": 9975,
+    "oneWordOneDot": true,
+    "activeWordExactCoordinate": true
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "name": "macedonian",
+  "source": "words_emb_merged/macedonian.json",
+  "count": 18976,
+  "format": "KRG1 uint32 count + int16 xyz[count]",
+  "coordinateScale": 0.82,
+  "normalization": {
+    "center": [
+      6.221780300140381,
+      3.9426767826080322,
+      6.490398406982422
+    ],
+    "method": "mean centered, max-distance scaled",
+    "scale": 20.061399459838867,
+    "clamp": null
+  },
+  "lod": {
+    "defaultVisibleDots": 1000,
+    "maxVisibleDots": 18976,
+    "oneWordOneDot": true,
+    "activeWordExactCoordinate": true
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "name": "greek",
+  "source": "words_emb_merged/greek.json",
+  "count": 10543,
+  "format": "KRG1 uint32 count + int16 xyz[count]",
+  "coordinateScale": 0.82,
+  "normalization": {
+    "center": [
+      6.0686469078063965,
+      2.393728494644165,
+      6.771915435791016
+    ],
+    "method": "mean centered, max-distance scaled",
+    "scale": 20.134504318237305,
+    "clamp": null
+  },
+  "lod": {
+    "defaultVisibleDots": 1000,
+    "maxVisibleDots": 10543,
+    "oneWordOneDot": true,
+    "activeWordExactCoordinate": true
+  }
+}

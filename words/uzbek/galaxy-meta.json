@@ -1,0 +1,23 @@
+{
+  "name": "uzbek",
+  "source": "words_emb_merged/uzbek.json",
+  "count": 2730,
+  "format": "KRG1 uint32 count + int16 xyz[count]",
+  "coordinateScale": 0.82,
+  "normalization": {
+    "center": [
+      5.146707057952881,
+      4.928421974182129,
+      6.107320785522461
+    ],
+    "method": "mean centered, max-distance scaled",
+    "scale": 19.62898826599121,
+    "clamp": null
+  },
+  "lod": {
+    "defaultVisibleDots": 1000,
+    "maxVisibleDots": 2730,
+    "oneWordOneDot": true,
+    "activeWordExactCoordinate": true
+  }
+}

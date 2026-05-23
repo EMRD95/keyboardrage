@@ -1,0 +1,23 @@
+{
+  "name": "esperanto",
+  "source": "words_emb_merged/esperanto.json",
+  "count": 17900,
+  "format": "KRG1 uint32 count + int16 xyz[count]",
+  "coordinateScale": 0.82,
+  "normalization": {
+    "center": [
+      4.952492713928223,
+      5.607210159301758,
+      5.695423126220703
+    ],
+    "method": "mean centered, max-distance scaled",
+    "scale": 19.761302947998047,
+    "clamp": null
+  },
+  "lod": {
+    "defaultVisibleDots": 1000,
+    "maxVisibleDots": 17900,
+    "oneWordOneDot": true,
+    "activeWordExactCoordinate": true
+  }
+}

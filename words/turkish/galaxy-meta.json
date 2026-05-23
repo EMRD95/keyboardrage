@@ -1,0 +1,23 @@
+{
+  "name": "turkish",
+  "source": "words_emb_merged/turkish.json",
+  "count": 3831,
+  "format": "KRG1 uint32 count + int16 xyz[count]",
+  "coordinateScale": 0.82,
+  "normalization": {
+    "center": [
+      5.324704647064209,
+      4.743030071258545,
+      6.332730770111084
+    ],
+    "method": "mean centered, max-distance scaled",
+    "scale": 19.26327133178711,
+    "clamp": null
+  },
+  "lod": {
+    "defaultVisibleDots": 1000,
+    "maxVisibleDots": 3831,
+    "oneWordOneDot": true,
+    "activeWordExactCoordinate": true
+  }
+}

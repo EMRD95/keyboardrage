@@ -1,0 +1,23 @@
+{
+  "name": "slovak",
+  "source": "words_emb_merged/slovak.json",
+  "count": 2486,
+  "format": "KRG1 uint32 count + int16 xyz[count]",
+  "coordinateScale": 0.82,
+  "normalization": {
+    "center": [
+      6.654914379119873,
+      2.823444128036499,
+      6.133456230163574
+    ],
+    "method": "mean centered, max-distance scaled",
+    "scale": 20.42522430419922,
+    "clamp": null
+  },
+  "lod": {
+    "defaultVisibleDots": 1000,
+    "maxVisibleDots": 2486,
+    "oneWordOneDot": true,
+    "activeWordExactCoordinate": true
+  }
+}

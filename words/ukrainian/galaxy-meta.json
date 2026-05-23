@@ -1,0 +1,23 @@
+{
+  "name": "ukrainian",
+  "source": "words_emb_merged/ukrainian.json",
+  "count": 20318,
+  "format": "KRG1 uint32 count + int16 xyz[count]",
+  "coordinateScale": 0.82,
+  "normalization": {
+    "center": [
+      5.225917816162109,
+      4.271754264831543,
+      6.287347793579102
+    ],
+    "method": "mean centered, max-distance scaled",
+    "scale": 19.294069290161133,
+    "clamp": null
+  },
+  "lod": {
+    "defaultVisibleDots": 1000,
+    "maxVisibleDots": 20318,
+    "oneWordOneDot": true,
+    "activeWordExactCoordinate": true
+  }
+}

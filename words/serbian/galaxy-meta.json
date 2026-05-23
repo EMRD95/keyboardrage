@@ -1,0 +1,23 @@
+{
+  "name": "serbian",
+  "source": "words_emb_merged/serbian.json",
+  "count": 3022,
+  "format": "KRG1 uint32 count + int16 xyz[count]",
+  "coordinateScale": 0.82,
+  "normalization": {
+    "center": [
+      5.017193794250488,
+      4.570078372955322,
+      6.34920597076416
+    ],
+    "method": "mean centered, max-distance scaled",
+    "scale": 19.118408203125,
+    "clamp": null
+  },
+  "lod": {
+    "defaultVisibleDots": 1000,
+    "maxVisibleDots": 3022,
+    "oneWordOneDot": true,
+    "activeWordExactCoordinate": true
+  }
+}
