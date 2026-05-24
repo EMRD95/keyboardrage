@@ -20,12 +20,14 @@ const MILKY_WAY_RENDER_ORDER = -88;
 const MILKY_WAY_POINT_SCALE = 1.90;
 const ACTIVE_STAR_COLOR = new THREE.Color('#ffffff');
 const CORE_WHITE = new THREE.Color('#ffffff');
-const CORE_GOLD = new THREE.Color('#ffd36a');
+const CORE_GOLD = new THREE.Color('#ffc966');
+const BULGE_ORANGE = new THREE.Color('#ff7b00');
 const HOT_MAGENTA = new THREE.Color('#ff4fd8');
 const DUST_VIOLET = new THREE.Color('#9b5cff');
+const DUST_BROWN = new THREE.Color('#c9713c');
 const NEBULA_CYAN = new THREE.Color('#57efff');
 const NEBULA_BLUE = new THREE.Color('#3572ff');
-const DEEP_SPACE = new THREE.Color('#05020d');
+const DEEP_SPACE = new THREE.Color('#3b2266');
 
 const DISPLAY_VERTEX_SHADER = `
   varying vec2 vUv;
@@ -137,7 +139,6 @@ export class MilkyWayBackground implements ThreeThemeRuntime {
   private readonly dustMaterial: THREE.PointsMaterial;
   private readonly activeCoreMaterial: THREE.PointsMaterial;
   private readonly activeHaloMaterial: THREE.PointsMaterial;
-  private readonly activeGlowMaterial: THREE.PointsMaterial;
 
   private basePointColors = new Float32Array(0);
   private livePointColors = new Float32Array(0);
@@ -152,6 +153,12 @@ export class MilkyWayBackground implements ThreeThemeRuntime {
   private readonly accent2 = new THREE.Color('#ff4fd8');
   private visible = false;
   private animTime = 0;
+  private baseCamX = 0;
+  private baseCamY = 0.18;
+  private baseCamZ = 2.0;
+  private initGalaxyRotX = -0.18;
+  private initGalaxyRotY = 0;
+  private initGalaxyRotZ = -0.11;
   private activeWord = '';
   private activeSourceIndex: number | undefined;
   private activeIndex = -1;
@@ -162,8 +169,22 @@ export class MilkyWayBackground implements ThreeThemeRuntime {
     this.spaceScene.fog = new THREE.FogExp2(0x000000, 0.16);
 
     this.spaceCamera = new THREE.PerspectiveCamera(38, context.logicalWidth / context.logicalHeight, 0.01, 60);
-    this.spaceCamera.position.set(0, 0.18, 4.8);
+
+    // Random initial 3D viewing angle — same distance, random orientation
+    const camDist = 2.02;
+    const theta = Math.random() * Math.PI * 2;          // azimuth (0 to 2π)
+    const phi = Math.acos(2 * Math.random() - 1) * 0.65 + 0.6;  // polar, biased away from poles
+    this.baseCamX = camDist * Math.sin(phi) * Math.cos(theta);
+    this.baseCamY = camDist * Math.cos(phi);
+    this.baseCamZ = camDist * Math.sin(phi) * Math.sin(theta);
+    this.spaceCamera.position.set(this.baseCamX, this.baseCamY, this.baseCamZ);
     this.spaceCamera.lookAt(0, 0, 0);
+
+    // Random initial galaxy rotation
+    this.initGalaxyRotX = (Math.random() - 0.5) * 0.4;
+    this.initGalaxyRotY = Math.random() * Math.PI * 2;
+    this.initGalaxyRotZ = (Math.random() - 0.5) * 0.25;
+    this.galaxyRoot.rotation.set(this.initGalaxyRotX, this.initGalaxyRotY, this.initGalaxyRotZ);
 
     const pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
     this.renderTarget = new THREE.WebGLRenderTarget(
@@ -236,17 +257,7 @@ export class MilkyWayBackground implements ThreeThemeRuntime {
       depthWrite: false,
       blending: THREE.AdditiveBlending
     });
-    this.activeGlowMaterial = new THREE.PointsMaterial({
-      size: 0.92,
-      sizeAttenuation: true,
-      map: this.wideGlowTexture,
-      color: HOT_MAGENTA,
-      transparent: true,
-      opacity: 0.22,
-      depthTest: false,
-      depthWrite: false,
-      blending: THREE.AdditiveBlending
-    });
+
 
     const stars = new THREE.Points(this.pointGeometry, this.pointMaterial);
     const dust = new THREE.Points(this.pointGeometry, this.dustMaterial);
@@ -257,17 +268,15 @@ export class MilkyWayBackground implements ThreeThemeRuntime {
     this.galaxyRoot.add(dust, stars);
 
     this.highlightGeometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array([0, 0, 0]), 3));
-    const activeGlow = new THREE.Points(this.highlightGeometry, this.activeGlowMaterial);
     const activeHalo = new THREE.Points(this.highlightGeometry, this.activeHaloMaterial);
     const activeCore = new THREE.Points(this.highlightGeometry, this.activeCoreMaterial);
-    activeGlow.name = 'MilkyWayActiveGlow';
     activeHalo.name = 'MilkyWayActiveHalo';
     activeCore.name = 'MilkyWayActiveCore';
-    [activeGlow, activeHalo, activeCore].forEach((child, index) => {
+    [activeHalo, activeCore].forEach((child, index) => {
       child.frustumCulled = false;
       child.renderOrder = 997 + index;
     });
-    this.activeGroup.add(activeGlow, activeHalo, activeCore);
+    this.activeGroup.add(activeHalo, activeCore);
     this.activeGroup.visible = false;
     this.galaxyRoot.add(this.activeGroup);
 
@@ -304,11 +313,12 @@ export class MilkyWayBackground implements ThreeThemeRuntime {
     if (!this.visible) return;
 
     const t = this.animTime;
-    this.galaxyRoot.rotation.x = -0.18 + Math.sin(t * 0.11) * 0.045;
-    this.galaxyRoot.rotation.y = t * 0.045;
-    this.galaxyRoot.rotation.z = -0.11 + Math.sin(t * 0.07 + 1.5) * 0.025;
-    this.spaceCamera.position.x = Math.sin(t * 0.18) * 0.20;
-    this.spaceCamera.position.y = 0.20 + Math.cos(t * 0.14) * 0.09;
+    this.galaxyRoot.rotation.x = this.initGalaxyRotX + Math.sin(t * 0.11) * 0.045;
+    this.galaxyRoot.rotation.y = this.initGalaxyRotY + t * 0.045;
+    this.galaxyRoot.rotation.z = this.initGalaxyRotZ + Math.sin(t * 0.07 + 1.5) * 0.025;
+    this.spaceCamera.position.x = this.baseCamX + Math.sin(t * 0.18) * 0.20;
+    this.spaceCamera.position.y = this.baseCamY + Math.cos(t * 0.14) * 0.09;
+    this.spaceCamera.position.z = this.baseCamZ + Math.cos(t * 0.22) * 0.15;
     this.spaceCamera.lookAt(0, 0, 0);
 
     const metrics = getStarMetrics(this.wordPoints.length);
@@ -318,12 +328,9 @@ export class MilkyWayBackground implements ThreeThemeRuntime {
     this.dustMaterial.opacity = metrics.opacity * 0.24;
 
     if (this.activeIndex >= 0) {
-      const pulse = Math.sin(t * 5.4) * 0.5 + 0.5;
-      const slow = Math.sin(t * 1.7) * 0.5 + 0.5;
+      const pulse = Math.sin(t * 2.7) * 0.5 + 0.5;
+      const slow = Math.sin(t * 0.85) * 0.5 + 0.5;
       this.activeGroup.visible = true;
-      this.activeGlowMaterial.size = 0.86 + slow * 0.15 + pulse * 0.03;
-      this.activeGlowMaterial.opacity = 0.14 + slow * 0.08;
-      this.activeGlowMaterial.color.copy(HOT_MAGENTA).lerp(DUST_VIOLET, 0.32 + slow * 0.24);
       this.activeHaloMaterial.size = 0.38 + pulse * 0.08;
       this.activeHaloMaterial.opacity = 0.22 + pulse * 0.12;
       this.activeHaloMaterial.color.copy(NEBULA_CYAN).lerp(CORE_WHITE, 0.18 + slow * 0.16);
@@ -338,7 +345,6 @@ export class MilkyWayBackground implements ThreeThemeRuntime {
     this.accent.set(accent);
     this.accent2.set(accent2);
     this.activeHaloMaterial.color.copy(NEBULA_CYAN);
-    this.activeGlowMaterial.color.copy(HOT_MAGENTA);
     this.rebuildPointColors();
   }
 
@@ -354,7 +360,6 @@ export class MilkyWayBackground implements ThreeThemeRuntime {
     this.dustMaterial.dispose();
     this.activeCoreMaterial.dispose();
     this.activeHaloMaterial.dispose();
-    this.activeGlowMaterial.dispose();
     this.starTexture.dispose();
     this.haloTexture.dispose();
     this.wideGlowTexture.dispose();
@@ -417,28 +422,122 @@ export class MilkyWayBackground implements ThreeThemeRuntime {
 
   private rebuildPointColors() {
     const attr = this.pointGeometry.getAttribute('color') as THREE.BufferAttribute | undefined;
+    const posAttr = this.pointGeometry.getAttribute('position') as THREE.BufferAttribute;
+    if (!posAttr) return;
+
     const color = new THREE.Color();
     const count = this.wordPoints.length;
 
+    // 9-color palette for spatial clusters (original Milky Way hues)
+    // Warm side: gold, orange, magenta, brown — Cool side: violet, cyan, blue, deep-space
+    const PALETTE = [
+      CORE_GOLD,      // warm inner disk
+      BULGE_ORANGE,   // older stellar populations
+      HOT_MAGENTA,    // H-alpha emission nebulae
+      DUST_BROWN,     // dust lane brown
+      DUST_VIOLET,    // cooler regions / reflection nebulae
+      NEBULA_CYAN,    // young hot stars
+      NEBULA_BLUE,    // spiral arm blue giants
+      DEEP_SPACE,     // faint outer halo
+      CORE_WHITE,     // bright sparkle outlier
+    ];
+    const PALETTE_LEN = PALETTE.length;
+
     for (let i = 0; i < count; i += 1) {
-      const [_, x, y, z] = this.wordPoints[i];
-      const radius = THREE.MathUtils.clamp(Math.sqrt(x * x + y * y + z * z) / 1.42, 0, 1);
-      const band = Math.sin(x * 6.8 + y * 9.1 + z * 4.7) * 0.5 + 0.5;
-      const hueChoice = hash01(i, 19);
-      if (radius < 0.18) {
-        color.copy(CORE_WHITE).lerp(CORE_GOLD, band * 0.48);
-      } else if (radius < 0.42) {
-        color.copy(CORE_GOLD).lerp(HOT_MAGENTA, 0.30 + band * 0.40);
-      } else if (hueChoice < 0.28) {
-        color.copy(HOT_MAGENTA).lerp(DUST_VIOLET, band * 0.62);
-      } else if (hueChoice < 0.58) {
-        color.copy(DUST_VIOLET).lerp(NEBULA_BLUE, band * 0.58);
-      } else if (hueChoice < 0.82) {
-        color.copy(NEBULA_CYAN).lerp(NEBULA_BLUE, 0.22 + band * 0.50);
+      const px = posAttr.getX(i);
+      const py = posAttr.getY(i);
+      const pz = posAttr.getZ(i);
+
+      // Distances
+      const r3d = Math.sqrt(px * px + py * py + pz * pz);
+      const radius = THREE.MathUtils.clamp(r3d / MILKY_WAY_POINT_SCALE, 0, 1);
+      const zDist = Math.abs(pz);
+      const zNorm = THREE.MathUtils.clamp(zDist / (MILKY_WAY_POINT_SCALE * 0.25), 0, 1);
+
+      // Spatial noise for organic smoothing between clusters
+      const nx = px * 3.5, ny = py * 3.5, nz = pz * 3.5;
+      const clusterNoise1 = Math.sin(nx + ny) + Math.sin(ny + nz) + Math.sin(nz + nx);
+      const clusterNoise2 = Math.sin(nx * 2.3 + ny * 2.1) + Math.sin(ny * 2.4 + nz * 2.2) + Math.sin(nz * 2.5 + nx * 2.0);
+      const spatialNoise = (clusterNoise1 + clusterNoise2 * 0.5) / 4.5 + 0.5; // 0-1
+
+      const n1 = hash01(i, 19);
+      const n2 = hash01(i, 23);
+
+      const isCore = radius < 0.12;
+      const isBulge = radius < 0.25;
+
+      // Plane dropoff — disk is flatter, bulge is rounder
+      let planeDropoff = 1.0;
+      if (!isBulge) {
+        planeDropoff = Math.max(0.35, 1.0 - zNorm * 1.2);
       } else {
-        color.copy(CORE_WHITE).lerp(DEEP_SPACE, 0.14 + band * 0.22);
+        planeDropoff = Math.max(0.6, 1.0 - zNorm * 0.6);
       }
-      const brightness = 0.48 + (1.0 - radius) * 0.42 + hash01(i, 23) * 0.18;
+
+      let brightness = 0;
+
+      // === ORGANIC CONTINUOUS COLOR: multi-octave spatial noise ===
+      // No grids, no hard edges — smooth flowing color from position
+      // Nearby points naturally share similar hues; distant points diverge
+
+      // Three-octave noise for primary hue (large + medium + fine scale)
+      const hueNoise =
+        Math.sin(px * 2.7 + py * 3.1) * 0.45 +
+        Math.sin(py * 4.3 + pz * 5.1) * 0.30 +
+        Math.sin(pz * 3.7 + px * 4.9) * 0.30 +
+        Math.sin(px * 8.3 + pz * 6.1) * 0.20 +
+        Math.sin(py * 9.1 + px * 7.3) * 0.18 +
+        Math.sin(pz * 10.7 + py * 8.9) * 0.18;
+
+      // Second noise channel for saturation-like variation
+      const varNoise =
+        Math.sin(px * 5.1 + pz * 6.7) * 0.40 +
+        Math.sin(py * 7.9 + px * 5.3) * 0.30 +
+        Math.sin(pz * 9.7 + py * 8.1) * 0.25;
+
+      // Map hueNoise (-1.6 to 1.6) to palette index (0 to PALETTE_LEN-1)
+      const hueNorm = THREE.MathUtils.clamp((hueNoise / 1.6) * 0.5 + 0.5, 0, 1);
+      const palettePos = hueNorm * (PALETTE_LEN - 1);
+      const idxA = Math.min(Math.floor(palettePos), PALETTE_LEN - 1);
+      const idxB = Math.min(idxA + 1, PALETTE_LEN - 1);
+      color.copy(PALETTE[idxA]).lerp(PALETTE[idxB], palettePos - idxA);
+
+      // Subtle secondary variation — pull slightly toward a nearby palette neighbor
+      const varShift = THREE.MathUtils.clamp((varNoise / 1.2) * 0.5 + 0.5, 0, 1);
+      const shiftIdx = (idxA + 2 + Math.floor(varShift * 3)) % PALETTE_LEN;
+      color.lerp(PALETTE[shiftIdx], 0.08 + varShift * 0.12);  // 8-20% secondary tint
+
+      if (isCore) {
+        // Core: brightest, subtle white-hot glow on top
+        const f = 1.0 - (radius / 0.12);
+        brightness = 1.0 + f * 0.5 + n1 * 0.15;
+        color.lerp(CORE_WHITE, 0.08 + f * 0.25);  // 8-33% white glow
+      } else if (isBulge) {
+        // Bulge: bright, subtle gold warmth
+        const f = 1.0 - ((radius - 0.12) / 0.13);
+        brightness = 0.7 + f * 0.4 + spatialNoise * 0.3;
+        color.lerp(CORE_GOLD, 0.05 + f * 0.20);  // 5-25% gold warmth
+      } else {
+        // Disk: pure organic noise color, no warmth overlay
+        const diskF = Math.max(0, 1.0 - ((radius - 0.25) / 0.75));
+        brightness = 0.35 + diskF * 0.45 + spatialNoise * 0.25;
+        brightness += (1.0 - zNorm) * 0.2;
+      }
+
+      brightness *= planeDropoff;
+
+      // Occasional super-bright sparkle stars (~1.5% chance)
+      if (n2 > 0.985) {
+        brightness *= 1.6;
+        color.lerp(CORE_WHITE, 0.8);
+      }
+
+      // Edge fade — outer regions dim smoothly
+      const edgeFade = Math.max(0.2, 1.0 - Math.pow(radius, 2.5));
+      brightness *= edgeFade;
+      brightness = Math.max(0.15, brightness);
+      brightness = Math.min(brightness, 1.5);
+
       this.basePointColors[i * 3] = color.r * brightness;
       this.basePointColors[i * 3 + 1] = color.g * brightness;
       this.basePointColors[i * 3 + 2] = color.b * brightness;
