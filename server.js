@@ -211,11 +211,16 @@ try {
 }
 
 // import motivation.json
-let motivationalMessages;
+let motivationalMessages = [
+  'Keep typing — the leaderboard is only available for supported WPM values.'
+];
 try {
-  motivationalMessages = JSON.parse(fs.readFileSync('./words/motivation.json', 'utf8'));
+  const loadedMessages = JSON.parse(fs.readFileSync('./words/motivation.json', 'utf8'));
+  if (Array.isArray(loadedMessages) && loadedMessages.length > 0) {
+    motivationalMessages = loadedMessages;
+  }
 } catch (err) {
-  console.error('Failed to load motivation.json', err);
+  console.warn('Failed to load motivation.json, using fallback motivation message.', err);
 }
 
 // modified leaderboard endpoint

@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { FRACTAL_VERTEX_SHADER } from './themes/shader-core.js';
 import { THEME_OPTIONS, THREE_BACKGROUND_THEMES, VIDEO_THEMES, isThreeBackgroundTheme } from './themes/registry.js';
 import { shouldIgnoreDeadAccentKey, typedKeyPrefixLength } from './typing-input.js';
+import { effectiveAverageWordLength, textDirectionForLanguage } from './language-support.js';
 const LOGICAL_WIDTH = 800;
 const LOGICAL_HEIGHT = 600;
 const WORD_FONT_SIZE = 48;
@@ -24,6 +25,8 @@ class Game {
         this.mode = localStorage.getItem('mode') || 'rage';
         this.applyGrammarSetting = localStorage.getItem('applyGrammar') === 'true';
         this.addNumbersSetting = localStorage.getItem('addNumbers') === 'true';
+        this.requireDiacriticsSetting = localStorage.getItem('requireDiacritics') !== 'false';
+        this.pendingDeadAccentKey = null;
         this.semanticActive = false;
         this.semanticAllWords = [];
         this.semanticRawWords = [];
@@ -80,6 +83,9 @@ class Game {
         this.addNumbersCheckbox = document.getElementById('addNumbers');
         this.addNumbersCheckbox.checked = this.addNumbersSetting;
         this.addNumbersCheckbox.addEventListener('change', this.toggleAddNumbers.bind(this));
+        this.requireDiacriticsCheckbox = document.getElementById('diacritics');
+        this.requireDiacriticsCheckbox.checked = this.requireDiacriticsSetting;
+        this.requireDiacriticsCheckbox.addEventListener('change', this.toggleRequireDiacritics.bind(this));
         this.themeSelector = document.getElementById('theme');
         this.populateThemeSelector();
         this.themeSelector.value = this.theme;
@@ -301,7 +307,7 @@ class Game {
     }
     closeSettingsMenuIfClickedOutside(event) {
         const path = event.composedPath();
-        const inputFields = ['player-name', 'wpm', 'mode', 'language', 'frequency-limit', 'theme', 'grammar', 'addNumbers'];
+        const inputFields = ['player-name', 'wpm', 'mode', 'language', 'frequency-limit', 'theme', 'grammar', 'addNumbers', 'diacritics'];
         if (this.settingsMenu.style.display !== 'none' && !path.includes(this.settingsMenu) && !path.includes(this.settingsButton)) {
             const clickedOnInputField = path.some((element) => element.id && inputFields.includes(element.id));
             if (!clickedOnInputField) {
@@ -360,6 +366,10 @@ class Game {
         this.addNumbersSetting = this.addNumbersCheckbox.checked;
         localStorage.setItem('addNumbers', this.addNumbersSetting.toString());
         this.restart(this.WPM);
+    }
+    toggleRequireDiacritics() {
+        this.requireDiacriticsSetting = this.requireDiacriticsCheckbox.checked;
+        localStorage.setItem('requireDiacritics', this.requireDiacriticsSetting.toString());
     }
     toggleApplyGrammar() {
         this.applyGrammarSetting = this.grammarCheckbox.checked;
@@ -496,13 +506,13 @@ class Game {
         const response = await fetch(`/words/${this.language}/words.json`);
         const data = (await response.json());
         const limit = Math.max(1, Math.min(data.words.length, this.frequencyLimit || data.words.length));
-        const selectedWords = data.words.slice(0, limit);
+        const selectedWords = data.words.slice(0, limit).map(word => word.trimEnd());
         this.allWords = this.shuffleArray(selectedWords.map((word, sourceIndex) => ({
             text: this.addRandomNumbers(this.applyGrammar(word)),
             sourceIndex
         })));
         const freqKey = String(this.frequencyLimit || data.words.length);
-        this.averageCharLength = data.charLengthByFrequency?.[freqKey] ?? data.charLength;
+        this.averageCharLength = effectiveAverageWordLength(this.language, selectedWords, data.charLengthByFrequency?.[freqKey] ?? data.charLength);
         if (this.applyGrammarSetting) {
             this.averageCharLength += 1;
         }
@@ -587,35 +597,86 @@ class Game {
             }
         });
     }
+    showSemanticServiceError(message = 'Semantic search requires the semantic API on port 8703.') {
+        this.semanticDropdown.innerHTML = '';
+        const div = document.createElement('div');
+        div.textContent = message;
+        div.style.color = WORD_DANGER;
+        this.semanticDropdown.appendChild(div);
+        this.semanticDropdown.style.display = 'block';
+    }
+    renderSemanticResults(results) {
+        if (!results.length) {
+            this.semanticDropdown.style.display = 'none';
+            return;
+        }
+        this.semanticDropdown.innerHTML = '';
+        results.forEach((r) => {
+            const div = document.createElement('div');
+            div.textContent = `${r.word} (${r.language})`;
+            div.addEventListener('click', () => {
+                this.semanticDropdown.style.display = 'none';
+                this.semanticSearchInput.value = r.word;
+                this.setSemanticSeed(r.id, r.word, r.language);
+            });
+            this.semanticDropdown.appendChild(div);
+        });
+        this.semanticDropdown.style.display = 'block';
+    }
     async semanticAutocomplete(q) {
         try {
             const resp = await fetch(`http://localhost:8703/search?q=${encodeURIComponent(q)}&limit=8&language=${encodeURIComponent(this.language)}`);
             if (!resp.ok)
-                return;
+                throw new Error(`HTTP ${resp.status}`);
             const data = await resp.json();
-            if (!data.results || data.results.length === 0) {
-                this.semanticDropdown.style.display = 'none';
-                return;
-            }
-            this.semanticDropdown.innerHTML = '';
-            data.results.forEach((r) => {
-                const div = document.createElement('div');
-                div.textContent = `${r.word} (${r.language})`;
-                div.addEventListener('click', () => {
-                    this.semanticDropdown.style.display = 'none';
-                    this.semanticSearchInput.value = r.word;
-                    this.setSemanticSeed(r.id, r.word, r.language);
-                });
-                this.semanticDropdown.appendChild(div);
-            });
-            this.semanticDropdown.style.display = 'block';
+            this.renderSemanticResults(data.results || []);
         }
-        catch {
-            // API offline — silently ignore
+        catch (error) {
+            console.warn('Semantic API unavailable', error);
+            this.showSemanticServiceError('Semantic API unavailable (port 8703). Start galaxy/semantic/semantic_neighbors_server.py.');
+        }
+    }
+    activateSemanticWords(seedWord, rawWords, label) {
+        this.semanticActive = true;
+        this.semanticRawWords = rawWords.map(word => word.trimEnd()).filter(Boolean);
+        this.semanticAllWords = this.semanticRawWords.map((word, i) => ({
+            text: this.addRandomNumbers(this.applyGrammar(word)),
+            sourceIndex: i,
+        }));
+        const totalChars = this.semanticRawWords.reduce((sum, word) => sum + word.length, 0);
+        this.averageCharLength = effectiveAverageWordLength(this.language, this.semanticRawWords, this.semanticRawWords.length > 0 ? totalChars / this.semanticRawWords.length : 5);
+        if (this.applyGrammarSetting)
+            this.averageCharLength += 1;
+        if (this.addNumbersSetting)
+            this.averageCharLength += 2;
+        this.semanticActiveDiv.innerHTML = '';
+        this.semanticActiveDiv.style.display = 'block';
+        this.semanticActiveDiv.textContent = `"${seedWord}" → ${this.semanticRawWords.length} neighbors (${label}) `;
+        const clearBtn = document.createElement('button');
+        clearBtn.textContent = '✕';
+        clearBtn.style.cssText = 'background:none;border:1px solid var(--accent);color:var(--accent);cursor:pointer;padding:0 5px;margin-left:6px;border-radius:3px;font-size:0.75rem;';
+        clearBtn.addEventListener('click', () => this.clearSemanticMode());
+        this.semanticActiveDiv.appendChild(clearBtn);
+        this.clearWords();
+        this.allWords = this.shuffleArray([...this.semanticAllWords]);
+        this.wordList = [];
+        this.wordIndex = 0;
+        this.nextBatch();
+        this.score = 0;
+        this.timeElapsed = 0;
+        this.keystrokes = 0;
+        this.typos = 0;
+        this.pendingDeadAccentKey = null;
+        this.startTime = Date.now();
+        this.isGameOver = false;
+        this.updateHud();
+        this.generateWords();
+        if (!this.pause && this.animationFrame === null) {
+            this.lastTimestamp = performance.now();
+            this.animate(this.lastTimestamp);
         }
     }
     async setSemanticSeed(pointId, word, lang) {
-        this.semanticActive = true;
         this.semanticActiveDiv.style.display = 'block';
         this.semanticActiveDiv.textContent = `Loading 200 neighbors of "${word}"...`;
         try {
@@ -624,51 +685,16 @@ class Game {
                 throw new Error(`HTTP ${resp.status}`);
             const data = await resp.json();
             const neighbors = data.neighbors || [];
-            this.semanticRawWords = neighbors.map((n) => n.word);
-            this.semanticAllWords = neighbors.map((n, i) => ({
-                text: this.addRandomNumbers(this.applyGrammar(n.word)),
-                sourceIndex: i,
-            }));
-            const totalChars = neighbors.reduce((sum, n) => sum + n.word.length, 0);
-            this.averageCharLength = neighbors.length > 0 ? totalChars / neighbors.length : 5;
-            if (this.applyGrammarSetting) {
-                this.averageCharLength += 1;
-            }
-            if (this.addNumbersSetting) {
-                this.averageCharLength += 2;
-            }
-            this.semanticActiveDiv.innerHTML = '';
-            this.semanticActiveDiv.textContent =
-                `"${word}" → ${neighbors.length} neighbors (semantic similarity) `;
-            const clearBtn = document.createElement('button');
-            clearBtn.textContent = '✕';
-            clearBtn.style.cssText = 'background:none;border:1px solid var(--accent);color:var(--accent);cursor:pointer;padding:0 5px;margin-left:6px;border-radius:3px;font-size:0.75rem;';
-            clearBtn.addEventListener('click', () => this.clearSemanticMode());
-            this.semanticActiveDiv.appendChild(clearBtn);
-            this.clearWords();
-            this.allWords = this.shuffleArray([...this.semanticAllWords]);
-            this.wordList = [];
-            this.wordIndex = 0;
-            this.nextBatch();
-            this.score = 0;
-            this.timeElapsed = 0;
-            this.keystrokes = 0;
-            this.typos = 0;
-            this.startTime = Date.now();
-            this.isGameOver = false;
-            // Persist across sessions
+            if (neighbors.length === 0)
+                throw new Error('No semantic neighbors returned');
+            this.activateSemanticWords(word, neighbors.map((n) => n.word), 'semantic similarity');
             localStorage.setItem('semanticSeedId', String(pointId));
             localStorage.setItem('semanticSeedWord', word);
             localStorage.setItem('semanticSeedLang', lang);
-            this.updateHud();
-            this.generateWords();
-            if (!this.pause && this.animationFrame === null) {
-                this.lastTimestamp = performance.now();
-                this.animate(this.lastTimestamp);
-            }
         }
         catch (err) {
-            this.semanticActiveDiv.textContent = 'Semantic API unavailable (port 8703)';
+            console.warn('Semantic API unavailable', err);
+            this.semanticActiveDiv.textContent = 'Semantic API unavailable (port 8703).';
             this.semanticActive = false;
         }
     }
@@ -690,6 +716,7 @@ class Game {
         this.timeElapsed = 0;
         this.keystrokes = 0;
         this.typos = 0;
+        this.pendingDeadAccentKey = null;
         this.startTime = Date.now();
         this.isGameOver = false;
         this.wordIndex = 0;
@@ -701,7 +728,7 @@ class Game {
                 sourceIndex: i,
             }));
             const totalChars = this.semanticRawWords.reduce((sum, w) => sum + w.length, 0);
-            this.averageCharLength = this.semanticRawWords.length > 0 ? totalChars / this.semanticRawWords.length : 5;
+            this.averageCharLength = effectiveAverageWordLength(this.language, this.semanticRawWords, this.semanticRawWords.length > 0 ? totalChars / this.semanticRawWords.length : 5);
             if (this.applyGrammarSetting)
                 this.averageCharLength += 1;
             if (this.addNumbersSetting)
@@ -758,7 +785,7 @@ class Game {
         if (capsLockIndicator) {
             capsLockIndicator.style.display = event.getModifierState('CapsLock') ? 'block' : 'none';
         }
-        if (["Shift", "Control", "Alt", "AltGraph", "Meta", "Backspace", "CapsLock", "Escape", "Dead"].includes(event.key)
+        if (["Shift", "Control", "Alt", "AltGraph", "Meta", "Backspace", "CapsLock", "Escape"].includes(event.key)
             || (event.key >= 'F1' && event.key <= 'F12')) {
             return;
         }
@@ -767,10 +794,12 @@ class Game {
             return;
         const firstWord = this.words[0];
         if (shouldIgnoreDeadAccentKey(event.key, firstWord.text)) {
+            this.pendingDeadAccentKey = event.key;
             return;
         }
         this.keystrokes++;
-        const typedLength = typedKeyPrefixLength(firstWord.text, event.key);
+        const typedLength = typedKeyPrefixLength(firstWord.text, event.key, !this.requireDiacriticsSetting, this.pendingDeadAccentKey);
+        this.pendingDeadAccentKey = null;
         if (typedLength > 0) {
             firstWord.text = firstWord.text.slice(typedLength);
             firstWord.color = WORD_FILL;
@@ -858,7 +887,11 @@ class Game {
     }
     measureWordWidth(text) {
         this.measureContext.font = WORD_FONT;
-        return this.measureContext.measureText(text).width;
+        this.measureContext.direction = textDirectionForLanguage(this.language);
+        return this.measureContext.measureText(this.visibleText(text)).width;
+    }
+    visibleText(text) {
+        return text.replace(/ /g, '⎵');
     }
     createWordSprite(word) {
         const texture = this.renderWordTexture(word);
@@ -882,11 +915,9 @@ class Game {
     renderWordTexture(word) {
         const dpr = Math.min(window.devicePixelRatio || 1, 2);
         this.measureContext.font = WORD_FONT;
-        let width = 24;
-        for (const char of word.text) {
-            width += this.measureContext.measureText(char === ' ' ? '⎵' : char).width;
-        }
-        width = Math.max(72, Math.ceil(width + 28));
+        const direction = textDirectionForLanguage(this.language);
+        const displayText = this.visibleText(word.text);
+        const width = Math.max(72, Math.ceil(this.measureContext.measureText(displayText).width + 52));
         const height = 76;
         const canvas = document.createElement('canvas');
         canvas.width = Math.ceil(width * dpr);
@@ -897,22 +928,33 @@ class Game {
         context.scale(dpr, dpr);
         context.clearRect(0, 0, width, height);
         context.font = WORD_FONT;
+        context.direction = direction;
         context.textBaseline = 'alphabetic';
         context.shadowColor = word.color === WORD_DANGER ? 'rgba(255, 0, 64, 0.9)' : 'rgba(125, 249, 255, 0.42)';
         context.shadowBlur = word.color === WORD_DANGER ? 20 : 12;
-        let offsetX = 12;
         const baseline = 54;
-        for (let i = 0; i < word.text.length; i++) {
-            const char = word.text[i];
-            const printable = char === ' ' ? '⎵' : char;
-            if (char === ' ') {
-                context.fillStyle = i === word.currentIndex && word.color === WORD_DANGER ? WORD_DANGER : WORD_MUTED;
+        if (direction === 'rtl') {
+            // Draw RTL words as one shaped run. Rendering Persian/Urdu/Hebrew one
+            // codepoint at a time breaks joining and reverses the visual flow.
+            context.textAlign = 'right';
+            context.fillStyle = word.color;
+            context.fillText(displayText, width - 12, baseline);
+        }
+        else {
+            context.textAlign = 'left';
+            let offsetX = 12;
+            for (let i = 0; i < word.text.length; i++) {
+                const char = word.text[i];
+                const printable = char === ' ' ? '⎵' : char;
+                if (char === ' ') {
+                    context.fillStyle = i === word.currentIndex && word.color === WORD_DANGER ? WORD_DANGER : WORD_MUTED;
+                }
+                else {
+                    context.fillStyle = i === word.currentIndex && word.color === WORD_DANGER ? WORD_DANGER : word.color;
+                }
+                context.fillText(printable, offsetX, baseline);
+                offsetX += this.measureContext.measureText(printable).width;
             }
-            else {
-                context.fillStyle = i === word.currentIndex && word.color === WORD_DANGER ? WORD_DANGER : word.color;
-            }
-            context.fillText(printable, offsetX, baseline);
-            offsetX += this.measureContext.measureText(printable).width;
         }
         word.width = width;
         word.height = height;
