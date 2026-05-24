@@ -22,6 +22,7 @@ const HIRAGANA_RE = /\p{Script=Hiragana}/u;
 const KATAKANA_RE = /\p{Script=Katakana}/u;
 const THAI_LIKE_RE = /[\p{Script=Thai}\p{Script=Lao}\p{Script=Khmer}\p{Script=Myanmar}]/u;
 const INDIC_RE = /[\p{Script=Bengali}\p{Script=Devanagari}\p{Script=Gujarati}\p{Script=Gurmukhi}\p{Script=Kannada}\p{Script=Malayalam}\p{Script=Oriya}\p{Script=Sinhala}\p{Script=Tamil}\p{Script=Telugu}]/u;
+const SHAPED_SCRIPT_RE = /[\p{Script=Bengali}\p{Script=Devanagari}\p{Script=Gujarati}\p{Script=Gurmukhi}\p{Script=Kannada}\p{Script=Malayalam}\p{Script=Oriya}\p{Script=Sinhala}\p{Script=Tamil}\p{Script=Telugu}\p{Script=Thai}\p{Script=Lao}\p{Script=Khmer}\p{Script=Myanmar}\p{Script=Tibetan}]/u;
 const RTL_SCRIPT_RE = /[\p{Script=Arabic}\p{Script=Hebrew}]/u;
 
 function normalizeLanguage(language: string | undefined) {
@@ -35,6 +36,19 @@ export function isRtlLanguage(language: string | undefined) {
 
 export function textDirectionForLanguage(language: string | undefined): CanvasDirection {
   return isRtlLanguage(language) ? 'rtl' : 'ltr';
+}
+
+/**
+ * Returns true for scripts that need whole-word shaped rendering because
+ * drawing individual codepoints breaks combining marks (vowel signs,
+ * viramas, nuktas) — producing dotted circles, detached matras, and broken
+ * conjuncts.
+ *
+ * Covers Brahmic/Indic (Bengali, Devanagari, Tamil, …), Southeast Asian
+ * (Thai, Lao, Khmer, Myanmar), and Tibetan.
+ */
+export function needsShapedRendering(text: string): boolean {
+  return SHAPED_SCRIPT_RE.test(text);
 }
 
 export function usesScriptAwareSpeed(language: string | undefined, words: readonly string[] = []) {

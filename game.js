@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { FRACTAL_VERTEX_SHADER } from './themes/shader-core.js';
 import { THEME_OPTIONS, THREE_BACKGROUND_THEMES, VIDEO_THEMES, isThreeBackgroundTheme } from './themes/registry.js';
 import { shouldIgnoreDeadAccentKey, typedKeyPrefixLength } from './typing-input.js';
-import { effectiveAverageWordLength, textDirectionForLanguage } from './language-support.js';
+import { effectiveAverageWordLength, textDirectionForLanguage, needsShapedRendering } from './language-support.js';
 const LOGICAL_WIDTH = 800;
 const LOGICAL_HEIGHT = 600;
 const WORD_FONT_SIZE = 48;
@@ -939,6 +939,16 @@ class Game {
             context.textAlign = 'right';
             context.fillStyle = word.color;
             context.fillText(displayText, width - 12, baseline);
+        }
+        else if (needsShapedRendering(displayText)) {
+            // Indic/Brahmic/Thai scripts: drawing one codepoint at a time produces
+            // dotted circles (◌), detached vowel marks, and broken conjuncts because
+            // combining marks need a base consonant. Draw the whole word as one
+            // shaped run, left-aligned, same tradeoff as RTL (no per-character
+            // highlighting).
+            context.textAlign = 'left';
+            context.fillStyle = word.color;
+            context.fillText(displayText, 12, baseline);
         }
         else {
             context.textAlign = 'left';
