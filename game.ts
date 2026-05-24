@@ -256,6 +256,19 @@ class Game {
         })
       : this.createShaderThemeBackground(definition);
     this.threeThemeInstances.set(themeId, instance);
+    // Size the new instance immediately so it renders on first frame
+    this.resizeThemeInstance(instance);
+  }
+
+  private resizeThemeInstance(instance: ThreeThemeRuntime) {
+    const width = Math.floor(this.renderer.domElement.clientWidth || LOGICAL_WIDTH);
+    const height = Math.floor(this.renderer.domElement.clientHeight || LOGICAL_HEIGHT);
+    const visibleWidth = this.camera.right - this.camera.left;
+    const visibleHeight = this.camera.top - this.camera.bottom;
+    const centerX = this.camera.left + visibleWidth / 2;
+    const centerY = this.camera.bottom + visibleHeight / 2;
+    const pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
+    instance.resize({ width, height, visibleWidth, visibleHeight, centerX, centerY, pixelRatio });
   }
 
   private createShaderThemeBackground(theme: ShaderThreeThemeDefinition): ThreeThemeRuntime {
