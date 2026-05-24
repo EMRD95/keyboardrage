@@ -113,6 +113,8 @@ export class MilkyWayBackground {
         this.galaxyPointSet = null;
         this.galaxyLoadStarted = false;
         this.galaxyLanguage = null;
+        this.loadPromise = null;
+        this.loadResolve = null;
         this.accent = new THREE.Color('#3399dd');
         this.accent2 = new THREE.Color('#ff4fd8');
         this.visible = false;
@@ -233,8 +235,46 @@ export class MilkyWayBackground {
     setVisible(visible) {
         this.visible = visible;
         this.display.visible = visible;
+        // Start loading galaxy data eagerly so it's ready before words start falling
+        if (visible && !this.galaxyLoadStarted) {
+            this.ready();
+        }
         if (visible)
             this.renderSpaceToTarget();
+    }
+    /** Returns a promise that resolves when galaxy data is loaded and displayed.
+     *  Triggers data loading if not already started. Safe to call multiple times. */
+    ready() {
+        if (this.loadPromise)
+            return this.loadPromise;
+        this.loadPromise = new Promise((resolve) => {
+            this.loadResolve = resolve;
+        });
+        if (!this.galaxyLoadStarted) {
+            this.galaxyLoadStarted = true;
+            this.galaxyLanguage = 'english'; // default until game's update() provides real language
+            this.pointGeometry.setDrawRange(0, 0);
+            loadGalaxyData('english')
+                .then((data) => {
+                this.galaxyPointSet = data.getPointSet(undefined);
+                this.wordPoints = this.galaxyPointSet.points;
+                this.activeWord = '';
+                this.activeSourceIndex = undefined;
+                this.activeIndex = -1;
+                this.buildPointCloudGeometry();
+                this.hideActiveStar();
+                this.loadResolve?.();
+            })
+                .catch((error) => {
+                console.error('Failed to load galaxy data:', error);
+                this.loadResolve?.();
+            });
+        }
+        else {
+            // Load was started elsewhere (unlikely for this code path)
+            this.loadResolve?.();
+        }
+        return this.loadPromise;
     }
     resize({ width, height, visibleWidth, visibleHeight, centerX, centerY, pixelRatio }) {
         this.display.position.set(centerX, centerY, -500);
@@ -474,8 +514,12 @@ export class MilkyWayBackground {
                     this.activeIndex = -1;
                     this.buildPointCloudGeometry();
                     this.hideActiveStar();
+                    this.loadResolve?.();
                 })
-                    .catch((error) => console.error('Failed to load galaxy data for Milky Way:', error));
+                    .catch((error) => {
+                    console.error('Failed to load galaxy data for Milky Way:', error);
+                    this.loadResolve?.();
+                });
             }
             else if (language !== this.galaxyLanguage) {
                 this.galaxyLanguage = language;
@@ -492,14 +536,13 @@ export class MilkyWayBackground {
                 })
                     .catch((error) => console.error('Failed to switch galaxy language in Milky Way:', error));
             }
-            else {
-                loadGalaxyData(language).then((data) => data.getPointSet(frequencyLimit)).catch(() => undefined);
-            }
+            // else: same language already loaded by ready() — skip redundant reload
             return;
         }
         this.galaxyPointSet = null;
         this.galaxyLoadStarted = false;
         this.galaxyLanguage = null;
+        this.loadResolve?.();
         const nextPoints = getGraniteBoxWordPoints(language);
         if (nextPoints === this.wordPoints)
             return;
@@ -580,7 +623,7 @@ export class MilkyWayBackground {
 }
 export const milkyWayTheme = {
     id: 'milky-way',
-    label: 'Milky Way (3D)',
+    label: 'Galaxy (3D)',
     kind: 'three',
     backgroundType: 'custom',
     renderOrder: MILKY_WAY_RENDER_ORDER,

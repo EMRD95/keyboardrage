@@ -1,5 +1,5 @@
 export const defaultTheme = {
     id: 'default',
-    label: 'Default',
+    label: 'Minimalist',
     kind: 'css'
 };

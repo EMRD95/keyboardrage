@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { FRACTAL_VERTEX_SHADER } from './themes/shader-core.js';
-import { THEME_OPTIONS, THREE_BACKGROUND_THEMES, VIDEO_THEMES, isThreeBackgroundTheme } from './themes/registry.js';
+import { THEME_OPTIONS, VIDEO_THEMES, isThreeBackgroundTheme, THREE_THEME_BY_ID } from './themes/registry.js';
 import { shouldIgnoreDeadAccentKey, typedKeyPrefixLength } from './typing-input.js';
 import { effectiveAverageWordLength, textDirectionForLanguage, needsShapedRendering } from './language-support.js';
 const LOGICAL_WIDTH = 800;
@@ -33,7 +33,7 @@ class Game {
         this.semanticDebounceTimer = null;
         this.theme = (() => {
             const savedTheme = localStorage.getItem('theme');
-            return savedTheme && savedTheme !== 'default' ? savedTheme : DEFAULT_THEME;
+            return savedTheme && THEME_OPTIONS.some(t => t.id === savedTheme) ? savedTheme : DEFAULT_THEME;
         })();
         this.frequencyLimit = (() => {
             const savedLimit = localStorage.getItem('frequencyLimit');
@@ -96,6 +96,8 @@ class Game {
         this.themeSelector.addEventListener('change', this.changeTheme.bind(this));
         this.createThemeBackgrounds();
         this.resizeRenderer();
+        // Warm up WebGL so the first animation frame isn't a stutter
+        this.renderer.render(this.scene, this.camera);
         window.addEventListener('resize', this.resizeRenderer.bind(this));
         this.createAmbientParticles();
         this.changeTheme();
@@ -164,17 +166,25 @@ class Game {
         this.themeSelector.replaceChildren(...options);
     }
     createThemeBackgrounds() {
-        for (const theme of THREE_BACKGROUND_THEMES) {
-            const instance = theme.backgroundType === 'custom'
-                ? theme.createBackground({
-                    scene: this.scene,
-                    renderer: this.renderer,
-                    logicalWidth: LOGICAL_WIDTH,
-                    logicalHeight: LOGICAL_HEIGHT
-                })
-                : this.createShaderThemeBackground(theme);
-            this.threeThemeInstances.set(theme.id, instance);
-        }
+        // Only create the active theme's background — others are built lazily
+        // when first selected, so unused 3D themes don't pay any startup cost.
+        this.ensureThemeInstance(this.theme);
+    }
+    ensureThemeInstance(themeId) {
+        if (this.threeThemeInstances.has(themeId))
+            return;
+        const definition = THREE_THEME_BY_ID[themeId];
+        if (!definition)
+            return;
+        const instance = definition.backgroundType === 'custom'
+            ? definition.createBackground({
+                scene: this.scene,
+                renderer: this.renderer,
+                logicalWidth: LOGICAL_WIDTH,
+                logicalHeight: LOGICAL_HEIGHT
+            })
+            : this.createShaderThemeBackground(definition);
+        this.threeThemeInstances.set(themeId, instance);
     }
     createShaderThemeBackground(theme) {
         const uniforms = {
@@ -234,6 +244,15 @@ class Game {
     }
     isThreeFractalTheme() {
         return isThreeBackgroundTheme(this.theme);
+    }
+    /** Returns a promise that resolves when the active theme's data is loaded.
+     *  Non-async themes resolve immediately. */
+    themeReady() {
+        const instance = this.threeThemeInstances.get(this.theme);
+        if (instance?.ready) {
+            return instance.ready();
+        }
+        return Promise.resolve();
     }
     updateFractalThemeColors() {
         const styles = getComputedStyle(document.body);
@@ -344,6 +363,8 @@ class Game {
         const iframe = document.getElementById('myVideo');
         const videoTheme = VIDEO_THEMES[this.theme];
         const isFractalTheme = this.isThreeFractalTheme();
+        // Lazily build the theme if this is its first selection
+        this.ensureThemeInstance(this.theme);
         for (const [themeId, instance] of this.threeThemeInstances) {
             instance.setVisible(this.theme === themeId);
         }
@@ -744,24 +765,31 @@ class Game {
             return;
         }
         this.fetchWords().then(() => {
-            setTimeout(() => {
-                if (!this.isGameOver && this.words.length === 0) {
-                    this.generateWords();
-                    if (!this.pause && this.animationFrame === null) {
-                        this.lastTimestamp = performance.now();
-                        this.animate(this.lastTimestamp);
+            requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                    if (!this.isGameOver && this.words.length === 0) {
+                        this.generateWords();
+                        if (!this.pause && this.animationFrame === null) {
+                            this.lastTimestamp = performance.now();
+                            this.animate(this.lastTimestamp);
+                        }
                     }
-                }
-            }, 500);
+                });
+            });
         });
     }
     initialize() {
         this.container.focus({ preventScroll: true });
-        setTimeout(() => {
-            this.generateWords();
-            this.lastTimestamp = performance.now();
-            this.animate(this.lastTimestamp);
-        }, 500);
+        // Wait for DOM layout + WebGL to settle, then await theme data before
+        // dropping the first word.
+        requestAnimationFrame(() => {
+            requestAnimationFrame(async () => {
+                await this.themeReady();
+                this.generateWords();
+                this.lastTimestamp = performance.now();
+                this.animate(this.lastTimestamp);
+            });
+        });
         window.addEventListener('keydown', (event) => this.handleKeydown(event));
     }
     handleKeydown(event) {
@@ -1164,14 +1192,18 @@ function makeCustomDropdown(selectEl, options, selectedValue, onChange, onOpen, 
         if (selected !== undefined)
             setSelected(selected);
     };
-    const setSelected = (value) => {
+    const setSelected = (value, silent = false) => {
         const opt = currentOptions.find(o => o.value === value);
         if (opt) {
             trigger.innerHTML = opt.markup || opt.text;
         }
         selectEl.value = value;
-        selectEl.dispatchEvent(new Event('change', { bubbles: true }));
-        onChange(value);
+        // Only fire onChange for non-silent calls (user interaction or setOptions).
+        // Silent mode is used for the initial value so dropdown creation doesn't
+        // trigger side effects like restarts mid-initialization.
+        if (!silent) {
+            onChange(value);
+        }
         menu.style.display = 'none';
     };
     renderMenu();
@@ -1211,7 +1243,7 @@ function makeCustomDropdown(selectEl, options, selectedValue, onChange, onOpen, 
     document.body.appendChild(menu);
     selectEl.style.display = 'none';
     selectEl.parentNode.insertBefore(wrapper, selectEl);
-    setSelected(selectedValue);
+    setSelected(selectedValue, true);
     return { setOptions, setSelected, trigger, menu };
 }
 async function populateLanguages(languageInput, selectedLanguage, onChange, onOpen, onClose) {
@@ -1305,10 +1337,10 @@ Game.create(gameStage, undefined, 30, DEFAULT_LANGUAGE).then(async (game) => {
     });
     wpmInput.addEventListener('focus', () => game.pauseGame());
     wpmInput.addEventListener('blur', () => game.resumeGame());
-    // Theme custom dropdown — native change handler already bound in constructor
+    // Theme custom dropdown — calls changeTheme directly (no native event dispatch)
     const themeOpts = THEME_OPTIONS.map(t => ({ text: t.label, value: t.id }));
     const themeDD = makeCustomDropdown(themeInput, themeOpts, game.getTheme(), (_v) => {
-        // native change handler does the work
+        game.changeTheme();
     }, () => game.pauseGame(), safeResume);
     playerNameInput.addEventListener('focus', () => game.pauseGame());
     playerNameInput.addEventListener('blur', () => game.resumeGame());

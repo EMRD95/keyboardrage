@@ -60,6 +60,7 @@ export type ThreeThemeRuntime = {
   update: (info: ThreeThemeUpdateInfo) => void;
   updateColors?: (info: ThreeThemeColorInfo) => void;
   dispose?: () => void;
+  ready?: () => Promise<void>;
 };
 
 export type ThreeThemeContext = {
