@@ -64,7 +64,7 @@
 
     <h2>3D Galaxy</h2>
     <p>The 3D Galaxy was rebuilt from the existing Granite vectors with UMAP using cosine distance, 50 neighbors, and min_dist 0.01. This pulls many true semantic neighbors closer together in the 3D view, so the yellow neighbor links are usually shorter and easier to inspect.</p>
-    <p>Limitation: this is still a 384-dimensional embedding compressed into only three visible coordinates, so some semantic relationships will remain far apart or visually mixed. For precision, the neighbor panel does not trust 3D distance; it queries the original Granite embeddings with FAISS candidates and exact cosine reranking.</p>
+    <p>Limitation: this is still a 384-dimensional embedding compressed into only three visible coordinates, so some semantic relationships will remain far apart or visually mixed. For precision, the neighbor panel ignores 3D distance and uses precomputed exact cosine scores from the original normalized Granite embeddings.</p>
 
     <h2>2D Atlas</h2>
     <p>The 2D Atlas view loads the generated atlas_data.parquet file containing each word, language, definition, and 3D coordinates. It is useful for broad dataset browsing, language-colored overview, and quick visual filtering with Atlas' built-in interface.</p>

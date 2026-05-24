@@ -25,7 +25,7 @@ const BULGE_ORANGE = new THREE.Color('#ff7b00');
 const HOT_MAGENTA = new THREE.Color('#ff4fd8');
 const DUST_VIOLET = new THREE.Color('#9b5cff');
 const DUST_BROWN = new THREE.Color('#c9713c');
-const NEBULA_CYAN = new THREE.Color('#57efff');
+const NEBULA_CYAN = new THREE.Color('#3399dd');
 const NEBULA_BLUE = new THREE.Color('#3572ff');
 const DEEP_SPACE = new THREE.Color('#3b2266');
 
@@ -149,7 +149,7 @@ export class MilkyWayBackground implements ThreeThemeRuntime {
   private galaxyLoadStarted = false;
   private galaxyLanguage: string | null = null;
 
-  private readonly accent = new THREE.Color('#57efff');
+  private readonly accent = new THREE.Color('#3399dd');
   private readonly accent2 = new THREE.Color('#ff4fd8');
   private visible = false;
   private animTime = 0;
