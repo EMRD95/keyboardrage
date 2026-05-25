@@ -5,6 +5,34 @@ import { shouldIgnoreDeadAccentKey, typedKeyPrefixLength } from './typing-input.
 import { effectiveAverageWordLength, textDirectionForLanguage, needsShapedRendering } from './language-support.js';
 const LOGICAL_WIDTH = 800;
 const LOGICAL_HEIGHT = 600;
+// ── WPM → fall speed derivation ──────────────────────────────────
+// Standard international definition: 1 WPM = 5 correct keystrokes
+// per minute (the space between words counts as one of the 5).  In
+// KeyboardRage the word completes on its last character — no trailing
+// space required — so each game-word of L characters costs exactly
+// L keystrokes.
+//
+// Words are stacked 80 px apart.  After typing word N in msPerWord ms,
+// word N+1 has fallen S × msPerWord px.  For the game to require
+// exactly WPM typing speed, word N+1 must occupy the same position
+// word N had when it was active — no harder, no easier:
+//
+//   S × msPerWord = 80          ⇔    S = 80 / msPerWord
+//
+// keystrokesPerWord = averageCharLength + 1: the +1 accounts for the
+// trailing space that applyGrammar() always appends (line 618), even
+// when grammar mode is off.  The player must type that space to
+// complete the word — it's a real keystroke, not a difficulty margin.
+//
+// If the player types at WPM:    words stay at y=0 indefinitely.
+// If the player types slower:    words creep downward → game over.
+// If the player types faster:    words creep upward → margin earned.
+//
+// Framerate-independent: animate() uses performance.now() deltaTime
+// (ms), so word.y += speed × deltaTime is correct at any fps.
+const CHARS_PER_STANDARD_WORD = 5; // international WPM definition
+const MS_PER_MINUTE = 60000;
+const WORD_SPACING = 80; // px between consecutive words
 const WORD_FONT_SIZE = 48;
 const WORD_FONT = `700 ${WORD_FONT_SIZE}px 'Roboto', 'Inter', system-ui, -apple-system, sans-serif`;
 const WORD_FILL = '#f8f8f2';
@@ -899,13 +927,24 @@ class Game {
         }
         this.updateHud();
     }
+    // ── WPM → critical fall speed (px/ms) ─────────────────────────
+    // At this speed, each successive word occupies exactly the same
+    // position on screen when it becomes active — if the player types
+    // at exactly the selected WPM.  Slower = words sink, faster = margin.
+    // See the full derivation in the constants block above.
+    computeFallSpeed() {
+        const keystrokesPerWord = this.averageCharLength + 1; // +1 = space from applyGrammar()
+        const keystrokesPerMinute = this.WPM * CHARS_PER_STANDARD_WORD;
+        const msPerWord = (keystrokesPerWord * MS_PER_MINUTE) / keystrokesPerMinute;
+        return WORD_SPACING / msPerWord;
+    }
     generateWords() {
         this.nextBatch();
         const shuffledList = this.shuffleArray([...this.wordList]);
         const offset = this.words.length > 0 ? this.words[this.words.length - 1].y - 80 : 0;
         const lastWordSpeed = this.words.length > 0
             ? this.words[this.words.length - 1].speed
-            : (this.WPM * 18) / 60 / 60 / (this.averageCharLength + 1);
+            : this.computeFallSpeed();
         shuffledList.forEach((entry, index) => {
             const wordText = entry.text;
             const textWidth = this.measureWordWidth(wordText);

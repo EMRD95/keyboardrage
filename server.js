@@ -92,8 +92,10 @@ app.post("/score", scoreLimiter, async (req, res) => {
     return res.status(403).send('Invalid token');
   }
 
-  // Score validation
-  if (!validateScore(scoreData.score)) {
+  // Score plausibility validation (antiCheat.js)
+  const plausibility = validateScore(scoreData.score, keystrokes, typos, timeElapsed, scoreData.WPM);
+  if (!plausibility.valid) {
+    console.warn(`Score rejected [${req.ip}]: ${plausibility.reason}`);
     return res.status(400).send('Invalid score');
   }
 
@@ -202,12 +204,10 @@ if (!supportedWPMs.includes(scoreData.WPM)) {
 
 
 try {
-    var validateScore = require('./scoreValidator');
+    var validateScore = require('./antiCheat');
 } catch (err) {
-    console.warn('Score validator not found, score validation will be bypassed in this environment.');
-
-    // Define a placeholder function that always returns true
-    validateScore = () => true;
+    console.warn('antiCheat.js not found, score validation will be bypassed.', err.message);
+    validateScore = () => ({ valid: true });
 }
 
 // import motivation.json
