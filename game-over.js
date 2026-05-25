@@ -61,10 +61,27 @@ optionsElement.textContent = optionsText;
 const precisionElement = document.getElementById('precision');
 precisionElement.textContent = precisionFormatted === '—' ? 'Precision: —' : `Precision: ${precisionFormatted}%`;
 
-const playerName = localStorage.getItem('playerName');
-
 const playerNameElement = document.getElementById('playerName');
-playerNameElement.textContent = `Name: ${displayValue(playerName)}`;
+
+// Try auth session first, fall back to localStorage
+(function setPlayerName() {
+  try {
+    const sessionStr = localStorage.getItem('kr_session');
+    if (sessionStr) {
+      const session = JSON.parse(sessionStr);
+      if (session.user?.displayName) {
+        playerNameElement.textContent = `Player: ${session.user.displayName}`;
+        return;
+      }
+    }
+  } catch {}
+  const localName = localStorage.getItem('playerName');
+  if (localName) {
+    playerNameElement.textContent = `Player: ${localName}`;
+  } else {
+    playerNameElement.textContent = 'Sign in to save scores';
+  }
+})();
 
 const timeElapsed = localStorage.getItem('timeElapsed');
 
@@ -295,4 +312,32 @@ document.body.addEventListener('keydown', (event) => {
   if (event.code === 'Space') {
     window.location.href = '/index.html';
   }
+});
+
+// Submit pending score after login
+window.addEventListener('kr-auth-ready', ({ detail }) => {
+  if (!detail.loggedIn) return;
+  const pending = localStorage.getItem('kr_pending_score');
+  if (!pending) return;
+
+  const session = JSON.parse(localStorage.getItem('kr_session'));
+  if (!session?.token) return;
+
+  fetch('/score', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${session.token}`,
+    },
+    body: pending,
+  }).then(res => {
+    if (res.ok) {
+      localStorage.removeItem('kr_pending_score');
+      console.log('Pending score submitted');
+      fetchLeaderboard();
+      fetchLatestScores();
+    } else {
+      console.error('Pending score rejected:', res.status);
+    }
+  }).catch(err => console.error('Pending score error:', err));
 });

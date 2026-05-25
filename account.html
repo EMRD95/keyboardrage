@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>My Account — KeyboardRage</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <script>document.documentElement.dataset.infoTheme = localStorage.getItem('infoPageTheme') || 'night';</script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.1/css/all.min.css" />
+  <link rel="stylesheet" type="text/css" href="styles.css">
+  <script src="info-page-theme.js" defer></script>
+</head>
+<body class="info-page">
+  <header>
+    <div class="header-container">
+      <a href="/index.html" id="home-icon-link">
+        <i class="fas fa-home"></i>
+      </a>
+      <a href="https://github.com/EMRD95/keyboardrage/" id="github-icon-link" target="_blank">
+        <i class="fab fa-github"></i>
+      </a>
+      <span class="header-spacer"></span>
+      <span id="auth-signed-in" class="header-auth" style="display:none">
+        <img id="auth-avatar" class="auth-avatar-sm" src="" alt="" width="24" height="24">
+        <span id="auth-display-name" class="auth-display-name"></span>
+        <button id="auth-signout" class="auth-signout-btn" title="Sign out">✕</button>
+      </span>
+    </div>
+  </header>
+
+  <main style="max-width:500px;margin:60px auto;padding:0 20px;text-align:center">
+    <h1 style="color:#fff;margin-bottom:8px">Set Up Your Account</h1>
+    <p id="setup-hint" style="color:#888;font-size:0.9rem;margin-bottom:24px">
+      Choose a display name — this is how you'll appear on leaderboards.
+    </p>
+
+    <div id="setup-form" style="display:flex;flex-direction:column;align-items:center;gap:12px">
+      <input type="text" id="display-name-input" placeholder="Display name (3–30 chars)"
+        minlength="3" maxlength="30" autocomplete="off" autocapitalize="off" autocorrect="off"
+        style="width:280px;padding:10px 14px;background:var(--surface-soft,rgba(255,255,255,0.06));border:1px solid rgba(255,255,255,0.15);color:#fff;border-radius:6px;font-size:1rem;text-align:center">
+      <p id="setup-error" style="color:#f55;font-size:0.85rem;display:none;margin:0"></p>
+      <button id="setup-submit" style="width:280px;padding:10px;background:var(--accent,#0f0);color:#000;border:none;border-radius:6px;font-size:1rem;font-weight:600;cursor:pointer">
+        Save Display Name
+      </button>
+    </div>
+
+    <div id="setup-done" style="display:none">
+      <p style="color:var(--accent,#0f0);font-size:1.1rem;margin-bottom:16px">✓ Account ready!</p>
+      <a href="/index.html" style="display:inline-block;padding:10px 28px;background:var(--accent,#0f0);color:#000;text-decoration:none;border-radius:6px;font-weight:600">
+        Start Playing
+      </a>
+    </div>
+
+    <p id="setup-email" style="color:#666;font-size:0.8rem;margin-top:16px"></p>
+  </main>
+
+  <script type="module">
+    import { initAuth, signOut, getSession } from './auth-client.js';
+
+    // Wait for auth to be ready
+    window.addEventListener('kr-auth-ready', ({ detail }) => {
+      if (!detail.loggedIn) {
+        window.location.href = '/index.html';
+        return;
+      }
+
+      const session = getSession();
+      if (!session) return;
+
+      document.getElementById('auth-signed-in').style.display = 'flex';
+      document.getElementById('auth-avatar').src = session.user.picture || '';
+      document.getElementById('auth-display-name').textContent = session.user.name;
+      document.getElementById('setup-email').textContent = session.user.email;
+      document.getElementById('auth-signout').addEventListener('click', () => {
+        signOut();
+        window.location.href = '/index.html';
+      });
+
+      // Pre-fill with existing display name if set
+      if (session.user.displayName) {
+        document.getElementById('display-name-input').value = session.user.displayName;
+        document.getElementById('setup-hint').textContent = 'Change your display name or re-save to refresh your session.';
+      }
+
+      // Setup form submit
+      document.getElementById('setup-submit').addEventListener('click', async () => {
+        const input = document.getElementById('display-name-input');
+        const error = document.getElementById('setup-error');
+        const name = input.value.trim();
+
+        if (name.length < 3 || name.length > 30) {
+          error.textContent = 'Display name must be 3–30 characters';
+          error.style.display = 'block';
+          return;
+        }
+
+        try {
+          const res = await fetch('/auth/setup', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${session.token}`,
+            },
+            body: JSON.stringify({ displayName: name }),
+          });
+
+          const data = await res.json();
+          if (!res.ok) {
+            error.textContent = data.error || 'Failed to save';
+            error.style.display = 'block';
+            return;
+          }
+
+          // Update local session with new token
+          const saved = JSON.parse(localStorage.getItem('kr_session'));
+          saved.token = data.token;
+          saved.user = data.user;
+          localStorage.setItem('kr_session', JSON.stringify(saved));
+
+          document.getElementById('setup-form').style.display = 'none';
+          document.getElementById('setup-done').style.display = 'block';
+        } catch (err) {
+          error.textContent = 'Network error. Try again.';
+          error.style.display = 'block';
+        }
+      });
+    });
+
+    initAuth();
+  </script>
+</body>
+</html>

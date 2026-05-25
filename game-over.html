@@ -27,6 +27,22 @@
         Data Viz
       </a>
       <button type="button" id="info-theme-toggle" class="info-theme-toggle" aria-label="Switch to day theme" title="Switch theme">☀</button>
+
+      <span class="header-spacer"></span>
+
+      <!-- Auth: signed out -->
+      <span id="auth-signed-out" class="header-auth">
+        <span class="auth-hint">Sign in to save scores</span>
+        <span id="google-signin-btn"></span>
+      </span>
+
+      <!-- Auth: signed in -->
+      <span id="auth-signed-in" class="header-auth" style="display:none">
+        <img id="auth-avatar" class="auth-avatar-sm" src="" alt="" width="24" height="24">
+        <span id="auth-display-name" class="auth-display-name"></span>
+        <a href="/account.html" class="auth-account-link" title="My Account"><i class="fas fa-user-cog"></i></a>
+        <button id="auth-signout" class="auth-signout-btn" title="Sign out">✕</button>
+      </span>
     </div>
   </header>
 
@@ -42,11 +58,11 @@
   <div id="timeElapsed"></div>
 </div>
 
-
   <a id="play-again" href="/index.html" role="button">Play Again</a>
   <p id="play-again-quote" style="text-align:center;color:#888;font-style:italic;margin-top:6px;margin-bottom:20px">"True skill looks unskilled"</p>
+
   <hr style="width:60%;border:none;border-top:1px solid #333;margin:0 auto 18px">
-	<h4 id="MotivationMessage">Practice mode, ranked modes are the WPM with a &#9733;</h4>
+  <h4 id="MotivationMessage">Practice mode, ranked modes are the WPM with a &#9733;</h4>
 <h2 id="ScoreTitle">Top Scores <small id="ScoreSubtitle" class="small-text"></small></h2>
 <table id="leaderboard">
   <tr>
@@ -59,7 +75,7 @@
   </tr>
 </table>
 
-<div id="pagination">
+<div id="pagination" class="pagination-row">
   <button id="previous-page">Previous</button>
   <button id="next-page">Next</button>
 </div>
@@ -79,12 +95,16 @@
   </tr>
 </table>
 
-<div id="pagination">
+<div id="pagination-latest" class="pagination-row">
 <button id="previous-page-latest-scores">Previous</button>
 <button id="next-page-latest-scores">Next</button>
 </div>
 
   <script src="game-over.js?v=info-page-20260523"></script>
+  <script type="module">
+    import { initAuth } from './auth-client.js';
+    initAuth();
+  </script>
 
 </body>
 </html>

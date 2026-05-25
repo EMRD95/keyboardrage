@@ -1305,26 +1305,47 @@ class Game {
     localStorage.setItem('timeElapsed', this.timeElapsed.toString());
 
     try {
-      const response = await fetch('/score', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          token: this.token,
-          name: this.playerName,
-          score: this.score,
-          language: this.language,
-          WPM: this.WPM,
-          keystrokes: this.keystrokes,
-          timeElapsed,
-          typos: this.typos,
-          mode: this.mode
-            + (this.addNumbersSetting ? '+N' : '')
-            + (this.applyGrammarSetting ? '+P' : '')
-        })
-      });
+      // Read JWT session for authenticated score submission
+      let authHeader = {};
+      let token = null;
+      const sessionStr = localStorage.getItem('kr_session');
+      if (sessionStr) {
+        try {
+          const session = JSON.parse(sessionStr);
+          if (session.token) {
+            authHeader = { 'Authorization': `Bearer ${session.token}` };
+            token = session.token;
+          }
+        } catch { /* ignore */ }
+      }
 
-      if (!response.ok) {
-        console.error('Failed to send score to server');
+      const scorePayload = {
+        score: this.score,
+        language: this.language,
+        WPM: this.WPM,
+        keystrokes: this.keystrokes,
+        timeElapsed,
+        typos: this.typos,
+        mode: this.mode
+          + (this.addNumbersSetting ? '+N' : '')
+          + (this.applyGrammarSetting ? '+P' : '')
+      };
+
+      // Only POST if authenticated; otherwise stash for later
+      if (token) {
+        const response = await fetch('/score', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...authHeader },
+          body: JSON.stringify(scorePayload)
+        });
+
+        if (!response.ok) {
+          console.error('Failed to send score to server', response.status);
+        } else {
+          localStorage.removeItem('kr_pending_score');
+        }
+      } else {
+        localStorage.setItem('kr_pending_score', JSON.stringify(scorePayload));
       }
     } catch (error) {
       console.error('Failed to send score to server', error);

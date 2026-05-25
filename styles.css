@@ -1969,3 +1969,77 @@ body[data-theme] .brand-block {
   align-items: center;
 }
 .kr-option:hover { background: var(--accent); color: #000; }
+
+/* ── Header auth (game-over, account) ─────────────────── */
+.header-spacer { flex: 1; }
+.header-auth {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: 12px;
+}
+.auth-hint {
+  color: #888;
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+.auth-avatar-sm {
+  border-radius: 50%;
+  border: 2px solid var(--accent, #0f0);
+}
+.auth-display-name {
+  color: #ccc;
+  font-size: 0.85rem;
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.auth-account-link {
+  color: #888;
+  font-size: 0.9rem;
+  text-decoration: none;
+  transition: color 0.2s;
+}
+.auth-account-link:hover { color: var(--accent, #0f0); }
+.auth-signout-btn {
+  background: none;
+  border: 1px solid rgba(255,255,255,0.12);
+  color: #888;
+  border-radius: 50%;
+  width: 22px;
+  height: 22px;
+  cursor: pointer;
+  font-size: 0.65rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  padding: 0;
+  line-height: 1;
+}
+.auth-signout-btn:hover {
+  border-color: var(--accent, #0f0);
+  color: var(--accent, #0f0);
+}
+
+/* ── Pagination ───────────────────────────────────────── */
+.pagination-row {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin: 14px 0;
+}
+.pagination-row button {
+  background: var(--surface-soft, rgba(255,255,255,0.06));
+  border: 1px solid rgba(255,255,255,0.1);
+  color: #ccc;
+  padding: 6px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+.pagination-row button:hover {
+  background: var(--accent, #0f0);
+  color: #000;
+}

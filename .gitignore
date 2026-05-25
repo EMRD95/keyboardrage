@@ -17,6 +17,9 @@ galaxy/**/*.json
 .env.*
 !.env.example
 antiCheat.js
+start-mongo.js
+.mongo-dev-data/
+.jwt-secret
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
