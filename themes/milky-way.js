@@ -114,7 +114,7 @@ export class MilkyWayBackground {
         this.galaxyLoadStarted = false;
         this.galaxyLanguage = null;
         this.loadPromise = null;
-        this.loadResolve = null;
+        this.loadKey = null;
         this.accent = new THREE.Color('#3399dd');
         this.accent2 = new THREE.Color('#ff4fd8');
         this.visible = false;
@@ -235,45 +235,65 @@ export class MilkyWayBackground {
     setVisible(visible) {
         this.visible = visible;
         this.display.visible = visible;
-        // Start loading galaxy data eagerly so it's ready before words start falling
-        if (visible && !this.galaxyLoadStarted) {
-            this.ready();
-        }
+        // Theme loading is triggered by changeTheme() / game startup via ready({...}),
+        // which passes the correct active language. Do not eagerly load a default here.
         if (visible)
             this.renderSpaceToTarget();
     }
-    /** Returns a promise that resolves when galaxy data is loaded and displayed.
-     *  Triggers data loading if not already started. Safe to call multiple times. */
-    ready() {
-        if (this.loadPromise)
-            return this.loadPromise;
-        this.loadPromise = new Promise((resolve) => {
-            this.loadResolve = resolve;
-        });
-        if (!this.galaxyLoadStarted) {
-            this.galaxyLoadStarted = true;
-            this.galaxyLanguage = 'english'; // default until game's update() provides real language
-            this.pointGeometry.setDrawRange(0, 0);
-            loadGalaxyData('english')
-                .then((data) => {
-                this.galaxyPointSet = data.getPointSet(undefined);
-                this.wordPoints = this.galaxyPointSet.points;
+    /** Returns a promise that resolves when the requested galaxy data is loaded
+     *  and displayed. Safe to call multiple times; if the active game language is
+     *  different from the eager default, this waits for the real language before
+     *  words start falling. */
+    ready(info = {}) {
+        const language = info.language || this.galaxyLanguage || 'english';
+        const frequencyLimit = info.frequencyLimit;
+        if (!isGalaxyLanguage(language)) {
+            this.galaxyPointSet = null;
+            this.galaxyLoadStarted = false;
+            this.galaxyLanguage = null;
+            this.loadPromise = null;
+            this.loadKey = null;
+            const nextPoints = getGraniteBoxWordPoints(language);
+            if (nextPoints !== this.wordPoints) {
+                this.wordPoints = nextPoints;
                 this.activeWord = '';
                 this.activeSourceIndex = undefined;
                 this.activeIndex = -1;
                 this.buildPointCloudGeometry();
                 this.hideActiveStar();
-                this.loadResolve?.();
-            })
-                .catch((error) => {
-                console.error('Failed to load galaxy data:', error);
-                this.loadResolve?.();
-            });
+            }
+            return Promise.resolve();
         }
-        else {
-            // Load was started elsewhere (unlikely for this code path)
-            this.loadResolve?.();
+        const key = `${language}:${frequencyLimit || 'all'}`;
+        if (this.loadPromise && this.loadKey === key && this.galaxyLanguage === language) {
+            return this.loadPromise;
         }
+        // Different key — the old load (if any) will resolve naturally when its
+        // loadGalaxyData finishes.  New callers get the new promise below.
+        this.loadKey = key;
+        this.galaxyLoadStarted = true;
+        this.galaxyLanguage = language;
+        this.pointGeometry.setDrawRange(0, 0);
+        this.loadPromise = loadGalaxyData(language)
+            .then((data) => {
+            // Ignore stale loads if the player switched language/theme while loading.
+            if (this.loadKey !== key)
+                return;
+            this.galaxyPointSet = data.getPointSet(frequencyLimit);
+            this.wordPoints = this.galaxyPointSet.points;
+            this.activeWord = '';
+            this.activeSourceIndex = undefined;
+            this.activeIndex = -1;
+            this.buildPointCloudGeometry();
+            this.hideActiveStar();
+            if (this.visible)
+                this.renderSpaceToTarget();
+        })
+            .catch((error) => {
+            console.error('Failed to load galaxy data:', error);
+            // Resolve instead of deadlocking the game. It will fall back to the
+            // prebundled Granite points already present in wordPoints.
+        });
         return this.loadPromise;
     }
     resize({ width, height, visibleWidth, visibleHeight, centerX, centerY, pixelRatio }) {
@@ -514,11 +534,9 @@ export class MilkyWayBackground {
                     this.activeIndex = -1;
                     this.buildPointCloudGeometry();
                     this.hideActiveStar();
-                    this.loadResolve?.();
                 })
                     .catch((error) => {
                     console.error('Failed to load galaxy data for Milky Way:', error);
-                    this.loadResolve?.();
                 });
             }
             else if (language !== this.galaxyLanguage) {
@@ -542,7 +560,6 @@ export class MilkyWayBackground {
         this.galaxyPointSet = null;
         this.galaxyLoadStarted = false;
         this.galaxyLanguage = null;
-        this.loadResolve?.();
         const nextPoints = getGraniteBoxWordPoints(language);
         if (nextPoints === this.wordPoints)
             return;

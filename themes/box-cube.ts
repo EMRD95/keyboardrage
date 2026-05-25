@@ -3,6 +3,7 @@ import type {
   CustomThreeThemeDefinition,
   ThreeThemeColorInfo,
   ThreeThemeContext,
+  ThreeThemeReadyInfo,
   ThreeThemeResizeInfo,
   ThreeThemeRuntime,
   ThreeThemeUpdateInfo
@@ -171,6 +172,8 @@ export class BoxCubeBackground implements ThreeThemeRuntime {
   private galaxyPointSet: GalaxyPointSet | null = null;
   private galaxyLoadStarted = false;
   private galaxyLanguage: string | null = null;
+  private loadPromise: Promise<void> | null = null;
+  private loadKey: string | null = null;
   private readonly lightOrbits: LightOrbit[] = [];
 
   private readonly accent = new THREE.Color('#6dfff2');
@@ -317,6 +320,61 @@ export class BoxCubeBackground implements ThreeThemeRuntime {
     if (visible) {
       this.renderCubeToTarget();
     }
+  }
+
+  /** Returns a promise that resolves when galaxy data for the requested
+   *  language is loaded.  Non-galaxy languages resolve immediately
+   *  (Granite box points are already bundled). */
+  ready(info: ThreeThemeReadyInfo = {}): Promise<void> {
+    const language = info.language || this.galaxyLanguage || 'english';
+    const frequencyLimit = info.frequencyLimit;
+
+    if (!isGalaxyLanguage(language)) {
+      this.galaxyPointSet = null;
+      this.galaxyLoadStarted = false;
+      this.galaxyLanguage = null;
+      this.loadPromise = null;
+      this.loadKey = null;
+      const nextPoints = getGraniteBoxWordPoints(language);
+      if (nextPoints !== this.wordPoints) {
+        this.wordPoints = nextPoints;
+        this.activeWord = '';
+        this.activeSourceIndex = undefined;
+        this.activeIndex = -1;
+        this.buildPointCloudGeometry();
+        this.hideActiveDot();
+      }
+      return Promise.resolve();
+    }
+
+    const key = `${language}:${frequencyLimit || 'all'}`;
+    if (this.loadPromise && this.loadKey === key && this.galaxyLanguage === language) {
+      return this.loadPromise;
+    }
+
+    // Different key — start a new load.
+    this.loadKey = key;
+    this.galaxyLoadStarted = true;
+    this.galaxyLanguage = language;
+    this.pointGeometry.setDrawRange(0, 0);
+
+    this.loadPromise = loadGalaxyData(language)
+      .then((data) => {
+        // Ignore stale loads if the player switched language/theme while loading.
+        if (this.loadKey !== key) return;
+        this.galaxyPointSet = data.getPointSet(frequencyLimit);
+        this.wordPoints = this.galaxyPointSet.points;
+        this.activeWord = '';
+        this.activeSourceIndex = undefined;
+        this.activeIndex = -1;
+        this.buildPointCloudGeometry();
+        this.hideActiveDot();
+      })
+      .catch((error) => {
+        console.error('Failed to load galaxy data for Box Cube:', error);
+      });
+
+    return this.loadPromise;
   }
 
   resize({ width, height, visibleWidth, visibleHeight, centerX, centerY, pixelRatio }: ThreeThemeResizeInfo) {
@@ -537,10 +595,8 @@ private rebuildPointColors() {
           })
           .catch((error) => console.error('Failed to switch galaxy language in Box Cube:', error));
       } else {
-        loadGalaxyData(language).then((data) => {
-          // Only update the frequency gate — geometry stays (full cloud, no blink)
-          data.getPointSet(frequencyLimit);
-        }).catch(() => undefined);
+        // Same language already loaded by ready() — skip redundant reload.
+        return;
       }
       return;
     }

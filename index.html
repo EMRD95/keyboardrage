@@ -68,6 +68,12 @@
           <div id="game" class="game-stage" role="application" aria-label="KeyboardRage playfield" tabindex="0">
             <div class="stage-chrome stage-grid" aria-hidden="true"></div>
             <div class="stage-chrome stage-vignette" aria-hidden="true"></div>
+            <div id="theme-loader" class="theme-loader is-visible" role="status" aria-live="polite" aria-hidden="false">
+              <div class="theme-loader-card">
+                <span class="theme-loader-spinner" aria-hidden="true"></span>
+                <span id="theme-loader-text">Loading theme…</span>
+              </div>
+            </div>
             <div id="game-overlay">
               <p>Game Over! Final Score: <span id="final-score"></span></p>
               <button id="play-again">Play Again</button>

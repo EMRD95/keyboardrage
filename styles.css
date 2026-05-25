@@ -367,6 +367,58 @@ body[data-theme="psychedelic-spin"] .game-stage::after {
   display: block;
 }
 
+.theme-loader {
+  position: absolute;
+  inset: 0;
+  z-index: 9;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transition: none;
+  border-radius: inherit;
+  background:
+    radial-gradient(circle at 50% 42%, rgba(77, 213, 255, 0.12), transparent 34%),
+    rgba(0, 0, 0, 0.34);
+  backdrop-filter: blur(2px);
+}
+
+.theme-loader.is-visible {
+  opacity: 1;
+  visibility: visible;
+}
+
+.theme-loader-card {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border: 1px solid color-mix(in srgb, var(--accent) 42%, transparent);
+  border-radius: 999px;
+  background: rgba(4, 7, 14, 0.78);
+  color: var(--text);
+  font-size: 0.84rem;
+  font-weight: 800;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  box-shadow: 0 0 34px rgba(0, 0, 0, 0.45), 0 0 28px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+.theme-loader-spinner {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.18);
+  border-top-color: var(--accent);
+  border-right-color: color-mix(in srgb, var(--accent-2, var(--accent)) 75%, white 10%);
+  animation: themeLoaderSpin 0.85s linear infinite;
+}
+
+@keyframes themeLoaderSpin {
+  to { transform: rotate(360deg); }
+}
+
 #game-overlay {
   visibility: hidden;
   position: absolute;
@@ -1293,6 +1345,16 @@ body[data-theme] .three-canvas {
   height: 100svh !important;
   display: block;
   pointer-events: none;
+}
+
+body[data-theme] .theme-loader {
+  position: fixed;
+  z-index: 11;
+  background:
+    radial-gradient(circle at 50% 42%, rgba(77, 213, 255, 0.18), transparent 34%),
+    rgba(0, 0, 0, 0.46);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
 }
 
 body[data-theme] .game-footer {

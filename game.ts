@@ -129,6 +129,9 @@ class Game {
     return Number(savedLimit) || DEFAULT_FREQUENCY_LIMIT;
   })();
   private themeSelector: HTMLSelectElement;
+  private themeLoader: HTMLElement | null = null;
+  private themeLoaderText: HTMLElement | null = null;
+  private startSequence = 0;
 
   private constructor(container: HTMLElement, playerName: string, WPM: number = 60, language: string = DEFAULT_LANGUAGE) {
     this.container = container;
@@ -179,6 +182,8 @@ class Game {
     this.requireDiacriticsCheckbox.checked = this.requireDiacriticsSetting;
     this.requireDiacriticsCheckbox.addEventListener('change', this.toggleRequireDiacritics.bind(this));
     this.themeSelector = document.getElementById('theme') as HTMLSelectElement;
+    this.themeLoader = document.getElementById('theme-loader');
+    this.themeLoaderText = document.getElementById('theme-loader-text');
     this.populateThemeSelector();
     this.themeSelector.value = this.theme;
     if (!this.themeSelector.value) {
@@ -372,9 +377,48 @@ class Game {
   private themeReady(): Promise<void> {
     const instance = this.threeThemeInstances.get(this.theme);
     if (instance?.ready) {
-      return instance.ready();
+      return instance.ready({
+        language: this.language,
+        frequencyLimit: this.frequencyLimit,
+      });
     }
     return Promise.resolve();
+  }
+
+  private showThemeLoader(message?: string) {
+    if (!this.themeLoader) return;
+    if (this.themeLoaderText) {
+      this.themeLoaderText.textContent = message || 'Loading theme…';
+    }
+    this.themeLoader.classList.add('is-visible');
+    this.themeLoader.setAttribute('aria-hidden', 'false');
+  }
+
+  private hideThemeLoader() {
+    if (!this.themeLoader) return;
+    this.themeLoader.classList.remove('is-visible');
+    this.themeLoader.setAttribute('aria-hidden', 'true');
+  }
+
+  private async waitForThemeBeforeWords(sequence: number, message?: string) {
+    const instance = this.threeThemeInstances.get(this.theme);
+    if (!instance?.ready) {
+      this.hideThemeLoader();
+      return;
+    }
+    this.showThemeLoader(message);
+    try {
+      await this.themeReady();
+    } finally {
+      if (sequence === this.startSequence) {
+        this.hideThemeLoader();
+      }
+    }
+  }
+
+  private markGameplayStart() {
+    this.startTime = Date.now();
+    this.timeElapsed = 0;
   }
 
   private updateFractalThemeColors() {
@@ -454,8 +498,24 @@ class Game {
     return mode.charAt(0).toUpperCase() + mode.slice(1);
   }
 
+  private resumeIfSettingsClosed() {
+    if (this.settingsMenu.style.display === 'none') {
+      this.resumeGame();
+    }
+  }
+
   closeSettingsMenuIfClickedOutside(event: MouseEvent) {
     const path = event.composedPath();
+    const clickedDropdownMenu = path.some((element: EventTarget) => {
+      return element instanceof HTMLElement && (
+        element.classList.contains('kr-menu') ||
+        element.classList.contains('kr-option') ||
+        element.closest('.kr-menu') !== null
+      );
+    });
+
+    if (clickedDropdownMenu) return;
+
     const inputFields = ['player-name', 'wpm', 'mode', 'language', 'frequency-limit', 'theme', 'grammar', 'addNumbers', 'diacritics'];
     if (this.settingsMenu.style.display !== 'none' && !path.includes(this.settingsMenu) && !path.includes(this.settingsButton)) {
       const clickedOnInputField = path.some((element: any) => element.id && inputFields.includes(element.id));
@@ -501,6 +561,23 @@ class Game {
 
     for (const [themeId, instance] of this.threeThemeInstances) {
       instance.setVisible(this.theme === themeId);
+    }
+    const activeInstance = this.threeThemeInstances.get(this.theme);
+    if (activeInstance && activeInstance.ready) {
+      this.showThemeLoader();
+      // Start loading theme data for the current game language immediately,
+      // even while paused in settings. When the data arrives, hide the loader
+      // if this theme is still active.
+      activeInstance.ready({
+        language: this.language,
+        frequencyLimit: this.frequencyLimit,
+      }).then(() => {
+        if (this.threeThemeInstances.get(this.theme) === activeInstance) {
+          this.hideThemeLoader();
+        }
+      });
+    } else {
+      this.hideThemeLoader();
     }
     const activeThreeTheme = isFractalTheme ? this.theme : 'false';
     document.body.setAttribute('data-three-theme', activeThreeTheme);
@@ -730,7 +807,7 @@ class Game {
     });
 
     this.semanticSearchInput.addEventListener('focus', () => this.pauseGame());
-    this.semanticSearchInput.addEventListener('blur', () => this.resumeGame());
+    this.semanticSearchInput.addEventListener('blur', () => this.resumeIfSettingsClosed());
 
     document.addEventListener('click', (e) => {
       if (!this.semanticSearchInput.contains(e.target as Node) &&
@@ -818,11 +895,17 @@ class Game {
     this.startTime = Date.now();
     this.isGameOver = false;
     this.updateHud();
-    this.generateWords();
-    if (!this.pause && this.animationFrame === null) {
-      this.lastTimestamp = performance.now();
-      this.animate(this.lastTimestamp);
-    }
+    const sequence = ++this.startSequence;
+    requestAnimationFrame(async () => {
+      await this.waitForThemeBeforeWords(sequence);
+      if (sequence !== this.startSequence || this.isGameOver || this.words.length > 0) return;
+      this.markGameplayStart();
+      this.generateWords();
+      if (!this.pause && this.animationFrame === null) {
+        this.lastTimestamp = performance.now();
+        this.animate(this.lastTimestamp);
+      }
+    });
   }
 
   async setSemanticSeed(pointId: number, word: string, lang: string) {
@@ -863,6 +946,7 @@ class Game {
   }
 
   restart(currentWPM: number) {
+    const sequence = ++this.startSequence;
     this.score = 0;
     this.clearWords();
     this.originalWPM = currentWPM;
@@ -892,40 +976,44 @@ class Game {
       this.allWords = this.shuffleArray([...this.semanticAllWords]);
       this.wordList = [];
       this.nextBatch();
-      this.generateWords();
-      if (!this.pause && this.animationFrame === null) {
-        this.lastTimestamp = performance.now();
-        this.animate(this.lastTimestamp);
-      }
+      requestAnimationFrame(async () => {
+        await this.waitForThemeBeforeWords(sequence);
+        if (sequence !== this.startSequence || this.isGameOver || this.words.length > 0) return;
+        this.markGameplayStart();
+        this.generateWords();
+        if (!this.pause && this.animationFrame === null) {
+          this.lastTimestamp = performance.now();
+          this.animate(this.lastTimestamp);
+        }
+      });
       return;
     }
 
-    this.fetchWords().then(() => {
+    Promise.all([this.fetchWords(), this.waitForThemeBeforeWords(sequence)]).then(() => {
       requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          if (!this.isGameOver && this.words.length === 0) {
-            this.generateWords();
-            if (!this.pause && this.animationFrame === null) {
-              this.lastTimestamp = performance.now();
-              this.animate(this.lastTimestamp);
-            }
-          }
-        });
+        if (sequence !== this.startSequence || this.isGameOver || this.words.length > 0) return;
+        this.markGameplayStart();
+        this.generateWords();
+        if (!this.pause && this.animationFrame === null) {
+          this.lastTimestamp = performance.now();
+          this.animate(this.lastTimestamp);
+        }
       });
     });
   }
 
   initialize() {
+    const sequence = ++this.startSequence;
     this.container.focus({ preventScroll: true });
     // Wait for DOM layout + WebGL to settle, then await theme data before
     // dropping the first word.
-    requestAnimationFrame(() => {
-      requestAnimationFrame(async () => {
-        await this.themeReady();
-        this.generateWords();
-        this.lastTimestamp = performance.now();
-        this.animate(this.lastTimestamp);
-      });
+    requestAnimationFrame(async () => {
+      await this.waitForThemeBeforeWords(sequence);
+      if (sequence !== this.startSequence || this.isGameOver || this.words.length > 0) return;
+      this.markGameplayStart();
+      this.generateWords();
+      this.lastTimestamp = performance.now();
+      this.animate(this.lastTimestamp);
     });
 
     window.addEventListener('keydown', (event) => this.handleKeydown(event));
@@ -1407,7 +1495,10 @@ function makeCustomDropdown(
       const row = document.createElement('div');
       row.className = 'kr-option';
       row.innerHTML = opt.markup || opt.text;
-      row.addEventListener('click', () => setSelected(opt.value));
+      row.addEventListener('click', (event) => {
+        event.stopPropagation();
+        setSelected(opt.value);
+      });
       menu.appendChild(row);
     });
   };
@@ -1434,6 +1525,10 @@ function makeCustomDropdown(
   };
 
   renderMenu();
+
+  menu.addEventListener('click', (event) => {
+    event.stopPropagation();
+  });
 
   trigger.addEventListener('click', (e) => {
     e.stopPropagation();
@@ -1583,7 +1678,7 @@ Game.create(gameStage, undefined, 30, DEFAULT_LANGUAGE).then(async game => {
     game.setWPM(newWPM);
   });
   wpmInput.addEventListener('focus', () => game.pauseGame());
-  wpmInput.addEventListener('blur', () => game.resumeGame());
+  wpmInput.addEventListener('blur', safeResume);
 
   // Theme custom dropdown — calls changeTheme directly (no native event dispatch)
   const themeOpts: DropdownOption[] = THEME_OPTIONS.map(t => ({ text: t.label, value: t.id }));
@@ -1592,7 +1687,7 @@ Game.create(gameStage, undefined, 30, DEFAULT_LANGUAGE).then(async game => {
   }, () => game.pauseGame(), safeResume);
 
   playerNameInput.addEventListener('focus', () => game.pauseGame());
-  playerNameInput.addEventListener('blur', () => game.resumeGame());
+  playerNameInput.addEventListener('blur', safeResume);
 
   let playerName = localStorage.getItem('playerName');
   if (!playerName) {

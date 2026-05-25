@@ -49,6 +49,8 @@ export type ThreeThemeUpdateInfo = {
   frequencyLimit?: number;
 };
 
+export type ThreeThemeReadyInfo = Pick<ThreeThemeUpdateInfo, 'language' | 'frequencyLimit'>;
+
 export type ThreeThemeColorInfo = {
   accent: string;
   accent2: string;
@@ -60,7 +62,7 @@ export type ThreeThemeRuntime = {
   update: (info: ThreeThemeUpdateInfo) => void;
   updateColors?: (info: ThreeThemeColorInfo) => void;
   dispose?: () => void;
-  ready?: () => Promise<void>;
+  ready?: (info?: ThreeThemeReadyInfo) => Promise<void>;
 };
 
 export type ThreeThemeContext = {
