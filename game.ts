@@ -70,7 +70,36 @@ const WORD_DANGER = '#FF0000';
 const DEFAULT_THEME = 'milky-way';
 const DEFAULT_LANGUAGE = 'english';
 const DEFAULT_FREQUENCY_LIMIT = 200;
+const CUSTOM_YOUTUBE_THEME_ID = 'custom-youtube';
 
+/** Extract a YouTube video ID from any common URL format.
+ *  Supported: watch?v=, youtu.be/, embed/, shorts/, or bare ID.
+ *  Returns null if the input doesn't look like a valid YouTube ID. */
+function extractYouTubeId(input: string): string | null {
+  if (!input) return null;
+  const trimmed = input.trim();
+  // Bare 11-char ID
+  if (/^[a-zA-Z0-9_-]{11}$/.test(trimmed)) return trimmed;
+  try {
+    const url = new URL(trimmed);
+    // youtu.be/VIDEO_ID
+    if (url.hostname.endsWith('youtu.be')) {
+      const id = url.pathname.slice(1).split('/')[0];
+      return /^[a-zA-Z0-9_-]{11}$/.test(id) ? id : null;
+    }
+    // youtube.com/watch?v=VIDEO_ID
+    if (url.hostname.includes('youtube.com')) {
+      const id = url.searchParams.get('v');
+      if (id && /^[a-zA-Z0-9_-]{11}$/.test(id)) return id;
+      // youtube.com/embed/VIDEO_ID or youtube.com/shorts/VIDEO_ID
+      const parts = url.pathname.split('/').filter(Boolean);
+      if ((parts[0] === 'embed' || parts[0] === 'shorts') && /^[a-zA-Z0-9_-]{11}$/.test(parts[1])) {
+        return parts[1];
+      }
+    }
+  } catch { /* not a valid URL, try bare ID below */ }
+  return null;
+}
 
 class Game {
   private container: HTMLElement;
@@ -121,7 +150,7 @@ class Game {
   private semanticDebounceTimer: ReturnType<typeof setTimeout> | null = null;
   private theme: string = (() => {
     const savedTheme = localStorage.getItem('theme');
-    return savedTheme && THEME_OPTIONS.some(t => t.id === savedTheme) ? savedTheme : DEFAULT_THEME;
+    return savedTheme && (THEME_OPTIONS.some(t => t.id === savedTheme) || savedTheme === 'custom-youtube') ? savedTheme : DEFAULT_THEME;
   })();
   private frequencyLimit: number = (() => {
     const savedLimit = localStorage.getItem('frequencyLimit');
@@ -269,6 +298,11 @@ class Game {
       option.textContent = theme.label;
       return option;
     });
+    // Add Custom YouTube option to the native select so setSelected works
+    const ytOption = document.createElement('option');
+    ytOption.value = 'custom-youtube';
+    ytOption.textContent = 'Custom YouTube';
+    options.push(ytOption);
     this.themeSelector.replaceChildren(...options);
   }
 
@@ -552,9 +586,27 @@ class Game {
     localStorage.setItem('theme', this.theme);
     document.body.setAttribute('data-theme', this.theme);
 
+    // Show YouTube URL input only when Custom YouTube is selected
+    const ytContainer = document.getElementById('custom-yt-container');
+    if (ytContainer) {
+      ytContainer.style.display = this.theme === CUSTOM_YOUTUBE_THEME_ID ? '' : 'none';
+    }
+
     const iframe = document.getElementById('myVideo') as HTMLIFrameElement;
-    const videoTheme = VIDEO_THEMES[this.theme];
+    let videoTheme = VIDEO_THEMES[this.theme];
     const isFractalTheme = this.isThreeFractalTheme();
+
+    // Custom YouTube: read user-provided video ID from localStorage,
+    // fall back to highway video as default
+    if (this.theme === CUSTOM_YOUTUBE_THEME_ID) {
+      const customId = localStorage.getItem('customYoutubeId');
+      if (customId) {
+        videoTheme = { id: customId, maxStart: 3600 };
+      } else {
+        // Default: highway video (same as the Highway theme)
+        videoTheme = { id: 'tTBJeT5F4r8', maxStart: 2536 };
+      }
+    }
 
     // Lazily build the theme if this is its first selection
     this.ensureThemeInstance(this.theme);
@@ -1681,10 +1733,44 @@ Game.create(gameStage, undefined, 30, DEFAULT_LANGUAGE).then(async game => {
   wpmInput.addEventListener('blur', safeResume);
 
   // Theme custom dropdown — calls changeTheme directly (no native event dispatch)
-  const themeOpts: DropdownOption[] = THEME_OPTIONS.map(t => ({ text: t.label, value: t.id }));
+  const themeOpts: DropdownOption[] = [
+    ...THEME_OPTIONS.map(t => ({ text: t.label, value: t.id })),
+    { text: 'Custom YouTube', value: 'custom-youtube' }
+  ];
   const themeDD = makeCustomDropdown(themeInput, themeOpts, game.getTheme(), (_v) => {
     game.changeTheme();
   }, () => game.pauseGame(), safeResume);
+
+  // Custom YouTube URL input — extract ID on change, persist to localStorage
+  const ytInput = document.getElementById('custom-youtube-url') as HTMLInputElement;
+  if (ytInput) {
+    // Restore saved URL
+    const savedYtId = localStorage.getItem('customYoutubeId');
+    if (savedYtId) {
+      ytInput.value = `https://youtube.com/watch?v=${savedYtId}`;
+    }
+    ytInput.addEventListener('input', () => {
+      const id = extractYouTubeId(ytInput.value);
+      if (id) {
+        localStorage.setItem('customYoutubeId', id);
+        // Auto-switch to YouTube theme when a valid URL is pasted
+        if (game.getTheme() !== 'custom-youtube') {
+          themeDD.setSelected('custom-youtube');
+        }
+        game.changeTheme();
+      } else if (ytInput.value.trim() === '') {
+        localStorage.removeItem('customYoutubeId');
+      }
+    });
+    ytInput.addEventListener('focus', () => game.pauseGame());
+    ytInput.addEventListener('blur', safeResume);
+
+    // Show/hide YT container based on current theme
+    const ytContainer = document.getElementById('custom-yt-container');
+    if (ytContainer) {
+      ytContainer.style.display = game.getTheme() === 'custom-youtube' ? '' : 'none';
+    }
+  }
 
   playerNameInput.addEventListener('focus', () => game.pauseGame());
   playerNameInput.addEventListener('blur', safeResume);

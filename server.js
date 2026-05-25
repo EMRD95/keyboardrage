@@ -8,6 +8,7 @@ const fs = require('fs');
 const ip = require('ip');
 const { verifyGoogleToken, signSessionToken, verifySessionToken, GOOGLE_CLIENT_ID } = require('./auth');
 const rateLimit = require('express-rate-limit');
+const { MongoMemoryServer } = require('mongodb-memory-server');
 
 const app = express();
 app.set('trust proxy', 1);
@@ -17,16 +18,23 @@ app.listen(3000, () => console.log('Server listening on port 3000'));
 
 app.use(express.static(__dirname));
 
-mongoose.connect('mongodb://127.0.0.1:27017/typing_game', {
-  useNewUrlParser: true,
-  useUnifiedTopology: true
-})
-.then(() => {
-  console.log('MongoDB Connected')
-})
-.catch(err => {
-  console.error('Failed to connect to MongoDB', err)
-});
+async function startMongo() {
+  try {
+    const mongod = await MongoMemoryServer.create({
+      instance: {
+        dbPath: path.join(__dirname, '.mongo-dev-data'),
+        storageEngine: 'wiredTiger',
+      },
+    });
+    const uri = mongod.getUri();
+    await mongoose.connect(uri);
+    console.log('MongoDB Connected (in-memory)');
+  } catch (err) {
+    console.error('Failed to connect to MongoDB', err);
+  }
+}
+
+startMongo();
 
 let tokens = [];
 app.get('/token', (req, res) => {

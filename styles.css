@@ -1440,6 +1440,12 @@ body[data-theme] #player-name-container label {
   letter-spacing: 0.10em;
 }
 
+/* Custom YouTube URL input — always visible in settings */
+.yt-url-input {
+  width: 100%;
+  box-sizing: border-box;
+}
+
 body[data-theme] select,
 body[data-theme] input[type="text"] {
   min-height: 34px;
