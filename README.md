@@ -1,13 +1,22 @@
 # KeyboardRage
 
-KeyboardRage is a typing game in an arcadce style where players have to type the words before they fall to the bottom of the box, different speeds and languages are available.
-
-
+KeyboardRage is a typing game in an arcade style where players have to type the words before they fall to the bottom of the box, different speeds and languages are available.
 
 https://github.com/EMRD95/keyboardrage/assets/114953576/e6760a23-df1b-4d6f-812a-7dee6af56f81
 
+## Galaxy — 3D Semantic Word Universe
 
+KeyboardRage features a 3D semantic galaxy where words are positioned by meaning across 108 languages. 2.25 million words embedded with IBM Granite and projected via UMAP into a navigable 3D space.
 
+**Precomputed models (16 GB)** are hosted on HuggingFace:
+→ **[emrd95/keyboardrage-semantic](https://huggingface.co/emrd95/keyboardrage-semantic)**
+
+To download and deploy on-premise:
+```bash
+./setup.sh
+```
+
+The semantic neighbors API provides real-time similarity queries at `http://localhost:8703`.
 
 ## Installation
 
