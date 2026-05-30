@@ -59,9 +59,11 @@ hf download "$HF_REPO" galaxy/atlas/atlas_data.parquet \
 
 # Download word embeddings
 echo "[3/3] words_emb_merged/ …"
-hf download "$HF_REPO" words_emb_merged/ \
-    --include "*.json" \
-    --local-dir . 2>&1 | tail -5
+hf download "$HF_REPO" --include "words_emb_merged/*.json" --local-dir . 2>&1 | tail -5
+
+# Download pre-generated galaxy visualisation files
+echo "[4/4] galaxy/3D_galaxy/ (viewer data) …"
+hf download "$HF_REPO" galaxy/3D_galaxy/galaxy_data.bin galaxy/3D_galaxy/galaxy_words.json galaxy/3D_galaxy/galaxy_meta.json --local-dir . 2>&1 | tail -5
 
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -70,6 +72,7 @@ echo ""
 echo "Directory structure:"
 echo "  galaxy/semantic/   — embeddings, FAISS index, precomputed neighbors (108 languages)"
 echo "  galaxy/atlas/       — 3D projection metadata"
+echo "  galaxy/3D_galaxy/   — pre-generated 3D galaxy viewer data"
 echo "  words_emb_merged/   — raw word embeddings per language"
 echo ""
 echo "To start the semantic neighbors API:"
