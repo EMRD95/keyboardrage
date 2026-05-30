@@ -133,6 +133,15 @@ function renderUnifiedChart(data) {
   const labels = sessions.map(sessionLabel);
   const datasets = buildDatasets(sessions);
 
+  // Theme-aware chart colors
+  const isDay = document.documentElement.dataset.infoTheme === 'day';
+  const textColor = isDay ? 'rgba(24,32,44,.85)' : 'rgba(255,255,255,.82)';
+  const mutedColor = isDay ? 'rgba(60,70,80,.55)' : 'rgba(255,255,255,.58)';
+  const gridColor = isDay ? 'rgba(100,95,85,.12)' : 'rgba(255,255,255,.06)';
+  const tooltipBg = isDay ? 'rgba(250,248,242,.97)' : 'rgba(5,8,16,.94)';
+  const tooltipBorder = isDay ? 'rgba(100,95,85,.25)' : 'rgba(255,255,255,.16)';
+  const tooltipText = isDay ? 'rgba(24,32,44,.9)' : 'rgba(255,255,255,.88)';
+
   if (unifiedChart) {
     unifiedChart.data.labels = labels;
     unifiedChart.data.datasets.forEach((dataset, i) => {
@@ -152,14 +161,16 @@ function renderUnifiedChart(data) {
       plugins: {
         legend: {
           position: 'top',
-          labels: { color: 'rgba(255,255,255,.82)', usePointStyle: true, boxWidth: 10, boxHeight: 10 },
+          labels: { color: textColor, usePointStyle: true, boxWidth: 10, boxHeight: 10 },
         },
         tooltip: {
           enabled: true,
-          backgroundColor: 'rgba(5,8,16,.94)',
-          borderColor: 'rgba(255,255,255,.16)',
+          backgroundColor: tooltipBg,
+          borderColor: tooltipBorder,
           borderWidth: 1,
           padding: 12,
+          titleColor: tooltipText,
+          bodyColor: tooltipText,
           callbacks: {
             afterTitle(items) {
               const session = sessions[items[0].dataIndex];
@@ -182,8 +193,8 @@ function renderUnifiedChart(data) {
         },
       },
       scales: {
-        x: { ticks: { color: 'rgba(255,255,255,.58)', maxRotation: 0, autoSkip: true }, grid: { color: 'rgba(255,255,255,.06)' } },
-        score: { type: 'linear', position: 'left', beginAtZero: true, ticks: { color: '#7df9ff' }, grid: { color: 'rgba(255,255,255,.08)' } },
+        x: { ticks: { color: mutedColor, maxRotation: 0, autoSkip: true }, grid: { color: gridColor } },
+        score: { type: 'linear', position: 'left', beginAtZero: true, ticks: { color: '#7df9ff' }, grid: { color: gridColor } },
         speed: { type: 'linear', position: 'right', beginAtZero: true, ticks: { color: '#ff4fd8' }, grid: { drawOnChartArea: false } },
         percent: { type: 'linear', position: 'right', min: 0, max: 100, display: false, grid: { drawOnChartArea: false } },
         count: { type: 'linear', position: 'right', beginAtZero: true, display: false, grid: { drawOnChartArea: false } },

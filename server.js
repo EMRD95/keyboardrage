@@ -32,6 +32,10 @@ app.listen(3000, () => console.log('Server listening on port 3000'));
 
 app.use(express.static(__dirname));
 
+// Extensionless redirects for legal pages (Google OAuth reviewers check these)
+app.get('/privacy', (req, res) => res.redirect(301, '/privacy.html'));
+app.get('/terms', (req, res) => res.redirect(301, '/terms.html'));
+
 async function startMongo() {
   try {
     const dbPath = path.join(__dirname, '.mongo-dev-data');

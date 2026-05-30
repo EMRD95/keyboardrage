@@ -47,6 +47,15 @@
 
   document.body.insertAdjacentHTML('afterbegin', navHTML);
 
+  // Footer — injected after header on every info page
+  var footerHTML =
+    '<footer class="page-footer">' +
+    '  <a href="/privacy.html">Privacy</a>' +
+    '  <span class="footer-sep">|</span>' +
+    '  <a href="/terms.html">Terms</a>' +
+    '</footer>';
+  document.body.insertAdjacentHTML('beforeend', footerHTML);
+
   // Theme toggle
   var toggle = document.getElementById('info-theme-toggle');
   if (toggle) {

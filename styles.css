@@ -1093,6 +1093,29 @@ body.info-page .data-viz-links a:hover {
   }
 }
 
+/* Info page footer (Privacy / Terms) */
+body.info-page .page-footer {
+  text-align: center;
+  padding: 24px 16px 32px;
+  font-size: 0.75rem;
+  color: var(--info-muted);
+}
+
+body.info-page .page-footer a {
+  color: var(--info-muted);
+  text-decoration: none;
+}
+
+body.info-page .page-footer a:hover {
+  color: var(--info-link);
+  text-decoration: underline;
+}
+
+body.info-page .footer-sep {
+  margin: 0 8px;
+  opacity: 0.35;
+}
+
 ::-webkit-scrollbar {
   width: 10px;
   height: 10px;

@@ -12,15 +12,15 @@
 <body class="info-page">
 
   <main style="max-width:500px;margin:60px auto;padding:0 20px;text-align:center">
-    <h1 style="color:#fff;margin-bottom:8px">Set Up Your Account</h1>
-    <p id="setup-hint" style="color:#888;font-size:0.9rem;margin-bottom:24px">
+    <h1 style="color:var(--info-heading);margin-bottom:8px;width:auto;text-align:center">Set Up Your Account</h1>
+    <p id="setup-hint" style="color:var(--info-muted);font-size:0.9rem;margin-bottom:24px">
       Choose a display name — this is how you'll appear on leaderboards.
     </p>
 
     <div id="setup-form" style="display:flex;flex-direction:column;align-items:center;gap:12px">
       <input type="text" id="display-name-input" placeholder="Display name (3–30 chars)"
         minlength="3" maxlength="30" autocomplete="off" autocapitalize="off" autocorrect="off"
-        style="width:280px;padding:10px 14px;background:var(--surface-soft,rgba(255,255,255,0.06));border:1px solid rgba(255,255,255,0.15);color:#fff;border-radius:6px;font-size:1rem;text-align:center">
+        style="width:280px;padding:10px 14px;background:var(--info-panel-soft);border:1px solid var(--info-border);color:var(--info-text);border-radius:6px;font-size:1rem;text-align:center">
       <p id="setup-error" style="color:#f55;font-size:0.85rem;display:none;margin:0"></p>
       <button id="setup-submit" style="width:280px;padding:10px;background:var(--accent,#0f0);color:#000;border:none;border-radius:6px;font-size:1rem;font-weight:600;cursor:pointer">
         Save Display Name
@@ -32,15 +32,15 @@
       <a href="/index.html" style="display:inline-block;padding:10px 28px;background:var(--accent,#0f0);color:#000;text-decoration:none;border-radius:6px;font-weight:600">
         Start Playing
       </a>
-      <a href="/stats.html" style="display:inline-block;margin-left:8px;padding:10px 28px;background:rgba(255,255,255,0.10);color:#fff;text-decoration:none;border-radius:6px;font-weight:600;border:1px solid rgba(255,255,255,0.16)">
+      <a href="/stats.html" style="display:inline-block;margin-left:8px;padding:10px 28px;background:var(--info-panel-soft);color:var(--info-text);text-decoration:none;border-radius:6px;font-weight:600;border:1px solid var(--info-border)">
         My Stats
       </a>
-      <a href="/leaderboard.html" style="display:inline-block;margin-left:8px;padding:10px 28px;background:rgba(255,255,255,0.10);color:#fff;text-decoration:none;border-radius:6px;font-weight:600;border:1px solid rgba(255,255,255,0.16)">
+      <a href="/leaderboard.html" style="display:inline-block;margin-left:8px;padding:10px 28px;background:var(--info-panel-soft);color:var(--info-text);text-decoration:none;border-radius:6px;font-weight:600;border:1px solid var(--info-border)">
         🏆 Leaderboard
       </a>
     </div>
 
-    <p id="setup-email" style="color:#666;font-size:0.8rem;margin-top:16px"></p>
+    <p id="setup-email" style="color:var(--info-muted);font-size:0.8rem;margin-top:16px"></p>
   </main>
 
   <script type="module">
