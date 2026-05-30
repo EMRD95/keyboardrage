@@ -5,7 +5,6 @@ const mongoose = require('mongoose');
 const bodyParser = require('body-parser');
 const path = require('path');
 const fs = require('fs');
-const ip = require('ip');
 const { verifyGoogleToken, signSessionToken, verifySessionToken, GOOGLE_CLIENT_ID } = require('./auth');
 const rateLimit = require('express-rate-limit');
 const { MongoMemoryServer } = require('mongodb-memory-server');
@@ -17,8 +16,17 @@ const {
 } = require('./typing-stats');
 
 const app = express();
+app.disable('x-powered-by');
 app.set('trust proxy', 1);
 app.use(bodyParser.json({ limit: '768kb' }));
+
+// Security headers
+app.use((req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader('Cross-Origin-Resource-Policy', 'same-origin');
+  next();
+});
 
 app.listen(3000, () => console.log('Server listening on port 3000'));
 
@@ -43,13 +51,6 @@ async function startMongo() {
 }
 
 startMongo();
-
-let tokens = [];
-app.get('/token', (req, res) => {
-  const token = Math.random().toString(36).substring(2);
-  tokens.push(token);
-  res.send({ token });
-});
 
 
 const ScoreSchema = new mongoose.Schema({
@@ -651,7 +652,11 @@ app.get('/stats/me', authMiddleware, async (req, res) => {
 try {
     var validateScore = require('./antiCheat');
 } catch (err) {
-    console.warn('antiCheat.js not found, score validation will be bypassed.', err.message);
+    if (process.env.NODE_ENV === 'production') {
+        console.error('FATAL: antiCheat.js missing in production. Refusing to accept scores unvalidated.');
+        process.exit(1);
+    }
+    console.warn('antiCheat.js not found, score validation bypassed (dev only).', err.message);
     validateScore = () => ({ valid: true });
 }
 

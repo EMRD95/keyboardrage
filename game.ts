@@ -150,7 +150,6 @@ class Game {
   private playerName: string;
   private pause: boolean;
   private isGameOver = false;
-  private token: string | null;
   private timeElapsed: number;
   private keystrokes: number;
   private startTime: number;
@@ -229,7 +228,6 @@ class Game {
     this.originalWPM = this.WPM;
     this.playerName = localStorage.getItem('playerName') || playerName;
     this.pause = false;
-    this.token = null;
     this.timeElapsed = 0;
     this.keystrokes = 0;
     this.startTime = Date.now();
@@ -276,7 +274,6 @@ class Game {
   static async create(container: HTMLElement, playerName: string = 'Player', WPM: number = 60, language: string = DEFAULT_LANGUAGE) {
     await document.fonts.load('700 48px Roboto');
     const game = new Game(container, playerName, WPM, language);
-    await game.fetchToken();
     await game.fetchWords();
     return game;
   }
@@ -647,17 +644,6 @@ class Game {
     } else {
       this.settingsMenu.style.display = 'none';
       this.resumeGame();
-    }
-  }
-
-  async fetchToken() {
-    try {
-      const response = await fetch('/token');
-      const data = await response.json();
-      this.token = data.token;
-    } catch (error) {
-      console.warn('Token endpoint unavailable; scores will not be ranked in this session.', error);
-      this.token = Math.random().toString(36).slice(2);
     }
   }
 
