@@ -1586,7 +1586,7 @@ class Game {
       // Read JWT session for authenticated score submission
       let authHeader = {};
       let token = null;
-      const sessionStr = localStorage.getItem('kr_session');
+      const sessionStr = sessionStorage.getItem('kr_session');
       if (sessionStr) {
         try {
           const session = JSON.parse(sessionStr);

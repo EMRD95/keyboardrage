@@ -16,6 +16,9 @@ const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '488404200674-3r3mrk5vf
 const JWT_SECRET_FILE = require('path').join(__dirname, '.jwt-secret');
 function loadJwtSecret() {
   if (process.env.JWT_SECRET) return process.env.JWT_SECRET;
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('JWT_SECRET is required when NODE_ENV=production');
+  }
   try {
     if (require('fs').existsSync(JWT_SECRET_FILE)) {
       return require('fs').readFileSync(JWT_SECRET_FILE, 'utf8').trim();
@@ -31,7 +34,9 @@ function loadJwtSecret() {
 
 const JWT_SECRET = loadJwtSecret();
 
-const JWT_EXPIRY = '30d'; // session duration
+const JWT_EXPIRY = '7d'; // session duration
+const JWT_ISSUER = 'keyboardrage';
+const JWT_AUDIENCE = 'keyboardrage-web';
 
 const googleClient = new OAuth2Client(GOOGLE_CLIENT_ID);
 
@@ -69,13 +74,10 @@ function signSessionToken(user) {
   return jwt.sign(
     {
       sub: user._id.toString(),
-      googleId: user.googleId,
-      email: user.email,
-      name: user.name,
       displayName: user.displayName || null,
     },
     JWT_SECRET,
-    { expiresIn: JWT_EXPIRY },
+    { expiresIn: JWT_EXPIRY, issuer: JWT_ISSUER, audience: JWT_AUDIENCE },
   );
 }
 
@@ -86,7 +88,11 @@ function signSessionToken(user) {
  */
 function verifySessionToken(token) {
   try {
-    return jwt.verify(token, JWT_SECRET);
+    return jwt.verify(token, JWT_SECRET, {
+      algorithms: ['HS256'],
+      issuer: JWT_ISSUER,
+      audience: JWT_AUDIENCE,
+    });
   } catch {
     return null;
   }

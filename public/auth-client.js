@@ -26,7 +26,7 @@ export async function initAuth() {
   if (_initialized) return;
   _initialized = true;
 
-  const saved = localStorage.getItem(AUTH_STORAGE_KEY);
+  const saved = sessionStorage.getItem(AUTH_STORAGE_KEY);
   if (!saved) {
     // No saved session — just set up the sign-in button
     _initGoogleButton();
@@ -58,8 +58,8 @@ export async function initAuth() {
     if (resp.ok) {
       const user = await resp.json();
       _session = { token: parsed.token, user };
-      // Cache the full session (token + user + timestamp) in localStorage
-      localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify({
+      // Cache the full session (token + user + timestamp) in sessionStorage
+      sessionStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify({
         token: parsed.token,
         user,
         cachedAt: Date.now()
@@ -68,7 +68,7 @@ export async function initAuth() {
       _initGoogleButton();
       _onSessionReady();
     } else if (resp.status === 401) {
-      localStorage.removeItem(AUTH_STORAGE_KEY);
+      sessionStorage.removeItem(AUTH_STORAGE_KEY);
     }
   } catch {
     // Network error — use cached profile if available (even if stale)
@@ -130,7 +130,7 @@ async function _initGoogleButton() {
 /** Sign out. */
 export function signOut() {
   _session = null;
-  localStorage.removeItem(AUTH_STORAGE_KEY);
+  sessionStorage.removeItem(AUTH_STORAGE_KEY);
   if (window.google?.accounts?.id) {
     window.google.accounts.id.disableAutoSelect();
   }
@@ -154,7 +154,7 @@ async function handleGoogleResponse(response) {
 
     const data = await res.json();
     _session = { token: data.token, user: data.user };
-    localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify({
+    sessionStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify({
       token: data.token,
       user: data.user,
       cachedAt: Date.now()

@@ -20,19 +20,73 @@ app.disable('x-powered-by');
 app.set('trust proxy', 1);
 app.use(bodyParser.json({ limit: '768kb' }));
 
-// Security headers
+const PORT = Number(process.env.PORT || 3000);
+const IS_PRODUCTION = process.env.NODE_ENV === 'production';
+
+const CSP_DIRECTIVES = [
+  "default-src 'self'",
+  "base-uri 'self'",
+  "object-src 'none'",
+  "form-action 'none'",
+  "frame-ancestors 'none'",
+  "script-src 'self' 'unsafe-inline' https://accounts.google.com https://cdn.jsdelivr.net",
+  "connect-src 'self' https://accounts.google.com https://www.googleapis.com",
+  "img-src 'self' data: https://*.googleusercontent.com",
+  "style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com",
+  "font-src 'self' https://cdnjs.cloudflare.com data:",
+  "frame-src 'self' https://accounts.google.com https://www.youtube.com https://www.youtube-nocookie.com",
+  "media-src 'self' https://www.youtube.com https://www.youtube-nocookie.com",
+].join('; ');
+
+// Security headers — must run before static files and routes.
 app.use((req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
   res.setHeader('Cross-Origin-Resource-Policy', 'same-origin');
+  res.setHeader('Content-Security-Policy', CSP_DIRECTIVES);
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()');
+  res.setHeader('X-Frame-Options', 'DENY');
+  // Google Sign-In popups need same-origin-allow-popups rather than strict same-origin.
+  res.setHeader('Cross-Origin-Opener-Policy', 'same-origin-allow-popups');
+  if (IS_PRODUCTION) {
+    res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  }
   next();
 });
 
-const PORT = Number(process.env.PORT || 3000);
-app.listen(PORT, () => console.log(`Server listening on port ${PORT}`));
+const staticOptions = { dotfiles: 'deny', index: false, fallthrough: true };
+const ASSET_EXTENSIONS = new Set(['.html', '.css', '.js', '.mjs', '.json', '.bin', '.wasm', '.png', '.jpg', '.jpeg', '.webp', '.gif', '.svg', '.ico', '.txt', '.woff', '.woff2', '.ttf']);
+const JS_RUNTIME_EXTENSIONS = new Set(['.js', '.mjs', '.wasm', '.map']);
+function onlyPublicAssets(req, res, next) {
+  const ext = path.extname(req.path).toLowerCase();
+  if (!ASSET_EXTENSIONS.has(ext)) return res.status(404).end();
+  next();
+}
+function onlyScriptRuntimeFiles(req, res, next) {
+  const ext = path.extname(req.path).toLowerCase();
+  if (!JS_RUNTIME_EXTENSIONS.has(ext)) return res.status(404).end();
+  next();
+}
+function serveTopLevelFile(route, fileName) {
+  app.get(route, (req, res) => res.sendFile(path.join(__dirname, fileName)));
+}
 
-app.use(express.static(__dirname + '/public'));
-app.use(express.static(__dirname));
+// Serve only deliberate public assets. Do NOT expose the repository root:
+// it contains .git, server.js, auth.js, antiCheat.js, rateLimiter.js and deploy-only files.
+app.use(express.static(path.join(__dirname, 'public'), staticOptions));
+app.use('/fonts', onlyPublicAssets, express.static(path.join(__dirname, 'fonts'), staticOptions));
+app.use('/flags', onlyPublicAssets, express.static(path.join(__dirname, 'flags'), staticOptions));
+app.use('/textures', onlyPublicAssets, express.static(path.join(__dirname, 'textures'), staticOptions));
+app.use('/themes', onlyPublicAssets, express.static(path.join(__dirname, 'themes'), staticOptions));
+app.use('/words', onlyPublicAssets, express.static(path.join(__dirname, 'words'), staticOptions));
+app.use('/galaxy', onlyPublicAssets, express.static(path.join(__dirname, 'galaxy'), staticOptions));
+app.use('/node_modules/three', onlyScriptRuntimeFiles, express.static(path.join(__dirname, 'node_modules', 'three'), staticOptions));
+app.use('/node_modules/chart.js/dist', onlyScriptRuntimeFiles, express.static(path.join(__dirname, 'node_modules', 'chart.js', 'dist'), staticOptions));
+app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
+serveTopLevelFile('/favicon.ico', 'favicon.ico');
+serveTopLevelFile('/logo.png', 'logo.png');
+
+app.listen(PORT, () => console.log(`Server listening on port ${PORT}`));
 
 // Extensionless redirects for legal pages (Google OAuth reviewers check these)
 app.get('/privacy', (req, res) => res.redirect(301, '/privacy.html'));
@@ -103,11 +157,13 @@ const ScoreSchema = new mongoose.Schema({
 ScoreSchema.index({ userId: 1, WPM: 1, language: 1, score: -1 });
 ScoreSchema.index({ language: 1, WPM: 1, score: -1, precision: -1 });
 
+let supportedLanguagesCache = null;
 function loadSupportedLanguages() {
+  if (supportedLanguagesCache) return supportedLanguagesCache;
   try {
     const languages = JSON.parse(fs.readFileSync(path.join(__dirname, 'words', 'languagelist.json'), 'utf8'));
     const list = Array.isArray(languages) ? Array.from(new Set([...languages, 'english', 'french'])) : ['english', 'french'];
-    return list.map(code => {
+    const result = list.map(code => {
       let count = 0;
       try {
         const wordsPath = path.join(__dirname, 'words', code, 'words.json');
@@ -118,9 +174,12 @@ function loadSupportedLanguages() {
       } catch (e) { /* use 0 */ }
       return { code, count };
     }).sort((a, b) => b.count - a.count);
+    supportedLanguagesCache = result;
+    return supportedLanguagesCache;
   } catch (err) {
     console.error('Failed to load languages', err);
-    return [{ code: 'english', count: 352781 }, { code: 'french', count: 302443 }];
+    supportedLanguagesCache = [{ code: 'english', count: 352781 }, { code: 'french', count: 302443 }];
+    return supportedLanguagesCache;
   }
 }
 
@@ -150,6 +209,58 @@ const authSetupLimiter = rateLimit({
   legacyHeaders: false,
   message: { error: 'Too many account setup attempts, wait a moment and try again.' },
 });
+const authGoogleLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many authentication attempts, wait a moment and try again.' },
+});
+const scorePreAuthLimiter = rateLimit({
+  windowMs: 10 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many score requests, wait a moment and try again.' },
+});
+const VALID_SCORE_MODES = new Set([
+  'rage',
+  'precision',
+  'fast',
+  'precision+P',
+  'precision+N',
+  'rage+N',
+  'rage+P',
+  'fast+N',
+  'fast+P',
+  'precision+N+P',
+  'rage+N+P',
+  'fast+N+P',
+]);
+
+function readStringQuery(value) {
+  return typeof value === 'string' ? value : null;
+}
+
+function parseStrictNumberQuery(value) {
+  if (typeof value !== 'string' && typeof value !== 'number') return NaN;
+  const raw = String(value);
+  if (!/^\d+$/.test(raw)) return NaN;
+  return Number(raw);
+}
+
+function parseBoundedInteger(value, fallback, { min = 1, max = 50 } = {}) {
+  if (typeof value !== 'string' && typeof value !== 'number') return fallback;
+  const raw = String(value);
+  if (!/^-?\d+$/.test(raw)) return fallback;
+  const parsed = Number.parseInt(raw, 10);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.min(max, Math.max(min, parsed));
+}
+
+function isSupportedLanguage(language) {
+  return typeof language === 'string' && loadSupportedLanguages().some(item => item.code === language);
+}
 
 function normalizeDisplayName(value) {
   return String(value || '').trim().replace(/\s+/g, ' ');
@@ -180,7 +291,7 @@ function authMiddleware(req, res, next) {
 }
 
 // ── Auth routes ─────────────────────────────────────────────────
-app.post('/auth/google', async (req, res) => {
+app.post('/auth/google', authGoogleLimiter, async (req, res) => {
   try {
     const { credential } = req.body;
     if (!credential) {
@@ -435,7 +546,7 @@ async function persistTypingAnalytics({ accountUser, scoreDoc = null, scoreData,
 }
 
 let supportedWPMs = [30, 50, 100, 101, 150, 200, 201, 250, 300, 350, 400];
-app.post("/score", scoreLimiter, authMiddleware, async (req, res) => {
+app.post("/score", scorePreAuthLimiter, authMiddleware, scoreLimiter, async (req, res) => {
   const { keystrokes, timeElapsed, typos, mode, telemetry, ...scoreData } = req.body;
 
   // Score submission is tied to the stable User._id, not the mutable display name.
@@ -459,23 +570,7 @@ app.post("/score", scoreLimiter, authMiddleware, async (req, res) => {
   }
 
 // Mode validation
-if (
-    typeof mode !== 'string' ||
-    ![
-        'rage',
-        'precision',
-        'fast',
-        'precision+P',
-        'precision+N',
-        'rage+N',
-        'rage+P',
-        'fast+N',
-        'fast+P',
-        'precision+N+P',
-        'rage+N+P',
-        'fast+N+P'
-    ].includes(mode)
-) {
+if (typeof mode !== 'string' || !VALID_SCORE_MODES.has(mode)) {
     return res.status(400).send('Invalid mode');
 }
 
@@ -587,7 +682,8 @@ if (!supportedWPMs.includes(scoreData.WPM)) {
     payload.level = computeLevelProgress(analytics.uniqueWordsTyped, getTotalCorpusWordCount());
     return res.status(200).send(payload);
   } catch (err) {
-    return res.status(500).send(err);
+    console.error('Score save error:', err);
+    return res.status(500).json({ error: 'Server error' });
   }
 });
 
@@ -694,13 +790,17 @@ try {
 
 // Leaderboard endpoint: one best score per stable account identity.
 app.get('/leaderboard/:language/:WPM', async (req, res) => {
+  const language = req.params.language;
+  if (!isSupportedLanguage(language)) {
+    return res.status(400).json({ error: 'Unsupported language' });
+  }
   const WPM = Number(req.params.WPM);
   if (!supportedWPMs.includes(WPM)) {
     const randomIndex = Math.floor(Math.random() * motivationalMessages.length);
     return res.status(200).send({ message: motivationalMessages[randomIndex] });
   }
-  const page = parseInt(req.query.page) || 1;
-  const limit = parseInt(req.query.limit) || 10;
+  const page = parseBoundedInteger(req.query.page, 1, { min: 1, max: 10000 });
+  const limit = parseBoundedInteger(req.query.limit, 10, { min: 1, max: 50 });
   const skip = (page - 1) * limit;
 
   if (mongoose.connection.readyState !== 1) {
@@ -711,7 +811,7 @@ app.get('/leaderboard/:language/:WPM', async (req, res) => {
     const scores = await Score.aggregate([
       {
         $match: {
-          language: req.params.language,
+          language,
           WPM,
         }
       },
@@ -753,6 +853,8 @@ app.get('/leaderboard/:language/:WPM', async (req, res) => {
           user: 0,
           googleId: 0,
           ip: 0,
+          userId: 0,
+          __v: 0,
         }
       }
     ]);
@@ -760,14 +862,14 @@ app.get('/leaderboard/:language/:WPM', async (req, res) => {
     return res.status(200).send(scores);
   } catch (err) {
     console.error('Leaderboard error:', err);
-    return res.status(500).send(err);
+    return res.status(500).json({ error: 'Server error' });
   }
 });
 
 // Endpoint for the latest scores
 app.get('/latest-scores', async (req, res) => {
-  const page = parseInt(req.query.page) || 1;
-  const limit = parseInt(req.query.limit) || 10;
+  const page = parseBoundedInteger(req.query.page, 1, { min: 1, max: 10000 });
+  const limit = parseBoundedInteger(req.query.limit, 10, { min: 1, max: 50 });
   const skip = (page - 1) * limit;
 
   if (mongoose.connection.readyState !== 1) {
@@ -794,26 +896,29 @@ app.get('/latest-scores', async (req, res) => {
           userPicture: '$user.picture'
         }
       },
-      { $project: { user: 0, googleId: 0, ip: 0 } }
+      { $project: { user: 0, googleId: 0, ip: 0, userId: 0, __v: 0 } }
     ]);
 
     return res.status(200).send(scores);
   } catch (err) {
     console.error('Latest scores error:', err);
-    return res.status(500).send(err);
+    return res.status(500).json({ error: 'Server error' });
   }
 });
 
 // ── Unified leaderboard API ─────────────────────────────────────
 app.get('/api/leaderboard', async (req, res) => {
-  const lang = req.query.lang;
-  const wpm = req.query.wpm ? Number(req.query.wpm) : null;
-  const mode = req.query.mode || null;
-  const page = Math.max(1, parseInt(req.query.page) || 1);
-  const limit = Math.min(50, Math.max(5, parseInt(req.query.limit) || 20));
+  const lang = readStringQuery(req.query.lang);
+  const rawWpm = req.query.wpm == null ? null : parseStrictNumberQuery(req.query.wpm);
+  const mode = readStringQuery(req.query.mode);
+  const page = parseBoundedInteger(req.query.page, 1, { min: 1, max: 10000 });
+  const limit = parseBoundedInteger(req.query.limit, 20, { min: 5, max: 50 });
   const skip = (page - 1) * limit;
 
   if (!lang) return res.status(400).json({ error: 'lang parameter is required' });
+  if (!isSupportedLanguage(lang)) return res.status(400).json({ error: 'Unsupported language' });
+  if (rawWpm !== null && !supportedWPMs.includes(rawWpm)) return res.status(400).json({ error: 'Unsupported WPM' });
+  if (mode && !VALID_SCORE_MODES.has(mode)) return res.status(400).json({ error: 'Unsupported mode' });
 
   if (mongoose.connection.readyState !== 1) {
     return res.status(200).json({ scores: [], total: 0, page, limit });
@@ -821,7 +926,7 @@ app.get('/api/leaderboard', async (req, res) => {
 
   try {
     const match = { language: lang };
-    if (wpm && !Number.isNaN(wpm)) match.WPM = wpm;
+    if (rawWpm !== null) match.WPM = rawWpm;
     if (mode) match.mode = mode;
 
     const [result] = await Score.aggregate([
@@ -861,7 +966,7 @@ app.get('/api/leaderboard', async (req, res) => {
             { $sort: { score: -1, precision: -1, timestamp: 1 } },
             { $skip: skip },
             { $limit: limit },
-            { $project: { user: 0, googleId: 0, ip: 0, userId: 0 } }
+            { $project: { user: 0, googleId: 0, ip: 0, userId: 0, __v: 0 } }
           ],
           total: [{ $count: 'count' }]
         }

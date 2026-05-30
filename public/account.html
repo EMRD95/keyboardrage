@@ -102,10 +102,10 @@
           }
 
           // Update local session with new token
-          const saved = JSON.parse(localStorage.getItem('kr_session'));
+          const saved = JSON.parse(sessionStorage.getItem('kr_session'));
           saved.token = data.token;
           saved.user = data.user;
-          localStorage.setItem('kr_session', JSON.stringify(saved));
+          sessionStorage.setItem('kr_session', JSON.stringify(saved));
 
           document.getElementById('setup-form').style.display = 'none';
           document.getElementById('setup-done').style.display = 'block';

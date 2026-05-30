@@ -66,7 +66,7 @@ const playerNameElement = document.getElementById('playerName');
 // Try auth session first, fall back to localStorage
 (function setPlayerName() {
   try {
-    const sessionStr = localStorage.getItem('kr_session');
+    const sessionStr = sessionStorage.getItem('kr_session');
     if (sessionStr) {
       const session = JSON.parse(sessionStr);
       if (session.user?.displayName) {
@@ -320,7 +320,7 @@ window.addEventListener('kr-auth-ready', ({ detail }) => {
   const pending = localStorage.getItem('kr_pending_score');
   if (!pending) return;
 
-  const session = JSON.parse(localStorage.getItem('kr_session'));
+  const session = JSON.parse(sessionStorage.getItem('kr_session'));
   if (!session?.token) return;
 
   fetch('/score', {
