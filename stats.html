@@ -5,44 +5,46 @@
   <title>My Stats — KeyboardRage</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <script>document.documentElement.dataset.infoTheme = localStorage.getItem('infoPageTheme') || 'night';</script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.1/css/all.min.css" />
   <link rel="stylesheet" href="fonts/inter.css">
   <link rel="stylesheet" type="text/css" href="styles.css">
-  <script src="info-page-theme.js" defer></script>
+  <script src="nav-loader.js" defer></script>
   <style>
-    .stats-page-shell{max-width:1180px;margin:0 auto 60px;padding:24px 16px 40px;color:#f8f8f2;font-family:'Inter',system-ui,sans-serif}
+    .stats-page-shell{max-width:1180px;margin:0 auto 60px;padding:24px 16px 40px;color:var(--info-text);font-family:'Inter',system-ui,sans-serif}
     /* ── hero ── */
     .stats-hero{display:flex;justify-content:space-between;gap:16px;align-items:flex-end;margin-bottom:24px;flex-wrap:wrap}
-    .stats-hero h1{margin:0;font-size:clamp(1.75rem,5vw,3.5rem);letter-spacing:-.04em}
-    .stats-subtitle,.stats-muted{color:rgba(255,255,255,.62);font-size:.92rem;line-height:1.4}
-    .eyebrow{text-transform:uppercase;letter-spacing:.14em;font-size:.67rem;color:rgba(255,255,255,.38);margin:0}
+    .stats-hero h1{margin:0;font-size:clamp(1.75rem,5vw,3.5rem);letter-spacing:-.04em;color:var(--info-heading)}
+    .stats-subtitle,.stats-muted{color:var(--info-muted);font-size:.92rem;line-height:1.4}
+    .eyebrow{text-transform:uppercase;letter-spacing:.14em;font-size:.67rem;color:var(--info-muted);margin:0;opacity:.7}
     .stats-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-    .stats-actions a,.stats-actions button{color:#061016;background:#7df9ff;border:0;border-radius:999px;padding:8px 14px;font-weight:700;font-size:.88rem;text-decoration:none;cursor:pointer;white-space:nowrap}
-    .stats-actions .ghost{background:rgba(255,255,255,.08);color:#fff;border:1px solid rgba(255,255,255,.16)}
-    #stats-error{display:none;color:#ff6b8a;margin-top:6px}
+    .stats-actions a,.stats-actions button{color:var(--info-bg);background:var(--info-link);border:0;border-radius:999px;padding:8px 14px;font-weight:700;font-size:.88rem;text-decoration:none;cursor:pointer;white-space:nowrap}
+    .stats-actions .ghost{background:var(--info-panel-soft);color:var(--info-text);border:1px solid var(--info-border)}
+    #stats-error{display:none;color:#d44;margin-top:6px}
     /* ── grid ── */
     .stats-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:16px}
-    .stats-card{background:linear-gradient(135deg,rgba(255,255,255,.10),rgba(255,255,255,.035));border:1px solid rgba(255,255,255,.13);border-radius:16px;padding:16px 18px;box-shadow:0 16px 40px rgba(0,0,0,.25);backdrop-filter:blur(14px);min-width:0}
-    .stats-card h2,.stats-card h3{margin:0 0 10px;font-size:1rem;font-weight:700}
-    .stat-label{font-size:.72rem;text-transform:uppercase;letter-spacing:.12em;color:rgba(255,255,255,.52);display:block}
-    .stat-value{display:block;font-size:1.8rem;font-weight:800;margin-top:4px;line-height:1.15;overflow:hidden;text-overflow:ellipsis}
+    .stats-card{background:var(--info-panel);border:1px solid var(--info-border);border-radius:16px;padding:16px 18px;box-shadow:0 8px 24px rgba(0,0,0,.15);min-width:0}
+    .stats-card h2,.stats-card h3{margin:0 0 10px;font-size:1rem;font-weight:700;color:var(--info-text)}
+    .stat-label{font-size:.72rem;text-transform:uppercase;letter-spacing:.12em;color:var(--info-muted);display:block}
+    .stat-value{display:block;font-size:1.8rem;font-weight:800;margin-top:4px;line-height:1.15;overflow:hidden;text-overflow:ellipsis;color:var(--info-text)}
     .wide{grid-column:span 2}.full{grid-column:1/-1}
     /* ── level bar ── */
-    .level-bar{height:16px;border-radius:999px;background:rgba(255,255,255,.12);overflow:hidden;border:1px solid rgba(255,255,255,.12);margin-top:10px}
-    .level-fill{height:100%;width:0;background:#7df9ff;box-shadow:0 0 16px rgba(125,249,255,.30);transition:width .4s ease}
-    .progress-copy{margin-top:8px;color:rgba(255,255,255,.66);font-size:.85rem;line-height:1.4}
+    .level-bar{height:16px;border-radius:999px;background:var(--info-panel-soft);overflow:hidden;border:1px solid var(--info-border);margin-top:10px}
+    .level-fill{height:100%;width:0;background:var(--info-link);box-shadow:0 0 12px rgba(0,0,0,.15);transition:width .4s ease}
+    .progress-copy{margin-top:8px;color:var(--info-muted);font-size:.85rem;line-height:1.4}
     /* ── chart ── */
     .chart-toolbar{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;flex-wrap:wrap;margin-bottom:12px}
-    .chart-toolbar h2{margin:0}.chart-toolbar .chart-desc{margin:4px 0 0;font-size:.84rem}
+    .chart-toolbar h2{margin:0;color:var(--info-text)}
+    .chart-toolbar .chart-desc{margin:4px 0 0;font-size:.84rem;color:var(--info-muted)}
     .range-pills{display:flex;gap:6px;flex-wrap:wrap}
-    .range-pill{border:1px solid rgba(255,255,255,.16);background:rgba(255,255,255,.06);color:#fff;border-radius:999px;padding:6px 10px;cursor:pointer;font-weight:700;font-size:.84rem;white-space:nowrap;transition:background .2s}
-    .range-pill.active{background:#7df9ff;color:#061016;border-color:#7df9ff}
+    .range-pill{border:1px solid var(--info-border);background:var(--info-panel-soft);color:var(--info-text);border-radius:999px;padding:6px 10px;cursor:pointer;font-weight:700;font-size:.84rem;white-space:nowrap;transition:background .2s}
+    .range-pill.active{background:var(--info-link);color:var(--info-bg);border-color:var(--info-link)}
     .chart-box{height:400px;position:relative;min-height:250px}
     /* ── tables ── */
-    .table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;border:1px solid rgba(255,255,255,.08);border-radius:10px}
-    .stats-table{width:100%;border-collapse:collapse;font-size:.88rem;min-width:360px}
-    .stats-table th,.stats-table td{padding:9px 10px;border-bottom:1px solid rgba(255,255,255,.07);text-align:left;white-space:nowrap}
-    .stats-table th{color:rgba(255,255,255,.54);font-size:.72rem;text-transform:uppercase;letter-spacing:.1em;font-weight:700}
-    .stats-table tbody tr:hover{background:rgba(255,255,255,.04)}
+    .table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;border:1px solid var(--info-border);border-radius:10px}
+    .stats-table{width:100%;border-collapse:collapse;font-size:.88rem;min-width:360px;color:var(--info-text)}
+    .stats-table th,.stats-table td{padding:9px 10px;border-bottom:1px solid var(--info-border);text-align:left;white-space:nowrap}
+    .stats-table th{color:var(--info-muted);font-size:.72rem;text-transform:uppercase;letter-spacing:.1em;font-weight:700}
+    .stats-table tbody tr:hover{background:var(--info-panel-soft)}
     /* ── breakpoint: 1024px (small desktop / landscape tablet) ── */
     @media(max-width:1024px){.stats-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.wide{grid-column:span 2}}
     /* ── breakpoint: 768px (tablet portrait) ── */
@@ -76,7 +78,7 @@
   <main class="stats-page-shell">
     <section class="stats-hero">
       <div><p class="eyebrow">Private player analytics</p><h1>My typing stats</h1><p id="stats-subtitle" class="stats-muted">Loading your personal telemetry…</p><p id="stats-error"></p></div>
-      <div class="stats-actions"><a class="ghost" href="/index.html">Play</a><a class="ghost" href="/game-over.html">Leaderboard</a><button id="refresh-stats">Refresh</button></div>
+      <div class="stats-actions"><a class="ghost" href="/index.html">Play</a><a class="ghost" href="/leaderboard.html">Leaderboard</a><button id="refresh-stats">Refresh</button></div>
     </section>
 
     <section class="stats-grid">

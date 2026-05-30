@@ -414,7 +414,7 @@ async function persistTypingAnalytics({ accountUser, scoreDoc = null, scoreData,
   return { session, telemetrySummary, uniqueWordsTyped };
 }
 
-let supportedWPMs = [30, 50, 100, 101, 150, 200, 250, 300, 350, 400];
+let supportedWPMs = [30, 50, 100, 101, 150, 200, 201, 250, 300, 350, 400];
 app.post("/score", scoreLimiter, authMiddleware, async (req, res) => {
   const { keystrokes, timeElapsed, typos, mode, telemetry, ...scoreData } = req.body;
 
@@ -777,5 +777,77 @@ app.get('/latest-scores', async (req, res) => {
   } catch (err) {
     console.error('Latest scores error:', err);
     return res.status(500).send(err);
+  }
+});
+
+// ── Unified leaderboard API ─────────────────────────────────────
+app.get('/api/leaderboard', async (req, res) => {
+  const lang = req.query.lang;
+  const wpm = req.query.wpm ? Number(req.query.wpm) : null;
+  const mode = req.query.mode || null;
+  const page = Math.max(1, parseInt(req.query.page) || 1);
+  const limit = Math.min(50, Math.max(5, parseInt(req.query.limit) || 20));
+  const skip = (page - 1) * limit;
+
+  if (!lang) return res.status(400).json({ error: 'lang parameter is required' });
+
+  if (mongoose.connection.readyState !== 1) {
+    return res.status(200).json({ scores: [], total: 0, page, limit });
+  }
+
+  try {
+    const match = { language: lang };
+    if (wpm && !Number.isNaN(wpm)) match.WPM = wpm;
+    if (mode) match.mode = mode;
+
+    const [result] = await Score.aggregate([
+      { $match: match },
+      { $sort: { score: -1, precision: -1, timestamp: 1 } },
+      {
+        $group: {
+          _id: {
+            $cond: [
+              { $ifNull: ['$userId', false] },
+              { $concat: ['user:', { $toString: '$userId' }] },
+              { $concat: ['legacy:', '$name'] }
+            ]
+          },
+          doc: { $first: '$$ROOT' }
+        }
+      },
+      { $replaceRoot: { newRoot: '$doc' } },
+      {
+        $lookup: {
+          from: 'users',
+          localField: 'userId',
+          foreignField: '_id',
+          as: 'user'
+        }
+      },
+      { $unwind: { path: '$user', preserveNullAndEmptyArrays: true } },
+      {
+        $addFields: {
+          name: { $ifNull: ['$user.displayName', '$name'] },
+          userPicture: '$user.picture'
+        }
+      },
+      {
+        $facet: {
+          scores: [
+            { $sort: { score: -1, precision: -1, timestamp: 1 } },
+            { $skip: skip },
+            { $limit: limit },
+            { $project: { user: 0, googleId: 0, ip: 0, userId: 0 } }
+          ],
+          total: [{ $count: 'count' }]
+        }
+      }
+    ]);
+
+    const total = result.total[0]?.count || 0;
+    res.json({ scores: result.scores, total, page, limit });
+  } catch (err) {
+    console.error('API leaderboard error:', err);
+    res.status(500).json({ error: 'Server error' });
   }
 });

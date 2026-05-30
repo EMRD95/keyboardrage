@@ -14,13 +14,13 @@ function displayNumber(value, fallback = '—') {
 }
 
 const scoreElement = document.getElementById('score');
-scoreElement.textContent = `Score: ${displayValue(score)}`;
+if (scoreElement) scoreElement.textContent = `Score: ${displayValue(score)}`;
 
 const languageElement = document.getElementById('language');
-languageElement.textContent = `Language: ${displayValue(language)}`;
+if (languageElement) languageElement.textContent = `Language: ${displayValue(language)}`;
 
 const WPMElement = document.getElementById('WPM');
-WPMElement.textContent = `WPM: ${displayValue(WPM)}`;
+if (WPMElement) WPMElement.textContent = `WPM: ${displayValue(WPM)}`;
 
 const mode = localStorage.getItem('mode');
 const precision = localStorage.getItem('precision');
@@ -31,7 +31,7 @@ const precisionFormatted = Number.isFinite(precisionNumeric) ? precisionNumeric.
 const modeElement = document.getElementById('mode');
 modeElement.textContent = `Mode: ${displayValue(mode)}`;
 
-if ((mode === 'fast' && parseFloat(precision) < 90) && ['30', '50', '100', '101', '150', '200', '250', '300', '350', '400'].includes(WPM)) {
+if ((mode === 'fast' && parseFloat(precision) < 90) && ['30', '50', '100', '101', '150', '200', '201', '250', '300', '350', '400'].includes(WPM)) {
   const precisionWarning = document.createElement('div');
   precisionWarning.classList.add('warning');
   precisionWarning.textContent = 'Scores in fast mode are only valid if precision is above 90%';

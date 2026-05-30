@@ -657,6 +657,8 @@ body:not([data-theme]) .header-container {
 #home-icon-link,
 #github-icon-link,
 #faq-link,
+#data-viz-link,
+#leaderboard-link,
 .faq-content a {
   color: var(--text);
   text-decoration: none;
@@ -665,6 +667,8 @@ body:not([data-theme]) .header-container {
 #home-icon-link:hover,
 #github-icon-link:hover,
 #faq-link:hover,
+#data-viz-link:hover,
+#leaderboard-link:hover,
 .faq-content a:hover {
   color: var(--accent);
 }
@@ -832,6 +836,7 @@ body.info-page #home-icon-link,
 body.info-page #github-icon-link,
 body.info-page #faq-link,
 body.info-page #data-viz-link,
+body.info-page #leaderboard-link,
 body.info-page .info-theme-toggle,
 body.info-page a {
   color: var(--info-link);
@@ -844,6 +849,7 @@ body.info-page #home-icon-link,
 body.info-page #github-icon-link,
 body.info-page #faq-link,
 body.info-page #data-viz-link,
+body.info-page #leaderboard-link,
 body.info-page .info-theme-toggle {
   min-height: 42px;
   display: inline-flex;

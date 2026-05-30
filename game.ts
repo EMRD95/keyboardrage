@@ -604,6 +604,7 @@ class Game {
   private formatWPM(wpm: number) {
     if (wpm === 30) return '30⇢∞';
     if (wpm === 101) return '100⇢∞';
+    if (wpm === 201) return '200⇢∞';
     return `${wpm}`;
   }
 
@@ -1522,7 +1523,7 @@ class Game {
 
     this.timeElapsed += deltaTime;
 
-    if (this.WPM === 30 || this.WPM === 101) {
+    if (this.WPM === 30 || this.WPM === 101 || this.WPM === 201) {
       const speedIncrease = 0.00001;
       this.words.forEach(word => {
         word.speed += speedIncrease;

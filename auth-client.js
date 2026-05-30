@@ -5,6 +5,7 @@
 const AUTH_STORAGE_KEY = 'kr_session';
 
 let _session = null; // { token, user: { id, email, name, picture, displayName } }
+let _initialized = false;
 
 // ── Public API ──────────────────────────────────────────────────
 
@@ -22,6 +23,9 @@ export function getDisplayName() {
 
 /** Initialize Google Sign-In and restore saved session. */
 export async function initAuth() {
+  if (_initialized) return;
+  _initialized = true;
+
   // 1. Restore saved session
   const saved = localStorage.getItem(AUTH_STORAGE_KEY);
   if (saved) {
@@ -36,10 +40,11 @@ export async function initAuth() {
         _updateUI();
         _onSessionReady();
       } else {
-        localStorage.removeItem(AUTH_STORAGE_KEY);
+        // Only clear on explicit 401 (expired/invalid), not on network errors
+        if (resp.status === 401) localStorage.removeItem(AUTH_STORAGE_KEY);
       }
     } catch {
-      localStorage.removeItem(AUTH_STORAGE_KEY);
+      // Network error — keep session, retry next page load
     }
   }
 

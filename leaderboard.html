@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Leaderboard — KeyboardRage</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <script>document.documentElement.dataset.infoTheme = localStorage.getItem('infoPageTheme') || 'night';</script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.1/css/all.min.css" />
+  <link rel="stylesheet" href="fonts/inter.css">
+  <link rel="stylesheet" type="text/css" href="styles.css">
+  <script src="nav-loader.js" defer></script>
+  <style>
+    .lb-shell{max-width:1100px;margin:0 auto 60px;padding:24px 16px 40px;color:var(--info-text);font-family:'Inter',system-ui,sans-serif}
+    .lb-hero{display:flex;justify-content:space-between;gap:16px;align-items:flex-end;margin-bottom:24px;flex-wrap:wrap}
+    .lb-hero h1{margin:0;font-size:clamp(1.75rem,5vw,3.5rem);letter-spacing:-.04em;color:var(--info-heading)}
+    .lb-actions{display:flex;gap:8px;flex-wrap:wrap}
+    .lb-actions a{color:var(--info-bg);background:var(--info-link);border:0;border-radius:999px;padding:8px 14px;font-weight:700;font-size:.88rem;text-decoration:none;white-space:nowrap}
+    .lb-actions .ghost{background:var(--info-panel-soft);color:var(--info-text);border:1px solid var(--info-border)}
+    /* filters */
+    .lb-filters{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;align-items:center}
+    .lb-filters select,.lb-filters input{border:1px solid var(--info-border);background:var(--info-panel-soft);color:var(--info-text);border-radius:999px;padding:7px 12px;font-weight:600;font-size:.85rem;font-family:inherit;outline:none;min-width:100px}
+    .lb-filters select:focus,.lb-filters input:focus{border-color:var(--info-link)}
+    .lb-filters label{color:var(--info-muted);font-size:.78rem;text-transform:uppercase;letter-spacing:.1em;margin-right:2px}
+    .lb-info{color:var(--info-muted);font-size:.84rem;margin-bottom:12px}
+    /* table */
+    .lb-table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;border:1px solid var(--info-border);border-radius:12px;background:var(--info-panel)}
+    .lb-table{width:100%;border-collapse:collapse;font-size:.90rem;color:var(--info-text)}
+    .lb-table th,.lb-table td{padding:10px 12px;border-bottom:1px solid var(--info-border);text-align:left}
+    .lb-table th{color:var(--info-muted);font-size:.72rem;text-transform:uppercase;letter-spacing:.1em;font-weight:700;background:var(--info-panel-soft);position:sticky;top:0}
+    .lb-table tbody tr:hover{background:var(--info-panel-soft)}
+    .lb-table .rank{color:var(--info-muted);font-weight:700;width:48px}
+    .lb-table .rank-1{color:#b8860b}.lb-table .rank-2{color:#708090}.lb-table .rank-3{color:#8b4513}
+    .lb-name{font-weight:700;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .lb-score{font-weight:800;color:var(--info-link)}
+    .lb-date{color:var(--info-muted);font-size:.82rem}
+    .lb-empty{text-align:center;padding:40px 20px;color:var(--info-muted)}
+    /* pagination */
+    .lb-pagination{display:flex;justify-content:center;align-items:center;gap:6px;margin-top:16px}
+    .lb-pagination button{border:1px solid var(--info-border);background:var(--info-panel-soft);color:var(--info-text);border-radius:999px;padding:7px 14px;cursor:pointer;font-weight:700;font-size:.85rem;font-family:inherit}
+    .lb-pagination button:hover{background:var(--info-panel)}
+    .lb-pagination button:disabled{opacity:.35;cursor:default}
+    .lb-pagination .current{color:var(--info-muted);font-size:.85rem;min-width:80px;text-align:center}
+    #lb-error{display:none;color:#d44;margin-top:8px}
+    .eyebrow{text-transform:uppercase;letter-spacing:.14em;font-size:.67rem;color:var(--info-muted);margin:0}
+    .stats-muted{color:var(--info-muted)}
+    @media(max-width:768px){
+      .lb-hero{flex-direction:column;align-items:flex-start;gap:10px}
+      .lb-hero h1{font-size:2rem}
+      .lb-shell{padding:16px 12px 40px}
+      .lb-filters select,.lb-filters input{min-width:80px;font-size:.82rem}
+      .lb-table{font-size:.82rem}
+    }
+    @media(max-width:480px){
+      .lb-shell{padding:12px 8px 40px}
+      .lb-hero h1{font-size:1.6rem}
+      .lb-filters{flex-direction:column;align-items:stretch}
+      .lb-filters select,.lb-filters input{width:100%}
+      .lb-table{font-size:.78rem}
+      .lb-table th,.lb-table td{padding:8px 8px}
+    }
+  </style>
+</head>
+<body class="info-page">
+
+  <main class="lb-shell">
+    <section class="lb-hero">
+      <div><p class="eyebrow">Public rankings</p><h1>Leaderboard</h1><p class="stats-muted">Best scores per player — select a WPM to compare.</p></div>
+      <div class="lb-actions"><a class="ghost" href="/index.html">Play</a><a class="ghost" href="/game-over.html">Recent</a></div>
+    </section>
+
+    <div class="lb-filters">
+      <label>Language</label>
+      <select id="lb-lang"></select>
+      <label>WPM</label>
+      <select id="lb-wpm"></select>
+      <label>Mode</label>
+      <select id="lb-mode">
+        <option value="">All modes</option>
+        <option value="rage">Rage</option>
+        <option value="precision" selected>Precision</option>
+        <option value="fast">Fast</option>
+      </select>
+    </div>
+
+    <p id="lb-info" class="lb-info"></p>
+    <p id="lb-error"></p>
+
+    <div id="lb-table-wrap" class="lb-table-wrap">
+      <table class="lb-table">
+        <thead>
+          <tr><th class="rank">#</th><th>Player</th><th>Score</th><th>WPM</th><th>Mode</th><th>Precision</th><th>Date</th></tr>
+        </thead>
+        <tbody id="lb-tbody"></tbody>
+      </table>
+    </div>
+    <div id="lb-empty" class="lb-empty" style="display:none">No scores yet for these filters. Be the first!</div>
+
+    <div class="lb-pagination">
+      <button id="lb-prev" disabled>Previous</button>
+      <span id="lb-current" class="current">Page 1</span>
+      <button id="lb-next" disabled>Next</button>
+    </div>
+  </main>
+  <script type="module">
+    import { initAuth } from './auth-client.js';
+    initAuth();
+  </script>
+  <script type="module" src="./leaderboard.js"></script>
+</body>
+</html>
