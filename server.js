@@ -28,7 +28,8 @@ app.use((req, res, next) => {
   next();
 });
 
-app.listen(3000, () => console.log('Server listening on port 3000'));
+const PORT = Number(process.env.PORT || 3000);
+app.listen(PORT, () => console.log(`Server listening on port ${PORT}`));
 
 app.use(express.static(__dirname));
 
@@ -38,6 +39,16 @@ app.get('/terms', (req, res) => res.redirect(301, '/terms.html'));
 
 async function startMongo() {
   try {
+    if (process.env.MONGODB_URI) {
+      await mongoose.connect(process.env.MONGODB_URI);
+      console.log('MongoDB Connected (external)');
+      return;
+    }
+
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error('MONGODB_URI is required when NODE_ENV=production');
+    }
+
     const dbPath = path.join(__dirname, '.mongo-dev-data');
     if (!fs.existsSync(dbPath)) fs.mkdirSync(dbPath, { recursive: true });
     const mongod = await MongoMemoryServer.create({
@@ -51,6 +62,9 @@ async function startMongo() {
     console.log('MongoDB Connected (in-memory)');
   } catch (err) {
     console.error('Failed to connect to MongoDB', err);
+    if (process.env.NODE_ENV === 'production') {
+      process.exit(1);
+    }
   }
 }
 

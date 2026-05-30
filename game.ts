@@ -966,13 +966,13 @@ class Game {
 
   private async semanticAutocomplete(q: string) {
     try {
-      const resp = await fetch(`http://localhost:8703/search?q=${encodeURIComponent(q)}&limit=8&language=${encodeURIComponent(this.language)}`);
+      const resp = await fetch(`/semantic/search?q=${encodeURIComponent(q)}&limit=8&language=${encodeURIComponent(this.language)}`);
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const data = await resp.json() as { results: { id: number; word: string; language: string }[] };
       this.renderSemanticResults(data.results || []);
     } catch (error) {
       console.warn('Semantic API unavailable', error);
-      this.showSemanticServiceError('Semantic API unavailable (port 8703). Start galaxy/semantic/semantic_neighbors_server.py.');
+      this.showSemanticServiceError('Semantic API unavailable. The /semantic reverse proxy or backend is down.');
     }
   }
 
@@ -1033,7 +1033,7 @@ class Game {
     this.semanticActiveDiv.textContent = `Loading 200 neighbors of "${word}"...`;
 
     try {
-      const resp = await fetch(`http://localhost:8703/neighbors/${pointId}?k=200&language=${encodeURIComponent(lang)}`);
+      const resp = await fetch(`/semantic/neighbors/${pointId}?k=200&language=${encodeURIComponent(lang)}`);
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const data = await resp.json() as {
         neighbors: { word: string; language: string; cosine_similarity: number }[];
@@ -1048,7 +1048,7 @@ class Game {
       localStorage.setItem('semanticSeedLang', lang);
     } catch (err) {
       console.warn('Semantic API unavailable', err);
-      this.semanticActiveDiv.textContent = 'Semantic API unavailable (port 8703).';
+      this.semanticActiveDiv.textContent = 'Semantic API unavailable.';
       this.semanticActive = false;
     }
   }

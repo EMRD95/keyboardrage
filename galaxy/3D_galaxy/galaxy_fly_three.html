@@ -486,7 +486,7 @@ async function main() {
 
 
   // Semantic neighbors UI/API. In fly mode, raycasting is click-only and opt-in.
-  const NEIGHBOR_API = 'http://localhost:8703';
+  const NEIGHBOR_API = '/semantic';
   const neighborToggle = document.getElementById('toggle-neighbors');
   const neighborPanel = document.getElementById('neighbor-panel');
   const neighborTitle = document.getElementById('neighbor-title');
@@ -729,7 +729,7 @@ async function main() {
     } catch (err) {
       clearNeighborOverlay();
       neighborTitle.textContent = 'Semantic neighbors — backend unavailable';
-      neighborStatus.textContent = `Could not query ${NEIGHBOR_API}. Start it with: cd galaxy && ./launch_semantic_neighbors.sh. Build index first if needed. Error: ${err.message}`;
+      neighborStatus.textContent = `Could not query ${NEIGHBOR_API}. Check the semantic backend and reverse proxy. Error: ${err.message}`;
       neighborTable.innerHTML = '';
     }
   }

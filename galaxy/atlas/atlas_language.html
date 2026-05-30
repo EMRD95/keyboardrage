@@ -2,7 +2,7 @@
 <html><head><meta charset="utf-8"><title>Embedding Atlas — language colors</title></head>
 <body style="background:#111;color:#eee;font-family:sans-serif">
 <p>Redirecting to Embedding Atlas with language colors…</p>
-<p>If it does not redirect, start Atlas first:</p>
+<p>If it does not redirect, start the Atlas backend first:</p>
 <pre>cd /home/ubu/Desktop/keyboardrage/galaxy
 ./launch_atlas_language.sh</pre>
 <p><a id="link" href="#">Open language-colored Atlas</a></p>
@@ -10,7 +10,7 @@
 fetch('atlas_language_url.txt')
   .then(r => r.text())
   .then(url => {
-    url = url.trim();
+    url = url.trim().replace(/^http:\/\/localhost:5055\//, '/atlas-service/');
     document.getElementById('link').href = url;
     location.href = url;
   });
