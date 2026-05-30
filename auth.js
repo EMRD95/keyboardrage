@@ -11,7 +11,7 @@ const { OAuth2Client } = require('google-auth-library');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 
-const GOOGLE_CLIENT_ID = '488404200674-3r3mrk5vfb8go9f28o2j12tcu36fviap.apps.googleusercontent.com';
+const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '488404200674-3r3mrk5vfb8go9f28o2j12tcu36fviap.apps.googleusercontent.com';
 
 const JWT_SECRET_FILE = require('path').join(__dirname, '.jwt-secret');
 function loadJwtSecret() {
