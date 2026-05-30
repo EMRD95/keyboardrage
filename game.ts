@@ -22,6 +22,8 @@ interface Word {
   material?: THREE.SpriteMaterial;
   width?: number;
   height?: number;
+  _canvas?: HTMLCanvasElement;
+  _ctx?: CanvasRenderingContext2D;
 }
 
 type GameMode = 'rage' | 'precision' | 'fast';
@@ -172,6 +174,11 @@ class Game {
   private semanticActive = false;
   private semanticAllWords: WordListEntry[] = [];
   private semanticRawWords: string[] = [];
+  // HUD dirty-check: skip DOM writes when value unchanged
+  private _hudScore = -1;
+  private _hudWpm = -1;
+  private _hudTheme = '';
+  private _hudMode = '';
   private semanticSearchInput!: HTMLInputElement;
   private semanticDropdown!: HTMLElement;
   private semanticActiveDiv!: HTMLElement;
@@ -558,16 +565,34 @@ class Game {
 
   private updateHud() {
     const currentScoreElement = document.getElementById('current-score');
-    if (currentScoreElement) currentScoreElement.textContent = `${this.score}`;
+    if (currentScoreElement && this._hudScore !== this.score) {
+      currentScoreElement.textContent = `${this.score}`;
+      this._hudScore = this.score;
+    }
 
     const hudWpm = document.getElementById('hud-wpm');
-    if (hudWpm) hudWpm.textContent = this.formatWPM(this.WPM);
+    if (hudWpm && this._hudWpm !== this.WPM) {
+      hudWpm.textContent = this.formatWPM(this.WPM);
+      this._hudWpm = this.WPM;
+    }
 
     const themeLabel = document.getElementById('theme-label');
-    if (themeLabel) themeLabel.textContent = this.selectedOptionText(this.themeSelector);
+    if (themeLabel) {
+      const themeText = this.selectedOptionText(this.themeSelector);
+      if (this._hudTheme !== themeText) {
+        themeLabel.textContent = themeText;
+        this._hudTheme = themeText;
+      }
+    }
 
     const modeLabel = document.getElementById('mode-label');
-    if (modeLabel) modeLabel.textContent = this.formatMode(this.mode);
+    if (modeLabel) {
+      const modeText = this.formatMode(this.mode);
+      if (this._hudMode !== modeText) {
+        modeLabel.textContent = modeText;
+        this._hudMode = modeText;
+      }
+    }
   }
 
   private selectedOptionText(select: HTMLSelectElement) {
@@ -1331,7 +1356,8 @@ class Game {
   }
 
   private createWordSprite(word: Word) {
-    const texture = this.renderWordTexture(word);
+    this.renderWordTexture(word);               // creates canvas + draws text, sets word.width/height
+    const texture = new THREE.CanvasTexture(word._canvas!);
     texture.minFilter = THREE.LinearFilter;
     texture.magFilter = THREE.LinearFilter;
     texture.generateMipmaps = false;
@@ -1343,6 +1369,7 @@ class Game {
       depthWrite: false
     });
     const sprite = new THREE.Sprite(material);
+    sprite.matrixAutoUpdate = false; // we control position/scale in syncWordSprite
     word.texture = texture;
     word.material = material;
     word.sprite = sprite;
@@ -1351,7 +1378,12 @@ class Game {
     this.scene.add(sprite);
   }
 
-  private renderWordTexture(word: Word) {
+  // Draws word text onto the word's canvas. Reuses an existing canvas when
+  // the size matches; recreates it when the text grows OR shrinks enough
+  // (avoids squeezing a large canvas into a smaller sprite — the visual bug
+  // from the first pass). Returns true when the canvas was recreated and the
+  // caller must wrap it in a new CanvasTexture.
+  private renderWordTexture(word: Word): boolean {
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
     this.measureContext.font = WORD_FONT;
 
@@ -1360,14 +1392,27 @@ class Game {
     const width = Math.max(72, Math.ceil(this.measureContext.measureText(displayText).width + 52));
     const height = 76;
 
-    const canvas = document.createElement('canvas');
-    canvas.width = Math.ceil(width * dpr);
-    canvas.height = Math.ceil(height * dpr);
-    canvas.style.width = `${width}px`;
-    canvas.style.height = `${height}px`;
+    const neededW = Math.ceil(width * dpr);
+    const neededH = Math.ceil(height * dpr);
+    let canvas = word._canvas;
+    const existingW = canvas?.width ?? 0;
+    const existingH = canvas?.height ?? 0;
 
-    const context = canvas.getContext('2d')!;
-    context.scale(dpr, dpr);
+    // Recreate canvas when size changes in EITHER direction (shrink or grow)
+    const mustRecreate = !canvas || existingW < neededW || existingH < neededH
+      || existingW > neededW || existingH > neededH;
+    if (mustRecreate) {
+      canvas = document.createElement('canvas');
+      canvas.width = neededW;
+      canvas.height = neededH;
+      canvas.style.width = `${width}px`;
+      canvas.style.height = `${height}px`;
+      word._canvas = canvas;
+      word._ctx = canvas.getContext('2d')!;
+    }
+
+    const context = word._ctx!;
+    context.setTransform(dpr, 0, 0, dpr, 0, 0);
     context.clearRect(0, 0, width, height);
     context.font = WORD_FONT;
     context.direction = direction;
@@ -1377,17 +1422,10 @@ class Game {
 
     const baseline = 54;
     if (direction === 'rtl') {
-      // Draw RTL words as one shaped run. Rendering Persian/Urdu/Hebrew one
-      // codepoint at a time breaks joining and reverses the visual flow.
       context.textAlign = 'right';
       context.fillStyle = word.color;
       context.fillText(displayText, width - 12, baseline);
     } else if (needsShapedRendering(displayText)) {
-      // Indic/Brahmic/Thai scripts: drawing one codepoint at a time produces
-      // dotted circles (◌), detached vowel marks, and broken conjuncts because
-      // combining marks need a base consonant. Draw the whole word as one
-      // shaped run, left-aligned, same tradeoff as RTL (no per-character
-      // highlighting).
       context.textAlign = 'left';
       context.fillStyle = word.color;
       context.fillText(displayText, 12, baseline);
@@ -1409,20 +1447,26 @@ class Game {
 
     word.width = width;
     word.height = height;
-    return new THREE.CanvasTexture(canvas);
+    return mustRecreate;
   }
 
   private updateWordTexture(word: Word) {
     if (!word.sprite || !word.material) return;
-    const oldTexture = word.texture;
-    const nextTexture = this.renderWordTexture(word);
-    nextTexture.minFilter = THREE.LinearFilter;
-    nextTexture.magFilter = THREE.LinearFilter;
-    nextTexture.generateMipmaps = false;
-    word.texture = nextTexture;
-    word.material.map = nextTexture;
-    word.material.needsUpdate = true;
-    oldTexture?.dispose();
+    const canvasRecreated = this.renderWordTexture(word);
+    if (canvasRecreated) {
+      // Canvas dimensions changed — need a new CanvasTexture wrapping the new canvas
+      const newTex = new THREE.CanvasTexture(word._canvas!);
+      newTex.minFilter = THREE.LinearFilter;
+      newTex.magFilter = THREE.LinearFilter;
+      newTex.generateMipmaps = false;
+      word.texture?.dispose();
+      word.texture = newTex;
+      word.material.map = newTex;
+      word.material.needsUpdate = true;
+    } else {
+      // Same canvas, same dimensions — just flag for Three.js to re-upload
+      word.texture!.needsUpdate = true;
+    }
     this.syncWordSprite(word);
   }
 
@@ -1432,6 +1476,7 @@ class Game {
     const height = word.height || 76;
     word.sprite.scale.set(width, height, 1);
     word.sprite.position.set(word.x + width / 2, LOGICAL_HEIGHT - word.y + height / 2 - WORD_FONT_SIZE, 0);
+    word.sprite.updateMatrix();
   }
 
   private removeWord(word: Word) {
