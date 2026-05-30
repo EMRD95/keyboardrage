@@ -1,5 +1,5 @@
 export const kaleidoscopicSpinTheme = {
     id: 'kaleidoscopic-spin',
-    label: 'Kaleidoscopic Spin',
+    label: 'Kaleidoscopic Spin (CSS)',
     kind: 'css'
 };

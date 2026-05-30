@@ -1,5 +1,5 @@
 export const kaleidoscopicTheme = {
     id: 'kaleidoscopic',
-    label: 'Kaleidoscopic',
+    label: 'Kaleidoscopic (CSS)',
     kind: 'css'
 };

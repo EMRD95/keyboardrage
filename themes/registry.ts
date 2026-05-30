@@ -18,23 +18,23 @@ import { milkyWayTheme } from './milky-way.js';
 import { ancientTunnelTheme } from './ancient-tunnel.js';
 
 export const THEME_OPTIONS: ThemeDefinition[] = [
-  defaultTheme,
-  kaleidoscopicTheme,
-  kaleidoscopicSpinTheme,
-  fractalFlowTheme,
-  deepFractalTheme,
-  fractalTunnelTheme,
-  kleinianAtmoTheme,
-  aestrethraTheme,
-  infiniteTubesTheme,
-  hyperspaceTheme,
-  fractalWorldsTheme,
-  axiomataTheme,
-  castleTheme,
-  boxTheme,
-  boxCubeTheme,
-  milkyWayTheme,
-  ancientTunnelTheme
+  defaultTheme,               // Minimalist
+  milkyWayTheme,              // Galaxy (3D)
+  boxCubeTheme,               // Box Cube (3D)
+  aestrethraTheme,            // Æstrethra (3D)
+  fractalTunnelTheme,         // Fractal Tunnel (3D)
+  hyperspaceTheme,            // Hyperspace (3D)
+  ancientTunnelTheme,         // Ancient Tunnel (3D)
+  kaleidoscopicTheme,         // Kaleidoscopic (CSS)
+  kaleidoscopicSpinTheme,     // Kaleidoscopic Spin (CSS)
+  fractalFlowTheme,           // Neon Fractal (3D)
+  infiniteTubesTheme,         // Infinite Tubes (3D)
+  fractalWorldsTheme,         // Fractal Worlds (3D)
+  castleTheme,                // Castle (3D)
+  // deepFractalTheme,        // Deep Fractal (3D) — hidden
+  // kleinianAtmoTheme,       // Kleinian Atmo (3D) — hidden
+  // axiomataTheme,           // Axiomata (3D) — hidden
+  // boxTheme,                // Box Matrix (3D) — hidden
 ];
 
 function isVideoTheme(theme: ThemeDefinition): theme is VideoThemeDefinition {

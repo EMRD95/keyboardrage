@@ -73,15 +73,14 @@ body[data-theme="ocean"] {
   --theme-overlay: linear-gradient(180deg, rgba(1, 12, 18, 0.35), rgba(1, 8, 12, 0.88)), radial-gradient(circle at 50% 80%, rgba(0, 255, 200, 0.15), transparent 45%);
 }
 
-body[data-theme="psy2"],
-body[data-theme="psychedelic"],
-body[data-theme="psychedelic-spin"],
 body[data-theme="kaleidoscopic"],
 body[data-theme="kaleidoscopic-spin"] {
+  background: transparent;
+  color: white;
   --accent: #ff4fd8;
   --accent-2: #7dff6a;
-  --stage-glow: rgba(255, 79, 216, 0.45);
-  --theme-overlay: linear-gradient(180deg, rgba(0, 0, 0, 0.05), rgba(0, 0, 0, 0.30));
+  --stage-glow: rgba(255, 79, 216, 0.32);
+  --theme-overlay: none;
 }
 
 body[data-theme="rollercoaster"] {
@@ -99,32 +98,47 @@ body[data-theme="space2"] {
   --theme-overlay: radial-gradient(circle at 60% 15%, rgba(155, 188, 255, 0.18), transparent 32%), linear-gradient(180deg, rgba(0, 0, 10, 0.15), rgba(0, 0, 8, 0.86));
 }
 
-body[data-theme="psychedelic"]::before,
-body[data-theme="psychedelic-spin"]::before,
 body[data-theme="kaleidoscopic"]::before,
-body[data-theme="kaleidoscopic-spin"]::before {
-  opacity: 0.95;
-  background:
-    conic-gradient(from 0deg, #ff004c, #ffcc00, #00ff90, #00a3ff, #9c4dff, #ff004c);
-  background-size: 120% 120%;
-  animation: kaleidoscopeShift 12s linear infinite;
-  mask-image: radial-gradient(circle at center, rgba(0, 0, 0, 0.98), transparent 95%);
-  filter: saturate(1.6) blur(4px);
+body[data-theme="kaleidoscopic"]::after,
+body[data-theme="kaleidoscopic-spin"]::before,
+body[data-theme="kaleidoscopic-spin"]::after {
+  content: "";
+  position: fixed;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  z-index: -1;
+  opacity: 1;
+  pointer-events: none;
+  mask-image: none;
+  background: linear-gradient(
+    45deg,
+    #ff0000,
+    #ff7f00,
+    #ffff00,
+    #00ff00,
+    #0000ff,
+    #4b0082,
+    #8f00ff
+  );
+  background-size: 50% 50%;
+  animation: rotation 10s linear infinite, colorShift 6s linear infinite;
 }
 
-body[data-theme="psychedelic-spin"]::before,
-body[data-theme="kaleidoscopic-spin"]::before {
-  animation: kaleidoscopeShift 7s linear infinite, themeSpin 18s linear infinite;
+body[data-theme="kaleidoscopic"]::after,
+body[data-theme="kaleidoscopic-spin"]::after {
+  animation-direction: reverse;
+  opacity: 0.7;
 }
 
-@keyframes kaleidoscopeShift {
-  0% { filter: hue-rotate(0deg) saturate(1.6) blur(4px); transform: scale(1); }
-  50% { filter: hue-rotate(180deg) saturate(1.8) blur(5px); transform: scale(1.06); }
-  100% { filter: hue-rotate(360deg) saturate(1.6) blur(4px); transform: scale(1); }
+@keyframes rotation {
+  to { transform: rotate(1turn); }
 }
 
-@keyframes themeSpin {
-  to { transform: rotate(1turn) scale(1.06); }
+@keyframes colorShift {
+  0%, 100% { filter: hue-rotate(0deg); }
+  50% { filter: hue-rotate(360deg); }
 }
 
 #myVideo {
@@ -329,14 +343,26 @@ h2 {
   opacity: 0.8;
 }
 
-body[data-theme="psychedelic-spin"] .game-stage::after,
-body[data-theme="kaleidoscopic-spin"] .game-stage::after {
-  animation: localSpinner 6s linear infinite;
-  border-style: dashed;
+body[data-theme="kaleidoscopic-spin"] {
+  overflow: hidden;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
 }
 
-@keyframes localSpinner {
-  to { transform: rotate(1turn); }
+@keyframes kaleidoscopicSpin {
+  from { transform: rotateZ(0deg); }
+  to { transform: rotateZ(360deg); }
+}
+
+@media screen and (max-height: 600px) {
+  body[data-theme="kaleidoscopic-spin"] {
+    flex-direction: column;
+    overflow-y: auto;
+    height: auto;
+    min-height: 100vh;
+  }
 }
 
 .stage-chrome {
@@ -1321,7 +1347,6 @@ body[data-theme] .game-stage::after {
   display: none;
 }
 
-body[data-theme="psychedelic-spin"] .game-stage::after,
 body[data-theme="kaleidoscopic-spin"] .game-stage::after {
   display: block;
   width: min(46vmin, 420px);
@@ -2123,4 +2148,31 @@ body[data-theme] .brand-block {
 .pagination-row button:hover {
   background: var(--accent, #0f0);
   color: #000;
+}
+
+/* ══════ Kaleidoscopic theme overrides (must be last to beat body[data-theme] rules) ══════ */
+
+body[data-theme="kaleidoscopic"] #overlay,
+body[data-theme="kaleidoscopic-spin"] #overlay {
+  display: none;
+}
+
+body[data-theme="kaleidoscopic"] .stage-grid,
+body[data-theme="kaleidoscopic-spin"] .stage-grid {
+  opacity: 0;
+}
+
+body[data-theme="kaleidoscopic"] .stage-vignette,
+body[data-theme="kaleidoscopic-spin"] .stage-vignette {
+  opacity: 0;
+}
+
+body[data-theme="kaleidoscopic-spin"] .game-stage {
+  animation: kaleidoscopicSpin 10s infinite linear;
+  transform-style: preserve-3d;
+  perspective: 800px;
+  border-radius: 15px;
+  border: 1px solid #f8f8f2;
+  background: transparent;
+  box-shadow: none;
 }
