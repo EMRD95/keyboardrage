@@ -134,7 +134,7 @@ const UserSchema = new mongoose.Schema({
   name:             { type: String, required: true },        // from Google
   picture:          { type: String, default: null },
   displayName:      { type: String, default: null, maxlength: 30 }, // in-game pseudo
-  displayNameLower: { type: String, default: null, unique: true, sparse: true, index: true },
+  displayNameLower: { type: String, unique: true, sparse: true, index: true },
   displayNameChangedAt: { type: Date, default: null },
   createdAt:        { type: Date, default: Date.now },
   lastLogin:        { type: Date, default: Date.now },
