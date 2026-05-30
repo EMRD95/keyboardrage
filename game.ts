@@ -160,6 +160,7 @@ class Game {
   private averageCharLength: number;
   private lastTimestamp: number;
   private animationFrame: number | null = null;
+  private _boundAnimate: (ts: number) => void; // pre-bound rAF callback — avoids per-frame .bind() allocation
   private mode: GameMode = (localStorage.getItem('mode') as GameMode) || 'rage';
   private settingsButton: HTMLElement;
   private settingsMenu: HTMLElement;
@@ -269,6 +270,7 @@ class Game {
     this.changeTheme();
     this.updateHud();
     this.initSemanticSearch();
+    this._boundAnimate = this.animate.bind(this);
   }
 
   static async create(container: HTMLElement, playerName: string = 'Player', WPM: number = 60, language: string = DEFAULT_LANGUAGE) {
@@ -1545,7 +1547,7 @@ class Game {
       return;
     }
 
-    this.animationFrame = requestAnimationFrame(this.animate.bind(this));
+    this.animationFrame = requestAnimationFrame(this._boundAnimate);
   }
 
   pauseGame() {

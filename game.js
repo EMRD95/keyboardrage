@@ -178,6 +178,7 @@ class Game {
         this.changeTheme();
         this.updateHud();
         this.initSemanticSearch();
+        this._boundAnimate = this.animate.bind(this);
     }
     static async create(container, playerName = 'Player', WPM = 60, language = DEFAULT_LANGUAGE) {
         await document.fonts.load('700 48px Roboto');
@@ -1380,7 +1381,7 @@ class Game {
             this.gameOver();
             return;
         }
-        this.animationFrame = requestAnimationFrame(this.animate.bind(this));
+        this.animationFrame = requestAnimationFrame(this._boundAnimate);
     }
     pauseGame() {
         if (this.isGameOver)
