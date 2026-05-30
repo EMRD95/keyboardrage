@@ -91,6 +91,11 @@ class Game {
         this.semanticActive = false;
         this.semanticAllWords = [];
         this.semanticRawWords = [];
+        // Optimisation: dirty-check HUD DOM writes to avoid layout thrash
+        this._hudScore = -1;
+        this._hudWpm = -1;
+        this._hudTheme = '';
+        this._hudMode = '';
         this.semanticDebounceTimer = null;
         this.theme = (() => {
             const savedTheme = localStorage.getItem('theme');
@@ -443,17 +448,31 @@ class Game {
     }
     updateHud() {
         const currentScoreElement = document.getElementById('current-score');
-        if (currentScoreElement)
+        if (currentScoreElement && this._hudScore !== this.score) {
             currentScoreElement.textContent = `${this.score}`;
+            this._hudScore = this.score;
+        }
         const hudWpm = document.getElementById('hud-wpm');
-        if (hudWpm)
+        if (hudWpm && this._hudWpm !== this.WPM) {
             hudWpm.textContent = this.formatWPM(this.WPM);
+            this._hudWpm = this.WPM;
+        }
         const themeLabel = document.getElementById('theme-label');
-        if (themeLabel)
-            themeLabel.textContent = this.selectedOptionText(this.themeSelector);
+        if (themeLabel) {
+            const themeText = this.selectedOptionText(this.themeSelector);
+            if (this._hudTheme !== themeText) {
+                themeLabel.textContent = themeText;
+                this._hudTheme = themeText;
+            }
+        }
         const modeLabel = document.getElementById('mode-label');
-        if (modeLabel)
-            modeLabel.textContent = this.formatMode(this.mode);
+        if (modeLabel) {
+            const modeText = this.formatMode(this.mode);
+            if (this._hudMode !== modeText) {
+                modeLabel.textContent = modeText;
+                this._hudMode = modeText;
+            }
+        }
     }
     selectedOptionText(select) {
         return select.selectedOptions[0]?.textContent?.replace(' (YT)', '').trim() || select.value || 'Default';
@@ -1188,7 +1207,8 @@ class Game {
         return text.replace(/ /g, '⎵');
     }
     createWordSprite(word) {
-        const texture = this.renderWordTexture(word);
+        const canvas = this.renderWordTexture(word);
+        const texture = new THREE.CanvasTexture(canvas);
         texture.minFilter = THREE.LinearFilter;
         texture.magFilter = THREE.LinearFilter;
         texture.generateMipmaps = false;
@@ -1199,6 +1219,7 @@ class Game {
             depthWrite: false
         });
         const sprite = new THREE.Sprite(material);
+        sprite.matrixAutoUpdate = false; // skip Three.js matrix recomputation — we set position/scale directly
         word.texture = texture;
         word.material = material;
         word.sprite = sprite;
@@ -1213,13 +1234,23 @@ class Game {
         const displayText = this.visibleText(word.text);
         const width = Math.max(72, Math.ceil(this.measureContext.measureText(displayText).width + 52));
         const height = 76;
-        const canvas = document.createElement('canvas');
-        canvas.width = Math.ceil(width * dpr);
-        canvas.height = Math.ceil(height * dpr);
-        canvas.style.width = `${width}px`;
-        canvas.style.height = `${height}px`;
-        const context = canvas.getContext('2d');
-        context.scale(dpr, dpr);
+        // Reuse per-word canvas if already allocated — avoids per-keystroke createElement + GC churn
+        let canvas = word._canvas;
+        let cw = canvas?.width ?? 0;
+        let ch = canvas?.height ?? 0;
+        const neededW = Math.ceil(width * dpr);
+        const neededH = Math.ceil(height * dpr);
+        if (!canvas || cw < neededW || ch < neededH) {
+            canvas = document.createElement('canvas');
+            canvas.width = neededW;
+            canvas.height = neededH;
+            canvas.style.width = `${width}px`;
+            canvas.style.height = `${height}px`;
+            word._canvas = canvas;
+            word._ctx = canvas.getContext('2d');
+        }
+        const context = word._ctx;
+        context.setTransform(dpr, 0, 0, dpr, 0, 0);
         context.clearRect(0, 0, width, height);
         context.font = WORD_FONT;
         context.direction = direction;
@@ -1228,18 +1259,11 @@ class Game {
         context.shadowBlur = word.color === WORD_DANGER ? 20 : 12;
         const baseline = 54;
         if (direction === 'rtl') {
-            // Draw RTL words as one shaped run. Rendering Persian/Urdu/Hebrew one
-            // codepoint at a time breaks joining and reverses the visual flow.
             context.textAlign = 'right';
             context.fillStyle = word.color;
             context.fillText(displayText, width - 12, baseline);
         }
         else if (needsShapedRendering(displayText)) {
-            // Indic/Brahmic/Thai scripts: drawing one codepoint at a time produces
-            // dotted circles (◌), detached vowel marks, and broken conjuncts because
-            // combining marks need a base consonant. Draw the whole word as one
-            // shaped run, left-aligned, same tradeoff as RTL (no per-character
-            // highlighting).
             context.textAlign = 'left';
             context.fillStyle = word.color;
             context.fillText(displayText, 12, baseline);
@@ -1262,20 +1286,14 @@ class Game {
         }
         word.width = width;
         word.height = height;
-        return new THREE.CanvasTexture(canvas);
+        return canvas;
     }
     updateWordTexture(word) {
-        if (!word.sprite || !word.material)
+        if (!word.sprite || !word.material || !word.texture)
             return;
-        const oldTexture = word.texture;
-        const nextTexture = this.renderWordTexture(word);
-        nextTexture.minFilter = THREE.LinearFilter;
-        nextTexture.magFilter = THREE.LinearFilter;
-        nextTexture.generateMipmaps = false;
-        word.texture = nextTexture;
-        word.material.map = nextTexture;
-        word.material.needsUpdate = true;
-        oldTexture?.dispose();
+        // Redraw on the word's pooled canvas — no createElement, no dispose, no new CanvasTexture
+        this.renderWordTexture(word);
+        word.texture.needsUpdate = true;
         this.syncWordSprite(word);
     }
     syncWordSprite(word) {
@@ -1285,6 +1303,7 @@ class Game {
         const height = word.height || 76;
         word.sprite.scale.set(width, height, 1);
         word.sprite.position.set(word.x + width / 2, LOGICAL_HEIGHT - word.y + height / 2 - WORD_FONT_SIZE, 0);
+        word.sprite.updateMatrix();
     }
     removeWord(word) {
         if (word.sprite) {
