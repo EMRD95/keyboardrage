@@ -31,6 +31,7 @@ app.use((req, res, next) => {
 const PORT = Number(process.env.PORT || 3000);
 app.listen(PORT, () => console.log(`Server listening on port ${PORT}`));
 
+app.use(express.static(__dirname + '/public'));
 app.use(express.static(__dirname));
 
 // Extensionless redirects for legal pages (Google OAuth reviewers check these)

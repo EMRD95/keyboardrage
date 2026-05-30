@@ -17,6 +17,7 @@ galaxy/**/*.json
 .env.*
 !.env.example
 antiCheat.js
+rateLimiter.js
 start-mongo.js
 .mongo-dev-data/
 .jwt-secret
