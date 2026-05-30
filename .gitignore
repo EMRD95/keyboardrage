@@ -16,6 +16,7 @@ galaxy/**/*.json
 .env
 .env.*
 !.env.example
+# Private runtime modules — kept in separate repo, deployed at build time
 antiCheat.js
 rateLimiter.js
 start-mongo.js
@@ -34,3 +35,7 @@ coverage/
 /language-support.js
 /typing-input.js
 /themes/*.js
+
+# Security-sensitive — kept in private repo
+AUDIT_REPORT.md
+docs/SECURE_LEADERBOARD_ANTI_CHEAT_IMPLEMENTATION.md
