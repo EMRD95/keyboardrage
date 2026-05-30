@@ -56,11 +56,16 @@
       const session = getSession();
       if (!session) return;
 
-      document.getElementById('auth-signed-in').style.display = 'flex';
-      document.getElementById('auth-avatar').src = session.user.picture || '';
-      document.getElementById('auth-display-name').textContent = session.user.name;
       document.getElementById('setup-email').textContent = session.user.email;
-      document.getElementById('auth-signout').addEventListener('click', () => {
+
+      const signedIn = document.getElementById('auth-signed-in');
+      if (signedIn) signedIn.style.display = 'flex';
+      const avatar = document.getElementById('auth-avatar');
+      if (avatar) avatar.src = session.user.picture || '';
+      const display = document.getElementById('auth-display-name');
+      if (display) display.textContent = session.user.name;
+      const signout = document.getElementById('auth-signout');
+      if (signout) signout.addEventListener('click', () => {
         signOut();
         window.location.href = '/index.html';
       });
