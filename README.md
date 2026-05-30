@@ -1,116 +1,113 @@
 # KeyboardRage
 
-KeyboardRage is a typing game in an arcade style where players have to type the words before they fall to the bottom of the box, different speeds and languages are available.
+Arcade-style typing game — type words before they fall. Multiple speeds, 108 languages, real-time leaderboard with Google sign-in.
 
-https://github.com/EMRD95/keyboardrage/assets/114953576/e6760a23-df1b-4d6f-812a-7dee6af56f81
+https://keyboardrage.em95.org
 
 ## Galaxy — 3D Semantic Word Universe
 
-KeyboardRage features a 3D semantic galaxy where words are positioned by meaning across 108 languages. 2.25 million words embedded with IBM Granite and projected via UMAP into a navigable 3D space.
+2.25 million words across 108 languages embedded with IBM Granite and projected into a navigable 3D space via UMAP.
 
-**Precomputed models (16 GB)** are hosted on HuggingFace:
+**Precomputed models (~16 GB)** on HuggingFace:
 → **[emrd95/keyboardrage-semantic](https://huggingface.co/emrd95/keyboardrage-semantic)**
 
-To download and deploy on-premise:
+To download:
 ```bash
 ./setup.sh
 ```
 
-The semantic neighbors API provides real-time similarity queries at `http://localhost:8703`.
+The semantic neighbors API runs at `http://localhost:8703`. Neighbor queries are precomputed — sub-millisecond lookups.
 
-## Installation
+## Quick Start (development)
 
-Clone the repository:
+Requirements: **Node.js 22**, **MongoDB 8.0**.
 
-```shell
+```bash
 git clone https://github.com/EMRD95/keyboardrage
-```
-
-The game has been tested and found to be working on Ubuntu 22.04 with the following requirements:
-
-```shell
-node v20.2.0
-https://github.com/nvm-sh/nvm?tab=readme-ov-file#installing-and-updating
-mongod db version v6.0.6 and v7.0.9
-https://www.mongodb.com/docs/manual/tutorial/install-mongodb-on-ubuntu/
-```
-
-Next, install the required packages:
-
-```shell
-npm install -g typescript
-npm install express mongoose body-parser
-npm install ip
-npm install
-```
-
-To build the TypeScript file `game.ts` and create `game.js`, run:
-
-```shell
-tsc
-```
-
-To run the application, execute:
-
-```shell
+cd keyboardrage
+npm ci
+npm run build
 node server.js
 ```
 
-## Setting Up a Service
+The game runs at `http://localhost:3000`. In-memory MongoDB is used automatically in development mode.
 
-Create a service file with the following content:
+## Production Deployment
 
-```shell
-[Unit]
-Description=Keyboardrage Node.js Application
-After=network.target
+Set these environment variables:
 
-[Service]
-ExecStart=/home/version/bin/node /home/game/game/server.js
-Restart=always
-User=monkey
-Group=monkey
-Environment=PATH=/usr/bin:/usr/local/bin
-Environment=NODE_ENV=production
-WorkingDirectory=/home/game/game/
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `NODE_ENV` | yes | Set to `production` |
+| `PORT` | no | Default `3000` |
+| `MONGODB_URI` | yes | MongoDB connection string |
+| `JWT_SECRET` | yes | 64-char hex secret for session tokens |
+| `GOOGLE_CLIENT_ID` | yes | Google OAuth client ID |
 
-[Install]
-WantedBy=multi-user.target
-```
+MongoDB must be running and accessible. In production the in-memory fallback is disabled.
 
-## NGINX Configuration
+### Nginx reverse proxy
 
-Set up an NGINX server with the following configuration:
-
-```shell
+```nginx
 server {
     listen 80;
-    server_name domainname.com www.domainname.com;
+    server_name your-domain.com;
 
     location / {
         proxy_pass http://127.0.0.1:3000;
         proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection 'upgrade';
         proxy_set_header Host $host;
-        proxy_cache_bypass $http_upgrade;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    }
+
+    location /semantic/ {
+        proxy_pass http://127.0.0.1:8703/;
+    }
+
+    location /atlas-service/ {
+        proxy_pass http://127.0.0.1:5055/;
     }
 }
 ```
-## Change scores TTL
 
-Edit expire in server.js then drop and recreate the index in Mongo:
+### Visualization services (optional)
 
-```javascript
-mongosh
-use typing_game
-db.scores.getIndexes()
-db.scores.dropIndex("timestamp_1")
-db.scores.createIndex({ "timestamp": 1 }, { expireAfterSeconds: 315360000 }) //for 10 years
+```bash
+# Semantic neighbors API (port 8703)
+cd galaxy/semantic
+uvicorn semantic_neighbors_server:app --host 127.0.0.1 --port 8703
+
+# Apple Embedding Atlas (port 5055)
+cd galaxy/atlas
+./launch_atlas_language.sh
 ```
 
-Restart the server for all changes to apply.
+## Project Layout
+
+```
+keyboardrage/
+├── public/          Client-side assets (HTML, CSS, JS, TS sources)
+├── server.js        Express app entry point
+├── auth.js          Google OAuth + JWT session management
+├── themes/          Game visual themes
+├── galaxy/          Semantic backend (embeddings, neighbors, atlas)
+├── words/           Word lists per language
+├── fonts/           Web fonts
+├── docs/            Documentation
+└── scripts/         Data generation utilities
+```
+
+## Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| Frontend | TypeScript, Three.js, CSS custom properties |
+| Backend | Node.js, Express, Mongoose |
+| Auth | Google Identity Services, JWT |
+| Database | MongoDB 8.0 |
+| Embeddings | IBM Granite (384-dim), UMAP projection |
+| Semantic API | FastAPI, DuckDB, NumPy |
 
 ## Language Pack
 
-The language pack can be sourced from [monkeytypegame/monkeytype](https://github.com/monkeytypegame/monkeytype) on GitHub.
+Word lists sourced from [monkeytypegame/monkeytype](https://github.com/monkeytypegame/monkeytype).
