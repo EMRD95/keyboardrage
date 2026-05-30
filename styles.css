@@ -75,11 +75,13 @@ body[data-theme="ocean"] {
 
 body[data-theme="psy2"],
 body[data-theme="psychedelic"],
-body[data-theme="psychedelic-spin"] {
+body[data-theme="psychedelic-spin"],
+body[data-theme="kaleidoscopic"],
+body[data-theme="kaleidoscopic-spin"] {
   --accent: #ff4fd8;
   --accent-2: #7dff6a;
-  --stage-glow: rgba(255, 79, 216, 0.32);
-  --theme-overlay: linear-gradient(180deg, rgba(0, 0, 0, 0.24), rgba(0, 0, 0, 0.82));
+  --stage-glow: rgba(255, 79, 216, 0.45);
+  --theme-overlay: linear-gradient(180deg, rgba(0, 0, 0, 0.05), rgba(0, 0, 0, 0.30));
 }
 
 body[data-theme="rollercoaster"] {
@@ -98,24 +100,27 @@ body[data-theme="space2"] {
 }
 
 body[data-theme="psychedelic"]::before,
-body[data-theme="psychedelic-spin"]::before {
-  opacity: 0.75;
+body[data-theme="psychedelic-spin"]::before,
+body[data-theme="kaleidoscopic"]::before,
+body[data-theme="kaleidoscopic-spin"]::before {
+  opacity: 0.95;
   background:
     conic-gradient(from 0deg, #ff004c, #ffcc00, #00ff90, #00a3ff, #9c4dff, #ff004c);
-  background-size: 140% 140%;
+  background-size: 120% 120%;
   animation: kaleidoscopeShift 12s linear infinite;
-  mask-image: radial-gradient(circle at center, rgba(0, 0, 0, 0.95), transparent 82%);
-  filter: saturate(1.25) blur(10px);
+  mask-image: radial-gradient(circle at center, rgba(0, 0, 0, 0.98), transparent 95%);
+  filter: saturate(1.6) blur(4px);
 }
 
-body[data-theme="psychedelic-spin"]::before {
+body[data-theme="psychedelic-spin"]::before,
+body[data-theme="kaleidoscopic-spin"]::before {
   animation: kaleidoscopeShift 7s linear infinite, themeSpin 18s linear infinite;
 }
 
 @keyframes kaleidoscopeShift {
-  0% { filter: hue-rotate(0deg) saturate(1.25) blur(10px); transform: scale(1); }
-  50% { filter: hue-rotate(180deg) saturate(1.45) blur(12px); transform: scale(1.08); }
-  100% { filter: hue-rotate(360deg) saturate(1.25) blur(10px); transform: scale(1); }
+  0% { filter: hue-rotate(0deg) saturate(1.6) blur(4px); transform: scale(1); }
+  50% { filter: hue-rotate(180deg) saturate(1.8) blur(5px); transform: scale(1.06); }
+  100% { filter: hue-rotate(360deg) saturate(1.6) blur(4px); transform: scale(1); }
 }
 
 @keyframes themeSpin {
@@ -324,7 +329,8 @@ h2 {
   opacity: 0.8;
 }
 
-body[data-theme="psychedelic-spin"] .game-stage::after {
+body[data-theme="psychedelic-spin"] .game-stage::after,
+body[data-theme="kaleidoscopic-spin"] .game-stage::after {
   animation: localSpinner 6s linear infinite;
   border-style: dashed;
 }
@@ -1315,7 +1321,8 @@ body[data-theme] .game-stage::after {
   display: none;
 }
 
-body[data-theme="psychedelic-spin"] .game-stage::after {
+body[data-theme="psychedelic-spin"] .game-stage::after,
+body[data-theme="kaleidoscopic-spin"] .game-stage::after {
   display: block;
   width: min(46vmin, 420px);
   height: min(46vmin, 420px);

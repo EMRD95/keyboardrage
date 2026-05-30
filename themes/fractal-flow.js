@@ -47,13 +47,13 @@ export const fractalFlowTheme = {
     float centerReadability = smoothstep(0.18, 0.72, length(uv));
     float pulse = 0.55 + 0.45 * sin(t * 1.7 + length(uv) * 5.0);
     vec3 neon = mix(uAccentA, uAccentB, pulse);
-    vec3 coldBase = vec3(0.025, 0.032, 0.070);
-    vec3 color = coldBase + neon * min(filaments * 0.60 + mist, 0.85);
+    vec3 coldBase = vec3(0.04, 0.05, 0.10);
+    vec3 color = coldBase + neon * min(filaments * 0.85 + mist * 2.5, 1.0);
 
-    // Keep the exact typing area readable: darker center, brighter edges.
-    color *= mix(0.78, 1.0, centerReadability);
+    // Keep the exact typing area readable: slightly darker center, brighter edges.
+    color *= mix(0.88, 1.0, centerReadability);
     color *= vignette;
-    color += vec3(0.015, 0.005, 0.030) * (1.0 - vignette);
+    color += vec3(0.02, 0.01, 0.04) * (1.0 - vignette);
 
     gl_FragColor = vec4(color, uOpacity);
   }

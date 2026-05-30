@@ -1,6 +1,6 @@
 import { defaultTheme } from './default.js';
-import { psychedelicTheme } from './psychedelic.js';
-import { psychedelicSpinTheme } from './psychedelic-spin.js';
+import { kaleidoscopicTheme } from './kaleidoscopic.js';
+import { kaleidoscopicSpinTheme } from './kaleidoscopic-spin.js';
 import { fractalFlowTheme } from './fractal-flow.js';
 import { deepFractalTheme } from './deep-fractal.js';
 import { fractalTunnelTheme } from './fractal-tunnel.js';
@@ -17,8 +17,8 @@ import { milkyWayTheme } from './milky-way.js';
 import { ancientTunnelTheme } from './ancient-tunnel.js';
 export const THEME_OPTIONS = [
     defaultTheme,
-    psychedelicTheme,
-    psychedelicSpinTheme,
+    kaleidoscopicTheme,
+    kaleidoscopicSpinTheme,
     fractalFlowTheme,
     deepFractalTheme,
     fractalTunnelTheme,

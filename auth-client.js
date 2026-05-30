@@ -26,29 +26,62 @@ export async function initAuth() {
   if (_initialized) return;
   _initialized = true;
 
-  // 1. Restore saved session
   const saved = localStorage.getItem(AUTH_STORAGE_KEY);
-  if (saved) {
-    try {
-      const parsed = JSON.parse(saved);
-      const resp = await fetch('/auth/me', {
-        headers: { Authorization: `Bearer ${parsed.token}` },
-      });
-      if (resp.ok) {
-        const user = await resp.json();
-        _session = { token: parsed.token, user };
-        _updateUI();
-        _onSessionReady();
-      } else {
-        // Only clear on explicit 401 (expired/invalid), not on network errors
-        if (resp.status === 401) localStorage.removeItem(AUTH_STORAGE_KEY);
-      }
-    } catch {
-      // Network error — keep session, retry next page load
-    }
+  if (!saved) {
+    // No saved session — just set up the sign-in button
+    _initGoogleButton();
+    _updateUI();
+    _onSessionReady();
+    return;
   }
 
-  // 2. Fetch Google Client ID
+  let parsed;
+  try { parsed = JSON.parse(saved); } catch { return; }
+  if (!parsed.token) return;
+
+  const CACHE_TTL = 30 * 60 * 1000; // 30 minutes before server re-verification
+
+  // Use cached profile if recent enough — no server round-trip needed
+  if (parsed.user && parsed.cachedAt && (Date.now() - parsed.cachedAt < CACHE_TTL)) {
+    _session = { token: parsed.token, user: parsed.user };
+    _initGoogleButton();
+    _updateUI();
+    _onSessionReady();
+    return;
+  }
+
+  // Verify with server (first load or stale cache)
+  try {
+    const resp = await fetch('/auth/me', {
+      headers: { Authorization: `Bearer ${parsed.token}` },
+    });
+    if (resp.ok) {
+      const user = await resp.json();
+      _session = { token: parsed.token, user };
+      // Cache the full session (token + user + timestamp) in localStorage
+      localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify({
+        token: parsed.token,
+        user,
+        cachedAt: Date.now()
+      }));
+      _updateUI();
+      _initGoogleButton();
+      _onSessionReady();
+    } else if (resp.status === 401) {
+      localStorage.removeItem(AUTH_STORAGE_KEY);
+    }
+  } catch {
+    // Network error — use cached profile if available (even if stale)
+    if (parsed.user) {
+      _session = { token: parsed.token, user: parsed.user };
+      _initGoogleButton();
+      _updateUI();
+      _onSessionReady();
+    }
+  }
+}
+
+async function _initGoogleButton() {
   let clientId;
   try {
     const cfg = await fetch('/auth/config').then(r => r.json());
@@ -58,7 +91,6 @@ export async function initAuth() {
     return;
   }
 
-  // 3. Load GIS
   if (!window.google?.accounts?.id) {
     await new Promise((resolve) => {
       const script = document.createElement('script');
@@ -70,7 +102,6 @@ export async function initAuth() {
     });
   }
 
-  // 4. Initialize button
   if (window.google?.accounts?.id) {
     window.google.accounts.id.initialize({
       client_id: clientId,
@@ -92,11 +123,8 @@ export async function initAuth() {
     }
   }
 
-  // 5. Sign out button
   document.getElementById('auth-signout')?.addEventListener('click', signOut);
-
   _updateUI();
-  if (!_session) _onSessionReady(); // call even if not logged in
 }
 
 /** Sign out. */
@@ -126,7 +154,11 @@ async function handleGoogleResponse(response) {
 
     const data = await res.json();
     _session = { token: data.token, user: data.user };
-    localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(_session));
+    localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify({
+      token: data.token,
+      user: data.user,
+      cachedAt: Date.now()
+    }));
     _updateUI();
 
     // Redirect to account setup if no displayName
