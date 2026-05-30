@@ -158,7 +158,7 @@ function fetchLeaderboard() {
 
       // If not a motivational message
       document.getElementById('leaderboard').style.display = 'table';
-      document.getElementById('pagination').style.display = 'block';
+      document.getElementById('pagination').style.display = '';
       document.getElementById('ScoreTitle').style.display = 'block';
 	  document.getElementById('MotivationMessage').style.display = 'none';
 

@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>My Stats — KeyboardRage</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <script>document.documentElement.dataset.infoTheme = localStorage.getItem('infoPageTheme') || 'night';</script>
+  <link rel="stylesheet" href="fonts/inter.css">
+  <link rel="stylesheet" type="text/css" href="styles.css">
+  <script src="info-page-theme.js" defer></script>
+  <style>
+    .stats-page-shell{max-width:1180px;margin:0 auto 60px;padding:24px 16px 40px;color:#f8f8f2;font-family:'Inter',system-ui,sans-serif}
+    /* ── hero ── */
+    .stats-hero{display:flex;justify-content:space-between;gap:16px;align-items:flex-end;margin-bottom:24px;flex-wrap:wrap}
+    .stats-hero h1{margin:0;font-size:clamp(1.75rem,5vw,3.5rem);letter-spacing:-.04em}
+    .stats-subtitle,.stats-muted{color:rgba(255,255,255,.62);font-size:.92rem;line-height:1.4}
+    .eyebrow{text-transform:uppercase;letter-spacing:.14em;font-size:.67rem;color:rgba(255,255,255,.38);margin:0}
+    .stats-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+    .stats-actions a,.stats-actions button{color:#061016;background:#7df9ff;border:0;border-radius:999px;padding:8px 14px;font-weight:700;font-size:.88rem;text-decoration:none;cursor:pointer;white-space:nowrap}
+    .stats-actions .ghost{background:rgba(255,255,255,.08);color:#fff;border:1px solid rgba(255,255,255,.16)}
+    #stats-error{display:none;color:#ff6b8a;margin-top:6px}
+    /* ── grid ── */
+    .stats-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:16px}
+    .stats-card{background:linear-gradient(135deg,rgba(255,255,255,.10),rgba(255,255,255,.035));border:1px solid rgba(255,255,255,.13);border-radius:16px;padding:16px 18px;box-shadow:0 16px 40px rgba(0,0,0,.25);backdrop-filter:blur(14px);min-width:0}
+    .stats-card h2,.stats-card h3{margin:0 0 10px;font-size:1rem;font-weight:700}
+    .stat-label{font-size:.72rem;text-transform:uppercase;letter-spacing:.12em;color:rgba(255,255,255,.52);display:block}
+    .stat-value{display:block;font-size:1.8rem;font-weight:800;margin-top:4px;line-height:1.15;overflow:hidden;text-overflow:ellipsis}
+    .wide{grid-column:span 2}.full{grid-column:1/-1}
+    /* ── level bar ── */
+    .level-bar{height:16px;border-radius:999px;background:rgba(255,255,255,.12);overflow:hidden;border:1px solid rgba(255,255,255,.12);margin-top:10px}
+    .level-fill{height:100%;width:0;background:#7df9ff;box-shadow:0 0 16px rgba(125,249,255,.30);transition:width .4s ease}
+    .progress-copy{margin-top:8px;color:rgba(255,255,255,.66);font-size:.85rem;line-height:1.4}
+    /* ── chart ── */
+    .chart-toolbar{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;flex-wrap:wrap;margin-bottom:12px}
+    .chart-toolbar h2{margin:0}.chart-toolbar .chart-desc{margin:4px 0 0;font-size:.84rem}
+    .range-pills{display:flex;gap:6px;flex-wrap:wrap}
+    .range-pill{border:1px solid rgba(255,255,255,.16);background:rgba(255,255,255,.06);color:#fff;border-radius:999px;padding:6px 10px;cursor:pointer;font-weight:700;font-size:.84rem;white-space:nowrap;transition:background .2s}
+    .range-pill.active{background:#7df9ff;color:#061016;border-color:#7df9ff}
+    .chart-box{height:400px;position:relative;min-height:250px}
+    /* ── tables ── */
+    .table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;border:1px solid rgba(255,255,255,.08);border-radius:10px}
+    .stats-table{width:100%;border-collapse:collapse;font-size:.88rem;min-width:360px}
+    .stats-table th,.stats-table td{padding:9px 10px;border-bottom:1px solid rgba(255,255,255,.07);text-align:left;white-space:nowrap}
+    .stats-table th{color:rgba(255,255,255,.54);font-size:.72rem;text-transform:uppercase;letter-spacing:.1em;font-weight:700}
+    .stats-table tbody tr:hover{background:rgba(255,255,255,.04)}
+    /* ── breakpoint: 1024px (small desktop / landscape tablet) ── */
+    @media(max-width:1024px){.stats-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.wide{grid-column:span 2}}
+    /* ── breakpoint: 768px (tablet portrait) ── */
+    @media(max-width:768px){
+      .stats-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+      .wide,.full{grid-column:1/-1}
+      .stats-hero{flex-direction:column;align-items:flex-start;gap:10px}
+      .stats-hero h1{font-size:2rem}
+      .chart-box{height:340px}
+      .stat-value{font-size:1.6rem}
+      .stats-page-shell{padding:16px 12px 40px}
+      .chart-toolbar{flex-direction:column;gap:10px}
+      .range-pills{width:100%;justify-content:flex-end}
+    }
+    /* ── breakpoint: 480px (phone) ── */
+    @media(max-width:480px){
+      .stats-grid{grid-template-columns:1fr;gap:10px}
+      .stats-card{border-radius:12px;padding:14px 16px}
+      .chart-box{height:280px}
+      .stat-value{font-size:1.5rem}
+      .stats-page-shell{padding:12px 8px 40px}
+      .stats-hero h1{font-size:1.6rem}
+      .stats-table{min-width:280px;font-size:.82rem}
+      .range-pill{padding:5px 9px;font-size:.8rem}
+      .stats-actions a,.stats-actions button{padding:7px 12px;font-size:.82rem}
+      .range-pills{justify-content:center}
+    }
+  </style>
+</head>
+<body class="info-page">
+  <main class="stats-page-shell">
+    <section class="stats-hero">
+      <div><p class="eyebrow">Private player analytics</p><h1>My typing stats</h1><p id="stats-subtitle" class="stats-muted">Loading your personal telemetry…</p><p id="stats-error"></p></div>
+      <div class="stats-actions"><a class="ghost" href="/index.html">Play</a><a class="ghost" href="/game-over.html">Leaderboard</a><button id="refresh-stats">Refresh</button></div>
+    </section>
+
+    <section class="stats-grid">
+      <article class="stats-card wide"><span class="stat-label">Level</span><span id="stat-level" class="stat-value">—</span><div class="level-bar"><div id="level-fill" class="level-fill"></div></div><p id="level-copy" class="progress-copy"></p></article>
+      <article class="stats-card"><span class="stat-label">Total play time</span><span id="stat-time" class="stat-value">—</span></article>
+      <article class="stats-card"><span class="stat-label">Games</span><span id="stat-games" class="stat-value">—</span></article>
+      <article class="stats-card"><span class="stat-label">Best score</span><span id="stat-best" class="stat-value">—</span></article>
+      <article class="stats-card"><span class="stat-label">Consistency</span><span id="stat-consistency" class="stat-value">—</span></article>
+      <article class="stats-card"><span class="stat-label">Max burst</span><span id="stat-burst" class="stat-value">—</span></article>
+      <article class="stats-card"><span class="stat-label">Keystrokes</span><span id="stat-keys" class="stat-value">—</span></article>
+      <article class="stats-card"><span class="stat-label">Typos</span><span id="stat-typos" class="stat-value">—</span></article>
+
+      <article class="stats-card full">
+        <div class="chart-toolbar">
+          <div><h2>Unified performance graph</h2><p class="stats-muted">Click legend items to toggle metrics. Hover points for exact session values.</p></div>
+          <div class="range-pills" aria-label="Time span">
+            <button class="range-pill active" data-range="7">7D</button>
+            <button class="range-pill" data-range="30">30D</button>
+            <button class="range-pill" data-range="90">90D</button>
+            <button class="range-pill" data-range="all">All</button>
+          </div>
+        </div>
+        <div class="chart-box"><canvas id="unified-chart"></canvas></div>
+      </article>
+
+      <article class="stats-card wide"><h2>Best scores</h2><div class="table-wrap"><table class="stats-table"><thead><tr><th>Score</th><th>Lang</th><th>WPM</th><th>Precision</th><th>Date</th></tr></thead><tbody id="best-table"></tbody></table></div></article>
+      <article class="stats-card wide"><h2>Languages</h2><div class="table-wrap"><table class="stats-table"><thead><tr><th>Language</th><th>Games</th><th>Time</th><th>Best</th><th>Consistency</th></tr></thead><tbody id="language-table"></tbody></table></div></article>
+    </section>
+  </main>
+  <script src="/node_modules/chart.js/dist/chart.umd.js"></script>
+  <script type="module" src="./stats.js"></script>
+</body>
+</html>

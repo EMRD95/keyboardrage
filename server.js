@@ -9,10 +9,16 @@ const ip = require('ip');
 const { verifyGoogleToken, signSessionToken, verifySessionToken, GOOGLE_CLIENT_ID } = require('./auth');
 const rateLimit = require('express-rate-limit');
 const { MongoMemoryServer } = require('mongodb-memory-server');
+const {
+  computeLevelProgress,
+  summarizeTypingTelemetry,
+  compactCompletedWords,
+  compactRawTelemetry,
+} = require('./typing-stats');
 
 const app = express();
 app.set('trust proxy', 1);
-app.use(bodyParser.json());
+app.use(bodyParser.json({ limit: '768kb' }));
 
 app.listen(3000, () => console.log('Server listening on port 3000'));
 
@@ -20,9 +26,11 @@ app.use(express.static(__dirname));
 
 async function startMongo() {
   try {
+    const dbPath = path.join(__dirname, '.mongo-dev-data');
+    if (!fs.existsSync(dbPath)) fs.mkdirSync(dbPath, { recursive: true });
     const mongod = await MongoMemoryServer.create({
       instance: {
-        dbPath: path.join(__dirname, '.mongo-dev-data'),
+        dbPath,
         storageEngine: 'wiredTiger',
       },
     });
@@ -266,9 +274,149 @@ app.get('/auth/config', (req, res) => {
 const Score = mongoose.model('Score', ScoreSchema);
 const scoreLimiter = require('./rateLimiter');
 
+const TypingSessionSchema = new mongoose.Schema({
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+  scoreId: { type: mongoose.Schema.Types.ObjectId, ref: 'Score', default: null, index: true },
+  language: { type: String, required: true, index: true },
+  WPM: { type: Number, required: true, index: true },
+  mode: { type: String, required: true },
+  score: { type: Number, required: true },
+  precision: { type: Number, required: true },
+  keystrokes: { type: Number, required: true },
+  typos: { type: Number, required: true },
+  timeElapsed: { type: Number, required: true },
+  telemetrySummary: { type: mongoose.Schema.Types.Mixed, default: {} },
+  telemetryCompact: { type: mongoose.Schema.Types.Mixed, default: {} },
+  clientMeta: { type: mongoose.Schema.Types.Mixed, default: {} },
+  ip: String,
+  timestamp: { type: Date, default: Date.now, expires: '3653d', index: true },
+});
+TypingSessionSchema.index({ userId: 1, timestamp: -1 });
+TypingSessionSchema.index({ userId: 1, language: 1, WPM: 1, timestamp: -1 });
+const TypingSession = mongoose.model('TypingSession', TypingSessionSchema);
+
+const UserWordProgressSchema = new mongoose.Schema({
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+  language: { type: String, required: true, index: true },
+  sourceIndex: { type: Number, default: -1 },
+  wordHash: { type: String, required: true },
+  firstTypedAt: { type: Date, default: Date.now },
+  lastTypedAt: { type: Date, default: Date.now },
+  timesTyped: { type: Number, default: 1 },
+});
+UserWordProgressSchema.index({ userId: 1, language: 1, wordHash: 1 }, { unique: true });
+const UserWordProgress = mongoose.model('UserWordProgress', UserWordProgressSchema);
+
+const UserTypingStatsSchema = new mongoose.Schema({
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, unique: true, index: true },
+  totalGames: { type: Number, default: 0 },
+  totalPlayTimeMs: { type: Number, default: 0 },
+  totalKeystrokes: { type: Number, default: 0 },
+  totalTypos: { type: Number, default: 0 },
+  totalScore: { type: Number, default: 0 },
+  uniqueWordsTyped: { type: Number, default: 0 },
+  bestScore: { type: Number, default: 0 },
+  bestWPM: { type: Number, default: 0 },
+  bestPrecision: { type: Number, default: 0 },
+  bestLanguage: { type: String, default: null },
+  averageConsistency: { type: Number, default: 0 },
+  maxBurstWpm: { type: Number, default: 0 },
+  daily: { type: [mongoose.Schema.Types.Mixed], default: [] },
+  updatedAt: { type: Date, default: Date.now },
+});
+const UserTypingStats = mongoose.model('UserTypingStats', UserTypingStatsSchema);
+
+function getTotalCorpusWordCount() {
+  return loadSupportedLanguages().reduce((sum, lang) => sum + (Number(lang.count) || 0), 0);
+}
+
+function sanitizeClientMeta(meta = {}) {
+  return {
+    userAgent: String(meta.userAgent || '').slice(0, 240),
+    platform: String(meta.platform || '').slice(0, 80),
+    language: String(meta.language || '').slice(0, 32),
+    screen: String(meta.screen || '').slice(0, 40),
+    timezone: String(meta.timezone || '').slice(0, 80),
+  };
+}
+
+async function persistTypingAnalytics({ accountUser, scoreDoc = null, scoreData, keystrokes, typos, timeElapsed, mode, precision, telemetry, ipAddress }) {
+  const telemetrySummary = summarizeTypingTelemetry(telemetry || {});
+  const telemetryCompact = compactRawTelemetry(telemetry || {});
+  const session = await TypingSession.create({
+    userId: accountUser._id,
+    scoreId: scoreDoc?._id || null,
+    language: scoreData.language,
+    WPM: scoreData.WPM,
+    mode,
+    score: scoreData.score,
+    precision,
+    keystrokes,
+    typos,
+    timeElapsed,
+    telemetrySummary,
+    telemetryCompact,
+    clientMeta: sanitizeClientMeta(telemetry?.clientMeta),
+    ip: ipAddress,
+  });
+
+  const completedWords = compactCompletedWords(scoreData.language, telemetry?.completedWords || [], 1200);
+  if (completedWords.length > 0) {
+    await UserWordProgress.bulkWrite(completedWords.map(word => ({
+      updateOne: {
+        filter: { userId: accountUser._id, language: word.language, wordHash: word.wordHash },
+        update: {
+          $setOnInsert: { sourceIndex: word.sourceIndex, firstTypedAt: new Date(word.completedAt) },
+          $set: { lastTypedAt: new Date(word.completedAt) },
+          $inc: { timesTyped: 1 },
+        },
+        upsert: true,
+      }
+    })), { ordered: false });
+  }
+
+  const uniqueWordsTyped = await UserWordProgress.countDocuments({ userId: accountUser._id });
+  const day = new Date().toISOString().slice(0, 10);
+  let stats = await UserTypingStats.findOne({ userId: accountUser._id });
+  if (!stats) {
+    stats = new UserTypingStats({ userId: accountUser._id });
+  }
+  const previousGames = stats.totalGames || 0;
+  const previousConsistencyTotal = (stats.averageConsistency || 0) * previousGames;
+  stats.totalGames = previousGames + 1;
+  stats.totalPlayTimeMs = (stats.totalPlayTimeMs || 0) + timeElapsed;
+  stats.totalKeystrokes = (stats.totalKeystrokes || 0) + keystrokes;
+  stats.totalTypos = (stats.totalTypos || 0) + typos;
+  stats.totalScore = (stats.totalScore || 0) + scoreData.score;
+  stats.uniqueWordsTyped = uniqueWordsTyped;
+  stats.averageConsistency = Number(((previousConsistencyTotal + (telemetrySummary.consistencyScore || 0)) / stats.totalGames).toFixed(2));
+  stats.maxBurstWpm = Math.max(stats.maxBurstWpm || 0, telemetrySummary.burstWpm || 0);
+  if (scoreData.score > (stats.bestScore || 0)) {
+    stats.bestScore = scoreData.score;
+    stats.bestWPM = scoreData.WPM;
+    stats.bestPrecision = precision;
+    stats.bestLanguage = scoreData.language;
+  }
+  const daily = Array.isArray(stats.daily) ? stats.daily : [];
+  const today = daily.find(entry => entry.day === day);
+  if (today) {
+    today.games += 1;
+    today.playTimeMs += timeElapsed;
+    today.score += scoreData.score;
+    today.keystrokes += keystrokes;
+  } else {
+    daily.push({ day, games: 1, playTimeMs: timeElapsed, score: scoreData.score, keystrokes });
+  }
+  stats.daily = daily.slice(-180);
+  stats.updatedAt = new Date();
+  await stats.save();
+
+  return { session, telemetrySummary, uniqueWordsTyped };
+}
+
 let supportedWPMs = [30, 50, 100, 101, 150, 200, 250, 300, 350, 400];
 app.post("/score", scoreLimiter, authMiddleware, async (req, res) => {
-  const { keystrokes, timeElapsed, typos, mode, ...scoreData } = req.body;
+  const { keystrokes, timeElapsed, typos, mode, telemetry, ...scoreData } = req.body;
 
   // Score submission is tied to the stable User._id, not the mutable display name.
   const accountUser = await User.findById(req.user.sub).lean();
@@ -279,7 +427,13 @@ app.post("/score", scoreLimiter, authMiddleware, async (req, res) => {
     return res.status(403).send('Account setup required — set your display name first');
   }
 
-  // Typos validation
+  // Basic gameplay counter validation
+  if (typeof keystrokes !== 'number' || !Number.isInteger(keystrokes) || keystrokes <= 0 || keystrokes > 100000) {
+    return res.status(400).send('Invalid keystrokes');
+  }
+  if (typeof timeElapsed !== 'number' || !Number.isFinite(timeElapsed) || timeElapsed < 1000 || timeElapsed > 24 * 60 * 60 * 1000) {
+    return res.status(400).send('Invalid timeElapsed');
+  }
   if (typeof typos !== 'number' || !Number.isInteger(typos) || typos < 0 || typos > keystrokes) {
     return res.status(400).send('Invalid typos');
   }
@@ -366,7 +520,23 @@ if (!supportedWPMs.includes(scoreData.WPM)) {
       const highestScore = highestScoreEntry.score;
 
       if (scoreData.score <= highestScore) {
-        return res.status(400).send('Score should be higher than the previous best score');
+        const analytics = await persistTypingAnalytics({
+          accountUser,
+          scoreData,
+          keystrokes,
+          typos,
+          timeElapsed,
+          mode,
+          precision,
+          telemetry,
+          ipAddress: newScoreData.ip,
+        });
+        return res.status(200).send({
+          message: 'Typing stats saved; leaderboard best unchanged.',
+          leaderboardUpdated: false,
+          telemetrySummary: analytics.telemetrySummary,
+          level: computeLevelProgress(analytics.uniqueWordsTyped, getTotalCorpusWordCount()),
+        });
       }
 
       await Score.deleteMany({
@@ -379,9 +549,101 @@ if (!supportedWPMs.includes(scoreData.WPM)) {
 
     const newScore = new Score(newScoreData);
     const score = await newScore.save();
-    return res.status(200).send(score);
+    const analytics = await persistTypingAnalytics({
+      accountUser,
+      scoreDoc: score,
+      scoreData,
+      keystrokes,
+      typos,
+      timeElapsed,
+      mode,
+      precision,
+      telemetry,
+      ipAddress: newScoreData.ip,
+    });
+    const payload = score.toObject();
+    payload.leaderboardUpdated = true;
+    payload.telemetrySummary = analytics.telemetrySummary;
+    payload.level = computeLevelProgress(analytics.uniqueWordsTyped, getTotalCorpusWordCount());
+    return res.status(200).send(payload);
   } catch (err) {
     return res.status(500).send(err);
+  }
+});
+
+app.get('/stats/me', authMiddleware, async (req, res) => {
+  if (mongoose.connection.readyState !== 1) {
+    return res.status(503).json({ error: 'Stats database unavailable' });
+  }
+
+  try {
+    const accountUser = await User.findById(req.user.sub).lean();
+    if (!accountUser) return res.status(401).json({ error: 'User not found' });
+
+    const stats = await UserTypingStats.findOne({ userId: accountUser._id }).lean();
+    const totalWords = getTotalCorpusWordCount();
+    const uniqueWordsTyped = stats?.uniqueWordsTyped || await UserWordProgress.countDocuments({ userId: accountUser._id });
+    const level = computeLevelProgress(uniqueWordsTyped, totalWords);
+
+    const [bestScores, recentSessions, byLanguage] = await Promise.all([
+      Score.find({ userId: accountUser._id })
+        .sort({ score: -1, precision: -1, timestamp: -1 })
+        .limit(10)
+        .select('score language WPM mode precision keystrokes typos timeElapsed timestamp')
+        .lean(),
+      TypingSession.find({ userId: accountUser._id })
+        .sort({ timestamp: -1 })
+        .limit(300)
+        .select('score language WPM mode precision keystrokes typos timeElapsed telemetrySummary timestamp')
+        .lean(),
+      TypingSession.aggregate([
+        { $match: { userId: accountUser._id } },
+        {
+          $group: {
+            _id: '$language',
+            games: { $sum: 1 },
+            playTimeMs: { $sum: '$timeElapsed' },
+            bestScore: { $max: '$score' },
+            averagePrecision: { $avg: '$precision' },
+            averageConsistency: { $avg: '$telemetrySummary.consistencyScore' },
+          }
+        },
+        { $sort: { games: -1, bestScore: -1 } },
+        { $limit: 12 },
+      ]),
+    ]);
+
+    res.json({
+      user: userPublicPayload(accountUser),
+      totals: {
+        totalGames: stats?.totalGames || 0,
+        totalPlayTimeMs: stats?.totalPlayTimeMs || 0,
+        totalKeystrokes: stats?.totalKeystrokes || 0,
+        totalTypos: stats?.totalTypos || 0,
+        totalScore: stats?.totalScore || 0,
+        bestScore: stats?.bestScore || 0,
+        bestWPM: stats?.bestWPM || 0,
+        bestPrecision: stats?.bestPrecision || 0,
+        bestLanguage: stats?.bestLanguage || null,
+        averageConsistency: stats?.averageConsistency || 0,
+        maxBurstWpm: stats?.maxBurstWpm || 0,
+      },
+      level,
+      daily: stats?.daily || [],
+      bestScores,
+      recentSessions,
+      byLanguage: byLanguage.map(row => ({
+        language: row._id,
+        games: row.games,
+        playTimeMs: row.playTimeMs,
+        bestScore: row.bestScore,
+        averagePrecision: Number((row.averagePrecision || 0).toFixed(2)),
+        averageConsistency: Number((row.averageConsistency || 0).toFixed(2)),
+      })),
+    });
+  } catch (err) {
+    console.error('Stats endpoint error:', err);
+    res.status(500).json({ error: 'Server error' });
   }
 });
 

@@ -1,6 +1,4 @@
 import { defaultTheme } from './default.js';
-import { highwayTheme } from './highway.js';
-import { oceanTheme } from './ocean.js';
 import { psychedelicTheme } from './psychedelic.js';
 import { psychedelicSpinTheme } from './psychedelic-spin.js';
 import { fractalFlowTheme } from './fractal-flow.js';
@@ -11,19 +9,14 @@ import { aestrethraTheme } from './aestrethra.js';
 import { infiniteTubesTheme } from './infinite-tubes.js';
 import { hyperspaceTheme } from './hyperspace.js';
 import { fractalWorldsTheme } from './fractal-worlds.js';
-import { psy2Theme } from './psy2.js';
-import { rollercoasterTheme } from './rollercoaster.js';
-import { spaceTheme } from './space.js';
-import { space2Theme } from './space2.js';
 import { axiomataTheme } from './axiomata.js';
 import { castleTheme } from './castle.js';
 import { boxTheme } from './box.js';
 import { boxCubeTheme } from './box-cube.js';
 import { milkyWayTheme } from './milky-way.js';
+import { ancientTunnelTheme } from './ancient-tunnel.js';
 export const THEME_OPTIONS = [
     defaultTheme,
-    highwayTheme,
-    oceanTheme,
     psychedelicTheme,
     psychedelicSpinTheme,
     fractalFlowTheme,
@@ -34,15 +27,12 @@ export const THEME_OPTIONS = [
     infiniteTubesTheme,
     hyperspaceTheme,
     fractalWorldsTheme,
-    psy2Theme,
-    rollercoasterTheme,
-    spaceTheme,
-    space2Theme,
     axiomataTheme,
     castleTheme,
     boxTheme,
     boxCubeTheme,
-    milkyWayTheme
+    milkyWayTheme,
+    ancientTunnelTheme
 ];
 function isVideoTheme(theme) {
     return theme.kind === 'video';

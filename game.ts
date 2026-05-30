@@ -8,6 +8,7 @@ import type { ShaderThreeThemeDefinition, ThemeUniforms, ThreeThemeRuntime } fro
 interface Word {
   text: string;
   originalText: string;
+  baseText: string;
   sourceIndex?: number;
   x: number;
   y: number;
@@ -27,7 +28,34 @@ type GameMode = 'rage' | 'precision' | 'fast';
 
 type WordListEntry = {
   text: string;
+  baseText: string;
   sourceIndex: number;
+};
+
+type TypingTelemetry = {
+  gameStartedAt: number;
+  gameEndedAt?: number;
+  keyEvents: Array<{
+    t: number;
+    key: string;
+    code: string;
+    correct: boolean;
+    isTrusted: boolean;
+    repeat: boolean;
+    wordIndex?: number;
+    charIndex?: number;
+  }>;
+  completedWords: Array<{
+    word: string;
+    sourceIndex?: number;
+    length: number;
+    startedAt: number;
+    completedAt: number;
+    keystrokes: number;
+    typos: number;
+  }>;
+  focusEvents: Array<{ t: number; type: 'focus' | 'blur' }>;
+  clientMeta: Record<string, string>;
 };
 
 const LOGICAL_WIDTH = 800;
@@ -161,6 +189,10 @@ class Game {
   private themeLoader: HTMLElement | null = null;
   private themeLoaderText: HTMLElement | null = null;
   private startSequence = 0;
+  private telemetry: TypingTelemetry = this.createTelemetry();
+  private activeWordStartedAt = 0;
+  private activeWordKeystrokes = 0;
+  private activeWordTypos = 0;
 
   private constructor(container: HTMLElement, playerName: string, WPM: number = 60, language: string = DEFAULT_LANGUAGE) {
     this.container = container;
@@ -450,9 +482,29 @@ class Game {
     }
   }
 
+  private createTelemetry(): TypingTelemetry {
+    return {
+      gameStartedAt: Date.now(),
+      keyEvents: [],
+      completedWords: [],
+      focusEvents: [],
+      clientMeta: {
+        userAgent: navigator.userAgent,
+        platform: navigator.platform || '',
+        language: navigator.language || '',
+        screen: `${window.screen?.width || 0}x${window.screen?.height || 0}`,
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || '',
+      },
+    };
+  }
+
   private markGameplayStart() {
     this.startTime = Date.now();
     this.timeElapsed = 0;
+    this.telemetry = this.createTelemetry();
+    this.activeWordStartedAt = 0;
+    this.activeWordKeystrokes = 0;
+    this.activeWordTypos = 0;
   }
 
   private updateFractalThemeColors() {
@@ -765,6 +817,7 @@ class Game {
     const selectedWords = data.words.slice(0, limit).map(word => word.trimEnd());
     this.allWords = this.shuffleArray(selectedWords.map((word, sourceIndex) => ({
       text: this.addRandomNumbers(this.applyGrammar(word)),
+      baseText: word,
       sourceIndex
     })));
 
@@ -914,6 +967,7 @@ class Game {
     this.semanticRawWords = rawWords.map(word => word.trimEnd()).filter(Boolean);
     this.semanticAllWords = this.semanticRawWords.map((word, i) => ({
       text: this.addRandomNumbers(this.applyGrammar(word)),
+      baseText: word,
       sourceIndex: i,
     }));
     const totalChars = this.semanticRawWords.reduce((sum, word) => sum + word.length, 0);
@@ -1015,6 +1069,7 @@ class Game {
       // Rebuild word list with current grammar/numbers settings
       this.semanticAllWords = this.semanticRawWords.map((w, i) => ({
         text: this.addRandomNumbers(this.applyGrammar(w)),
+        baseText: w,
         sourceIndex: i,
       }));
       const totalChars = this.semanticRawWords.reduce((sum, w) => sum + w.length, 0);
@@ -1071,6 +1126,45 @@ class Game {
     window.addEventListener('keydown', (event) => this.handleKeydown(event));
   }
 
+  private beginActiveWord(word: Word) {
+    if (this.activeWordStartedAt === 0) {
+      this.activeWordStartedAt = performance.now() + performance.timeOrigin;
+      this.activeWordKeystrokes = 0;
+      this.activeWordTypos = 0;
+    }
+  }
+
+  private recordCompletedWord(word: Word) {
+    const completedAt = performance.now() + performance.timeOrigin;
+    this.telemetry.completedWords.push({
+      word: word.baseText,
+      sourceIndex: word.sourceIndex,
+      length: word.baseText.length,
+      startedAt: this.activeWordStartedAt || completedAt,
+      completedAt,
+      keystrokes: this.activeWordKeystrokes,
+      typos: this.activeWordTypos,
+    });
+    if (this.telemetry.completedWords.length > 1200) this.telemetry.completedWords.shift();
+    this.activeWordStartedAt = 0;
+    this.activeWordKeystrokes = 0;
+    this.activeWordTypos = 0;
+  }
+
+  private recordKeyTelemetry(event: KeyboardEvent, word: Word, correct: boolean) {
+    this.telemetry.keyEvents.push({
+      t: performance.now() + performance.timeOrigin,
+      key: event.key,
+      code: event.code,
+      correct,
+      isTrusted: event.isTrusted,
+      repeat: event.repeat,
+      wordIndex: word.sourceIndex,
+      charIndex: word.currentIndex,
+    });
+    if (this.telemetry.keyEvents.length > 2500) this.telemetry.keyEvents.shift();
+  }
+
   private handleKeydown(event: KeyboardEvent) {
     if (event.target === document.getElementById('hidden-input')) {
       return;
@@ -1110,6 +1204,8 @@ class Game {
     }
 
     this.keystrokes++;
+    this.beginActiveWord(firstWord);
+    this.activeWordKeystrokes++;
     const typedLength = typedKeyPrefixLength(
       firstWord.text,
       event.key,
@@ -1118,11 +1214,13 @@ class Game {
     );
     this.pendingDeadAccentKey = null;
     if (typedLength > 0) {
+      this.recordKeyTelemetry(event, firstWord, true);
       firstWord.text = firstWord.text.slice(typedLength);
       firstWord.color = WORD_FILL;
       firstWord.currentIndex += typedLength;
 
       if (firstWord.text.length === 0 && !(this.mode === 'fast' && firstWord.isTypoMade && event.key !== ' ')) {
+        this.recordCompletedWord(firstWord);
         this.removeWord(firstWord);
         this.words.shift();
         if (this.mode !== 'fast' || !firstWord.isTypoMade) {
@@ -1135,6 +1233,8 @@ class Game {
         this.updateWordTexture(firstWord);
       }
     } else {
+      this.recordKeyTelemetry(event, firstWord, false);
+      this.activeWordTypos++;
       this.typos++;
       if (this.mode === 'rage') {
         firstWord.speed *= 1.1;
@@ -1161,6 +1261,7 @@ class Game {
         firstWord.color = WORD_DANGER;
 
         if (firstWord.text.length === 0) {
+          this.recordCompletedWord(firstWord);
           this.removeWord(firstWord);
           this.words.shift();
           if (this.words.length < this.batchSize) {
@@ -1204,6 +1305,7 @@ class Game {
       const word: Word = {
         text: wordText,
         originalText: wordText,
+        baseText: entry.baseText,
         sourceIndex: entry.sourceIndex,
         x: 24 + Math.random() * Math.max(1, maxWordX - 24),
         y: offset - index * 80,
@@ -1404,6 +1506,7 @@ class Game {
   pauseGame() {
     if (this.isGameOver) return;
     this.pause = true;
+    this.telemetry.focusEvents.push({ t: performance.now() + performance.timeOrigin, type: 'blur' });
     const paused = document.getElementById('GamePaused');
     if (paused) paused.style.display = 'block';
   }
@@ -1411,6 +1514,7 @@ class Game {
   resumeGame() {
     if (this.isGameOver) return;
     this.pause = false;
+    this.telemetry.focusEvents.push({ t: performance.now() + performance.timeOrigin, type: 'focus' });
     this.lastTimestamp = performance.now();
     const paused = document.getElementById('GamePaused');
     if (paused) paused.style.display = 'none';
@@ -1459,6 +1563,7 @@ class Game {
         } catch { /* ignore */ }
       }
 
+      this.telemetry.gameEndedAt = endTime;
       const scorePayload = {
         score: this.score,
         language: this.language,
@@ -1468,7 +1573,8 @@ class Game {
         typos: this.typos,
         mode: this.mode
           + (this.addNumbersSetting ? '+N' : '')
-          + (this.applyGrammarSetting ? '+P' : '')
+          + (this.applyGrammarSetting ? '+P' : ''),
+        telemetry: this.telemetry
       };
 
       // Only POST if authenticated; otherwise stash for later
