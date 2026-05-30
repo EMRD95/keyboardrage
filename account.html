@@ -29,30 +29,26 @@
 
     <div id="setup-done" style="display:none">
       <p style="color:var(--accent,#0f0);font-size:1.1rem;margin-bottom:16px">✓ Account ready!</p>
+      <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap">
       <a href="/index.html" style="display:inline-block;padding:10px 28px;background:var(--accent,#0f0);color:#000;text-decoration:none;border-radius:6px;font-weight:600">
         Start Playing
       </a>
-      <a href="/stats.html" style="display:inline-block;margin-left:8px;padding:10px 28px;background:var(--info-panel-soft);color:var(--info-text);text-decoration:none;border-radius:6px;font-weight:600;border:1px solid var(--info-border)">
+      <a href="/stats.html" style="display:inline-block;padding:10px 28px;background:var(--info-panel-soft);color:var(--info-text);text-decoration:none;border-radius:6px;font-weight:600;border:1px solid var(--info-border)">
         My Stats
       </a>
-      <a href="/leaderboard.html" style="display:inline-block;margin-left:8px;padding:10px 28px;background:var(--info-panel-soft);color:var(--info-text);text-decoration:none;border-radius:6px;font-weight:600;border:1px solid var(--info-border)">
+      <a href="/leaderboard.html" style="display:inline-block;padding:10px 28px;background:var(--info-panel-soft);color:var(--info-text);text-decoration:none;border-radius:6px;font-weight:600;border:1px solid var(--info-border)">
         🏆 Leaderboard
       </a>
+      </div>
     </div>
 
     <p id="setup-email" style="color:var(--info-muted);font-size:0.8rem;margin-top:16px"></p>
   </main>
 
   <script type="module">
-    import { initAuth, signOut, getSession } from './auth-client.js';
+    import { initAuth, signOut, getSession, isLoggedIn } from './auth-client.js';
 
-    // Wait for auth to be ready
-    window.addEventListener('kr-auth-ready', ({ detail }) => {
-      if (!detail.loggedIn) {
-        window.location.href = '/index.html';
-        return;
-      }
-
+    function handleReady() {
       const session = getSession();
       if (!session) return;
 
@@ -118,7 +114,21 @@
           error.style.display = 'block';
         }
       });
-    });
+    }
+
+    // Auth may already be ready (nav-loader.js won the race).
+    // If not, wait for the kr-auth-ready event.
+    if (isLoggedIn()) {
+      handleReady();
+    } else {
+      window.addEventListener('kr-auth-ready', ({ detail }) => {
+        if (!detail.loggedIn) {
+          window.location.href = '/index.html';
+          return;
+        }
+        handleReady();
+      });
+    }
 
     initAuth();
   </script>
