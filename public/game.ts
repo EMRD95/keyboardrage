@@ -1722,6 +1722,7 @@ interface DropdownOption {
   text: string;
   value: string;
   markup?: string; // innerHTML override (e.g. with flags)
+  title?: string;  // native tooltip shown on hover (e.g. mode descriptions)
 }
 
 // Global registry so opening one dropdown closes any other
@@ -1761,6 +1762,7 @@ function makeCustomDropdown(
       const row = document.createElement('div');
       row.className = 'kr-option';
       row.innerHTML = opt.markup || opt.text;
+      if (opt.title) row.title = opt.title;
       row.addEventListener('click', (event) => {
         event.stopPropagation();
         setSelected(opt.value);
@@ -1779,6 +1781,7 @@ function makeCustomDropdown(
     const opt = currentOptions.find(o => o.value === value);
     if (opt) {
       trigger.innerHTML = opt.markup || opt.text;
+      if (opt.title) trigger.title = opt.title; else trigger.removeAttribute('title');
     }
     selectEl.value = value;
     // Only fire onChange for non-silent calls (user interaction or setOptions).
@@ -1923,9 +1926,9 @@ Game.create(gameStage, undefined, 30, DEFAULT_LANGUAGE).then(async game => {
 
   // Mode custom dropdown
   makeCustomDropdown(modeInput, [
-    { text: 'Rage 🛈', value: 'rage' },
-    { text: 'Precision 🛈', value: 'precision' },
-    { text: 'Fast 🛈', value: 'fast' },
+    { text: 'Rage 🛈', value: 'rage', title: 'Typo increases word speed' },
+    { text: 'Precision 🛈', value: 'precision', title: 'Word resets on typo' },
+    { text: 'Fast 🛈', value: 'fast', title: 'Game continues despite typos' },
   ], game.getMode(), (v) => {
     game.setMode(v as GameMode);
   }, () => game.pauseGame(), safeResume);
