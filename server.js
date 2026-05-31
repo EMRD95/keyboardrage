@@ -100,8 +100,8 @@ const CSP_DIRECTIVES = [
   "img-src 'self' data: https://*.googleusercontent.com",
   "style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com",
   "font-src 'self' https://cdnjs.cloudflare.com data:",
-  "frame-src 'self' https://accounts.google.com https://www.youtube.com https://www.youtube-nocookie.com",
-  "media-src 'self' https://www.youtube.com https://www.youtube-nocookie.com",
+  "frame-src 'self' https://accounts.google.com https://www.youtube.com https://youtube.com https://www.youtube-nocookie.com",
+  "media-src 'self' https://www.youtube.com https://youtube.com https://www.youtube-nocookie.com",
 ].join('; ');
 
 // Security headers — must run before static files and routes.
