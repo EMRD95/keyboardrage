@@ -63,10 +63,10 @@ precisionElement.textContent = precisionFormatted === '—' ? 'Precision: —' :
 
 const playerNameElement = document.getElementById('playerName');
 
-// Try auth session first, fall back to localStorage
+// Try persisted auth session first, fall back to local playerName
 (function setPlayerName() {
   try {
-    const sessionStr = sessionStorage.getItem('kr_session');
+    const sessionStr = localStorage.getItem('kr_session');
     if (sessionStr) {
       const session = JSON.parse(sessionStr);
       if (session.user?.displayName) {

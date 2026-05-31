@@ -46,7 +46,7 @@
   </main>
 
   <script type="module">
-    import { initAuth, signOut, getSession, isLoggedIn } from './auth-client.js';
+    import { initAuth, signOut, getSession, isLoggedIn, updateSessionFromAuthResponse } from './auth-client.js';
 
     function handleReady() {
       const session = getSession();
@@ -89,8 +89,8 @@
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              'Authorization': `Bearer ${session.token}`,
             },
+            credentials: 'same-origin',
             body: JSON.stringify({ displayName: name }),
           });
 
@@ -101,11 +101,8 @@
             return;
           }
 
-          // Update local session with new token
-          const saved = JSON.parse(sessionStorage.getItem('kr_session'));
-          saved.token = data.token;
-          saved.user = data.user;
-          sessionStorage.setItem('kr_session', JSON.stringify(saved));
+          // Update the public profile cache; the secret stays in the HttpOnly cookie.
+          updateSessionFromAuthResponse(data);
 
           document.getElementById('setup-form').style.display = 'none';
           document.getElementById('setup-done').style.display = 'block';
@@ -121,13 +118,14 @@
     if (isLoggedIn()) {
       handleReady();
     } else {
-      window.addEventListener('kr-auth-ready', ({ detail }) => {
+      const onAuthReady = ({ detail }) => {
         if (!detail.loggedIn) {
           window.location.href = '/index.html';
           return;
         }
         handleReady();
-      });
+      };
+      window.addEventListener('kr-auth-ready', onAuthReady, { once: true });
     }
 
     initAuth();

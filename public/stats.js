@@ -44,12 +44,16 @@ function renderTable(id, rows, columns, emptyText) {
 
 async function loadStats() {
   const session = getSession();
-  if (!session?.token) {
+  if (!session?.user) {
     window.location.href = '/index.html';
     return null;
   }
-  const res = await fetch('/stats/me', { headers: { Authorization: `Bearer ${session.token}` } });
+  const res = await fetch('/stats/me', { credentials: 'same-origin' });
   const data = await res.json();
+  if (res.status === 401) {
+    window.location.href = '/index.html';
+    return null;
+  }
   if (!res.ok) throw new Error(data.error || 'Failed to load stats');
   return data;
 }

@@ -34,6 +34,60 @@ app.use(bodyParser.json({ limit: '768kb' }));
 const PORT = Number(process.env.PORT || 3000);
 const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 const SEMANTIC_BACKEND_URL = process.env.SEMANTIC_BACKEND_URL || 'http://127.0.0.1:8703';
+const SESSION_COOKIE_NAME = 'kr_session';
+const SESSION_COOKIE_MAX_AGE_SECONDS = 7 * 24 * 60 * 60;
+
+function parseCookies(cookieHeader) {
+  const cookies = {};
+  String(cookieHeader || '').split(';').forEach(part => {
+    const eq = part.indexOf('=');
+    if (eq === -1) return;
+    const key = part.slice(0, eq).trim();
+    if (!key) return;
+    const value = part.slice(eq + 1).trim();
+    try {
+      cookies[key] = decodeURIComponent(value);
+    } catch {
+      cookies[key] = value;
+    }
+  });
+  return cookies;
+}
+
+function shouldUseSecureCookie(req) {
+  return IS_PRODUCTION || req.secure || req.headers['x-forwarded-proto'] === 'https';
+}
+
+function sessionExpiresAtFromPayload(payload) {
+  return payload?.exp ? new Date(Number(payload.exp) * 1000).toISOString() : null;
+}
+
+function maxAgeSecondsForToken(token) {
+  const payload = verifySessionToken(token);
+  if (!payload?.exp) return SESSION_COOKIE_MAX_AGE_SECONDS;
+  const secondsUntilJwtExpiry = Math.ceil(Number(payload.exp) - (Date.now() / 1000));
+  return Math.max(0, Math.min(SESSION_COOKIE_MAX_AGE_SECONDS, secondsUntilJwtExpiry));
+}
+
+function serializeSessionCookie(value, req, maxAgeSeconds = SESSION_COOKIE_MAX_AGE_SECONDS) {
+  const parts = [
+    `${SESSION_COOKIE_NAME}=${encodeURIComponent(value)}`,
+    'Path=/',
+    `Max-Age=${maxAgeSeconds}`,
+    'HttpOnly',
+    'SameSite=Lax',
+  ];
+  if (shouldUseSecureCookie(req)) parts.push('Secure');
+  return parts.join('; ');
+}
+
+function setSessionCookie(res, req, token) {
+  res.setHeader('Set-Cookie', serializeSessionCookie(token, req, maxAgeSecondsForToken(token)));
+}
+
+function clearSessionCookie(res, req) {
+  res.setHeader('Set-Cookie', serializeSessionCookie('', req, 0));
+}
 
 const CSP_DIRECTIVES = [
   "default-src 'self'",
@@ -353,14 +407,25 @@ function userPublicPayload(user) {
 // ── Auth middleware ─────────────────────────────────────────────
 function authMiddleware(req, res, next) {
   const header = req.headers.authorization;
-  if (!header || !header.startsWith('Bearer ')) {
-    return res.status(401).json({ error: 'Missing authorization header' });
+  let token = null;
+  let authSource = 'cookie';
+  if (header && header.startsWith('Bearer ')) {
+    token = header.slice(7);
+    authSource = 'bearer';
+  } else {
+    token = parseCookies(req.headers.cookie)[SESSION_COOKIE_NAME] || null;
   }
-  const payload = verifySessionToken(header.slice(7));
+  if (!token) {
+    return res.status(401).json({ error: 'Missing authorization token' });
+  }
+  const payload = verifySessionToken(token);
   if (!payload) {
+    if (authSource === 'cookie') clearSessionCookie(res, req);
     return res.status(401).json({ error: 'Invalid or expired token' });
   }
   req.user = payload;
+  req.authToken = token;
+  req.authSource = authSource;
   next();
 }
 
@@ -387,9 +452,11 @@ app.post('/auth/google', authGoogleLimiter, async (req, res) => {
     }
 
     const token = signSessionToken(user);
+    const sessionPayload = verifySessionToken(token);
+    setSessionCookie(res, req, token);
     res.json({
-      token,
       user: userPublicPayload(user),
+      sessionExpiresAt: sessionExpiresAtFromPayload(sessionPayload),
     });
   } catch (err) {
     console.error('Google auth error:', err.message);
@@ -403,10 +470,21 @@ app.get('/auth/me', authMiddleware, async (req, res) => {
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
-    res.json(userPublicPayload(user));
+    if (req.authSource === 'bearer') {
+      setSessionCookie(res, req, req.authToken);
+    }
+    res.json({
+      user: userPublicPayload(user),
+      sessionExpiresAt: sessionExpiresAtFromPayload(req.user),
+    });
   } catch (err) {
     res.status(500).json({ error: 'Server error' });
   }
+});
+
+app.post('/auth/logout', (req, res) => {
+  clearSessionCookie(res, req);
+  res.status(204).end();
 });
 
 app.post('/auth/setup', authSetupLimiter, authMiddleware, async (req, res) => {
@@ -459,10 +537,12 @@ app.post('/auth/setup', authSetupLimiter, authMiddleware, async (req, res) => {
     ).lean();
 
     const token = signSessionToken(user);
+    const sessionPayload = verifySessionToken(token);
+    setSessionCookie(res, req, token);
 
     res.json({
-      token,
       user: userPublicPayload(user),
+      sessionExpiresAt: sessionExpiresAtFromPayload(sessionPayload),
     });
   } catch (err) {
     if (err && err.code === 11000) {

@@ -517,29 +517,49 @@ class Game {
       + (this.applyGrammarSetting ? '+P' : '');
   }
 
-  private getAuthToken(): string | null {
-    const sessionStr = sessionStorage.getItem('kr_session');
+  private getStoredAuthSession(): { user?: unknown; token?: string } | null {
+    let sessionStr = localStorage.getItem('kr_session');
+    if (!sessionStr) {
+      sessionStr = sessionStorage.getItem('kr_session');
+      if (sessionStr) {
+        localStorage.setItem('kr_session', sessionStr);
+        sessionStorage.removeItem('kr_session');
+      }
+    }
     if (!sessionStr) return null;
     try {
-      const session = JSON.parse(sessionStr) as { token?: string };
-      return typeof session.token === 'string' && session.token.length > 0 ? session.token : null;
+      return JSON.parse(sessionStr) as { user?: unknown; token?: string };
     } catch {
       return null;
     }
   }
 
+  private hasStoredAuthSession(): boolean {
+    const session = this.getStoredAuthSession();
+    return Boolean(session?.user || (typeof session?.token === 'string' && session.token.length > 0));
+  }
+
+  private getLegacyAuthToken(): string | null {
+    const session = this.getStoredAuthSession();
+    return typeof session?.token === 'string' && session.token.length > 0 ? session.token : null;
+  }
+
+  private authHeaders(): Record<string, string> {
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    const legacyToken = this.getLegacyAuthToken();
+    if (legacyToken) headers.Authorization = `Bearer ${legacyToken}`;
+    return headers;
+  }
+
   private async startGameSession() {
     this.activeGameSession = null;
-    const token = this.getAuthToken();
-    if (!token) return;
+    if (!this.hasStoredAuthSession()) return;
 
     try {
       const response = await fetch('/game/start', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
+        headers: this.authHeaders(),
+        credentials: 'same-origin',
         body: JSON.stringify({
           language: this.language,
           WPM: this.WPM,
@@ -549,6 +569,9 @@ class Game {
           clientMeta: this.telemetry.clientMeta,
         }),
       });
+      if (response.status === 401) {
+        localStorage.removeItem('kr_session');
+      }
       if (!response.ok) {
         console.warn('Leaderboard session unavailable:', response.status);
         return;
@@ -1646,18 +1669,15 @@ class Game {
     localStorage.setItem('timeElapsed', this.timeElapsed.toString());
 
     try {
-      const token = this.getAuthToken();
       this.telemetry.gameEndedAt = endTime;
 
       // Public leaderboard scores require a server-owned game session.
       // Anonymous games still work normally, but their scores stay local-only.
-      if (token && this.activeGameSession) {
+      if (this.activeGameSession) {
         const response = await fetch('/game/finish', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`,
-          },
+          headers: this.authHeaders(),
+          credentials: 'same-origin',
           body: JSON.stringify({
             sessionId: this.activeGameSession.sessionId,
             finishToken: this.activeGameSession.finishToken,
@@ -1666,6 +1686,9 @@ class Game {
           })
         });
 
+        if (response.status === 401) {
+          localStorage.removeItem('kr_session');
+        }
         if (!response.ok) {
           console.error('Failed to verify score with server', response.status);
         } else {
