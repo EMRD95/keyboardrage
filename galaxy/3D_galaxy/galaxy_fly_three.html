@@ -706,16 +706,16 @@ async function main() {
     setNeighborPanelVisible(true);
     selectedNeighborIndex = idx;
     const k = Math.max(1, Math.min(200, Number(neighborKInput.value || 100)));
-    const lang = neighborLangSelect.value || 'all';
+    const languageFilter = neighborLangSelect.value || 'all';
     const visibleLanguages = langNameByIndex
       .filter((name, index) => name && langVisible[index])
       .map(name => String(name));
-    neighborStatus.textContent = `Querying semantic backend for point #${idx.toLocaleString()} within ${visibleLanguages.length} visible languages ...`;
+    neighborStatus.textContent = `Querying all-language semantic backend for point #${idx.toLocaleString()} across ${visibleLanguages.length} visible languages ...`;
     try {
       const params = new URLSearchParams({
         k: String(k),
         candidates: String(Math.max(1000, Math.min(5000, k * 100))),
-        language: lang,
+        language_filter: languageFilter,
       });
       if (visibleLanguages.length > 0) {
         params.set('visible_languages', visibleLanguages.join(','));

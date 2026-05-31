@@ -5,6 +5,9 @@ const mongoose = require('mongoose');
 const bodyParser = require('body-parser');
 const path = require('path');
 const fs = require('fs');
+const http = require('http');
+const https = require('https');
+const { URL } = require('url');
 const { verifyGoogleToken, signSessionToken, verifySessionToken, GOOGLE_CLIENT_ID } = require('./auth');
 const rateLimit = require('express-rate-limit');
 const { MongoMemoryServer } = require('mongodb-memory-server');
@@ -30,6 +33,7 @@ app.use(bodyParser.json({ limit: '768kb' }));
 
 const PORT = Number(process.env.PORT || 3000);
 const IS_PRODUCTION = process.env.NODE_ENV === 'production';
+const SEMANTIC_BACKEND_URL = process.env.SEMANTIC_BACKEND_URL || 'http://127.0.0.1:8703';
 
 const CSP_DIRECTIVES = [
   "default-src 'self'",
@@ -78,6 +82,50 @@ function onlyScriptRuntimeFiles(req, res, next) {
 function serveTopLevelFile(route, fileName) {
   app.get(route, (req, res) => res.sendFile(path.join(__dirname, fileName)));
 }
+
+function proxySemanticRequest(req, res) {
+  if (!['GET', 'HEAD'].includes(req.method)) {
+    res.setHeader('Allow', 'GET, HEAD');
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
+
+  let target;
+  try {
+    const semanticPath = req.originalUrl.slice('/semantic'.length) || '/';
+    target = new URL(semanticPath, SEMANTIC_BACKEND_URL);
+  } catch (err) {
+    return res.status(500).json({ error: 'Semantic proxy misconfigured' });
+  }
+
+  const transport = target.protocol === 'https:' ? https : http;
+  const headers = {
+    accept: req.headers.accept || 'application/json',
+    'user-agent': req.headers['user-agent'] || 'KeyboardRage',
+    host: target.host,
+  };
+
+  const proxyReq = transport.request(target, { method: req.method, headers }, (proxyRes) => {
+    res.statusCode = proxyRes.statusCode || 502;
+    for (const [key, value] of Object.entries(proxyRes.headers)) {
+      if (value !== undefined) res.setHeader(key, value);
+    }
+    proxyRes.pipe(res);
+  });
+
+  proxyReq.setTimeout(30_000, () => proxyReq.destroy(new Error('Semantic backend timeout')));
+  proxyReq.on('error', (err) => {
+    console.error('Semantic proxy error:', err.message);
+    if (!res.headersSent) {
+      return res.status(502).json({ error: 'Semantic backend unavailable' });
+    }
+    res.destroy(err);
+  });
+  proxyReq.end();
+}
+
+// Local/direct Node deployments need the same /semantic path that production
+// Nginx exposes. In production Nginx normally handles this location before Node.
+app.use('/semantic', proxySemanticRequest);
 
 // Serve only deliberate public assets. Do NOT expose the repository root:
 // it contains .git, server.js, auth.js, antiCheat.js, rateLimiter.js and deploy-only files.
