@@ -1941,13 +1941,16 @@ Game.create(gameStage, undefined, 30, DEFAULT_LANGUAGE).then(async game => {
     game.setSemanticSeed(Number(savedSeedId), savedSeedWord, savedSeedLang);
   }
 
-  wpmInput.value = game.getWPM().toString();
-  wpmInput.addEventListener('change', () => {
-    const newWPM = Number(wpmInput.value);
-    game.setWPM(newWPM);
-  });
-  wpmInput.addEventListener('focus', () => game.pauseGame());
-  wpmInput.addEventListener('blur', safeResume);
+  // WPM custom dropdown — read options from the native <select> so HTML stays the source of truth
+  const wpmOptions: DropdownOption[] = Array.from(wpmInput.options).map(opt => ({
+    text: opt.text,
+    value: opt.value,
+    title: opt.title || undefined,
+  }));
+  const currentWpm = game.getWPM().toString();
+  makeCustomDropdown(wpmInput, wpmOptions, currentWpm, (v) => {
+    game.setWPM(Number(v));
+  }, () => game.pauseGame(), safeResume);
 
   // Theme custom dropdown — calls changeTheme directly (no native event dispatch)
   const themeOpts: DropdownOption[] = [

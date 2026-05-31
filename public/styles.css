@@ -2066,7 +2066,7 @@ body[data-theme] .brand-block {
 }
 
 /* Custom dropdown with flags — keyboardrage branded */
-.kr-select { position: relative; }
+.kr-select { position: relative; width: 100%; }
 .kr-trigger {
   padding: 6px 8px;
   border: 1px solid rgba(255,255,255,0.12);
