@@ -1034,6 +1034,121 @@ app.get('/stats/me', authMiddleware, async (req, res) => {
   }
 });
 
+let motivationalMessages = ['Keep practicing — ranked modes use starred WPM settings.'];
+try {
+  const loadedMessages = JSON.parse(fs.readFileSync(path.join(__dirname, 'words', 'motivation.json'), 'utf8'));
+  if (Array.isArray(loadedMessages) && loadedMessages.length > 0) {
+    motivationalMessages = loadedMessages;
+  }
+} catch (err) {
+  console.warn('Failed to load motivation.json, using fallback motivation message.', err);
+}
+
+// Legacy endpoints used by game-over.html. Keep these mounted until the
+// game-over client is migrated; they return arrays, not the /api wrapper.
+app.get('/leaderboard/:language/:WPM', async (req, res) => {
+  const language = req.params.language;
+  if (!isSupportedLanguage(language)) {
+    return res.status(400).json({ error: 'Unsupported language' });
+  }
+  const WPM = Number(req.params.WPM);
+  if (!supportedWPMs.includes(WPM)) {
+    const randomIndex = Math.floor(Math.random() * motivationalMessages.length);
+    return res.status(200).send({ message: motivationalMessages[randomIndex] });
+  }
+  const page = parseBoundedInteger(req.query.page, 1, { min: 1, max: 10000 });
+  const limit = parseBoundedInteger(req.query.limit, 10, { min: 1, max: 50 });
+  const skip = (page - 1) * limit;
+
+  if (mongoose.connection.readyState !== 1) {
+    return res.status(200).send([]);
+  }
+
+  try {
+    const scores = await Score.aggregate([
+      { $match: publishedScoreFilter({ language, WPM }) },
+      { $sort: { score: -1, precision: -1, timestamp: 1 } },
+      {
+        $group: {
+          _id: {
+            $cond: [
+              { $ifNull: ['$userId', false] },
+              { $concat: ['user:', { $toString: '$userId' }] },
+              { $concat: ['legacy:', '$name'] }
+            ]
+          },
+          doc: { $first: '$$ROOT' }
+        }
+      },
+      { $replaceRoot: { newRoot: '$doc' } },
+      {
+        $lookup: {
+          from: 'users',
+          localField: 'userId',
+          foreignField: '_id',
+          as: 'user'
+        }
+      },
+      { $unwind: { path: '$user', preserveNullAndEmptyArrays: true } },
+      {
+        $addFields: {
+          name: { $ifNull: ['$user.displayName', '$name'] },
+          userPicture: '$user.picture'
+        }
+      },
+      { $sort: { score: -1, precision: -1, timestamp: 1 } },
+      { $skip: skip },
+      { $limit: limit },
+      { $project: { user: 0, googleId: 0, ip: 0, userId: 0, __v: 0 } }
+    ]);
+
+    return res.status(200).send(scores);
+  } catch (err) {
+    console.error('Leaderboard error:', err);
+    return res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.get('/latest-scores', async (req, res) => {
+  const page = parseBoundedInteger(req.query.page, 1, { min: 1, max: 10000 });
+  const limit = parseBoundedInteger(req.query.limit, 10, { min: 1, max: 50 });
+  const skip = (page - 1) * limit;
+
+  if (mongoose.connection.readyState !== 1) {
+    return res.status(200).send([]);
+  }
+
+  try {
+    const scores = await Score.aggregate([
+      { $match: publishedScoreFilter() },
+      { $sort: { timestamp: -1 } },
+      { $skip: skip },
+      { $limit: limit },
+      {
+        $lookup: {
+          from: 'users',
+          localField: 'userId',
+          foreignField: '_id',
+          as: 'user'
+        }
+      },
+      { $unwind: { path: '$user', preserveNullAndEmptyArrays: true } },
+      {
+        $addFields: {
+          name: { $ifNull: ['$user.displayName', '$name'] },
+          userPicture: '$user.picture'
+        }
+      },
+      { $project: { user: 0, googleId: 0, ip: 0, userId: 0, __v: 0 } }
+    ]);
+
+    return res.status(200).send(scores);
+  } catch (err) {
+    console.error('Latest scores error:', err);
+    return res.status(500).json({ error: 'Server error' });
+  }
+});
+
 app.get('/api/leaderboard', async (req, res) => {
   const lang = readStringQuery(req.query.lang);
   const rawWpm = req.query.wpm == null ? null : parseStrictNumberQuery(req.query.wpm);
