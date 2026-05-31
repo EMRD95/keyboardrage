@@ -14,6 +14,16 @@ const {
   compactCompletedWords,
   compactRawTelemetry,
 } = require('./typing-stats');
+const {
+  PUBLICATION_STATES,
+  VALID_PUBLICATION_STATES,
+  createFinishTokenPair,
+  verifyFinishToken,
+  rejectOperatorKeys,
+  recomputeScoreFromTelemetry,
+  decidePublicationStatus,
+  isLocalAdminRequest,
+} = require('./game-session-security');
 
 const app = express();
 app.disable('x-powered-by');
@@ -22,6 +32,7 @@ app.use(bodyParser.json({ limit: '768kb' }));
 
 const PORT = Number(process.env.PORT || 3000);
 const IS_PRODUCTION = process.env.NODE_ENV === 'production';
+const PRIVATE_ADMIN_DIR = path.join(__dirname, 'private-admin');
 
 const CSP_DIRECTIVES = [
   "default-src 'self'",
@@ -151,11 +162,22 @@ const ScoreSchema = new mongoose.Schema({
   mode: String,
   precision: Number,
   timeElapsed: Number,
+  gameSessionId: { type: mongoose.Schema.Types.ObjectId, ref: 'GameSession', default: null, index: true },
+  scoreAttemptId: { type: mongoose.Schema.Types.ObjectId, ref: 'ScoreAttempt', default: null, index: true },
+  publicationStatus: {
+    type: String,
+    enum: Object.values(PUBLICATION_STATES),
+    default: PUBLICATION_STATES.PUBLISHED,
+    index: true,
+  },
+  riskScore: { type: Number, default: 0, min: 0, max: 100 },
+  reviewNote: { type: String, default: '' },
+  reviewedAt: { type: Date, default: null },
   ip: String,
   timestamp: { type: Date, default: Date.now, expires: '3653d' }
 });
-ScoreSchema.index({ userId: 1, WPM: 1, language: 1, score: -1 });
-ScoreSchema.index({ language: 1, WPM: 1, score: -1, precision: -1 });
+ScoreSchema.index({ userId: 1, WPM: 1, language: 1, mode: 1, publicationStatus: 1, score: -1 });
+ScoreSchema.index({ language: 1, WPM: 1, publicationStatus: 1, score: -1, precision: -1 });
 
 let supportedLanguagesCache = null;
 function loadSupportedLanguages() {
@@ -223,6 +245,13 @@ const scorePreAuthLimiter = rateLimit({
   legacyHeaders: false,
   message: { error: 'Too many score requests, wait a moment and try again.' },
 });
+const gameStartLimiter = rateLimit({
+  windowMs: 10 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many game starts, wait a moment and try again.' },
+});
 const VALID_SCORE_MODES = new Set([
   'rage',
   'precision',
@@ -287,6 +316,11 @@ function authMiddleware(req, res, next) {
     return res.status(401).json({ error: 'Invalid or expired token' });
   }
   req.user = payload;
+  next();
+}
+
+function localAdminOnly(req, res, next) {
+  if (!isLocalAdminRequest(req)) return res.status(404).end();
   next();
 }
 
@@ -404,6 +438,80 @@ app.get('/auth/config', (req, res) => {
 
 const Score = mongoose.model('Score', ScoreSchema);
 const scoreLimiter = require('./rateLimiter');
+let validateScore;
+let assessScoreAttempt;
+let scoreReviewUi = null;
+try {
+  const antiCheatModule = require('./antiCheat');
+  validateScore = typeof antiCheatModule === 'function' ? antiCheatModule : antiCheatModule.validateScore;
+  assessScoreAttempt = antiCheatModule.assessScoreAttempt || (() => ({ riskScore: 0, reasons: [] }));
+  if (typeof validateScore !== 'function') throw new Error('antiCheat validateScore export missing');
+} catch (err) {
+  if (process.env.NODE_ENV === 'production') {
+    console.error('FATAL: antiCheat.js missing in production. Refusing to accept scores unvalidated.');
+    process.exit(1);
+  }
+  console.warn('antiCheat.js not found, score validation bypassed (dev only).', err.message);
+  validateScore = () => ({ valid: true });
+  assessScoreAttempt = () => ({ riskScore: 0, reasons: [] });
+}
+try {
+  scoreReviewUi = require('./scoreReviewUi');
+} catch (err) {
+  if (!IS_PRODUCTION) console.warn('scoreReviewUi.js not found, local review UI disabled.', err.message);
+}
+
+const GameSessionSchema = new mongoose.Schema({
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+  language: { type: String, required: true, index: true },
+  WPM: { type: Number, required: true, index: true },
+  mode: { type: String, required: true },
+  frequencyLimit: { type: Number, default: null },
+  semanticActive: { type: Boolean, default: false },
+  tokenHash: { type: String, required: true },
+  status: { type: String, enum: ['active', 'finished', 'rejected', 'expired'], default: 'active', index: true },
+  startedAt: { type: Date, default: Date.now, index: true },
+  finishedAt: { type: Date, default: null },
+  expiresAt: { type: Date, required: true, index: true },
+  ip: String,
+  clientMeta: { type: mongoose.Schema.Types.Mixed, default: {} },
+});
+GameSessionSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 7 * 24 * 60 * 60 });
+const GameSession = mongoose.model('GameSession', GameSessionSchema);
+
+const ScoreAttemptSchema = new mongoose.Schema({
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+  gameSessionId: { type: mongoose.Schema.Types.ObjectId, ref: 'GameSession', default: null, index: true },
+  scoreId: { type: mongoose.Schema.Types.ObjectId, ref: 'Score', default: null, index: true },
+  language: { type: String, required: true, index: true },
+  WPM: { type: Number, required: true, index: true },
+  mode: { type: String, required: true },
+  score: { type: Number, required: true },
+  precision: { type: Number, required: true },
+  keystrokes: { type: Number, required: true },
+  typos: { type: Number, required: true },
+  timeElapsed: { type: Number, required: true },
+  clientScore: { type: Number, default: null },
+  publicationStatus: {
+    type: String,
+    enum: Object.values(PUBLICATION_STATES),
+    default: PUBLICATION_STATES.PRIVATE,
+    index: true,
+  },
+  riskScore: { type: Number, default: 0, min: 0, max: 100, index: true },
+  riskReasons: { type: [String], default: [] },
+  validationReason: { type: String, default: '' },
+  telemetrySummary: { type: mongoose.Schema.Types.Mixed, default: {} },
+  telemetryCompact: { type: mongoose.Schema.Types.Mixed, default: {} },
+  clientMeta: { type: mongoose.Schema.Types.Mixed, default: {} },
+  ip: String,
+  reviewHistory: { type: [mongoose.Schema.Types.Mixed], default: [] },
+  reviewedAt: { type: Date, default: null },
+  timestamp: { type: Date, default: Date.now, expires: '3653d', index: true },
+});
+ScoreAttemptSchema.index({ publicationStatus: 1, timestamp: -1 });
+ScoreAttemptSchema.index({ userId: 1, timestamp: -1 });
+const ScoreAttempt = mongoose.model('ScoreAttempt', ScoreAttemptSchema);
 
 const TypingSessionSchema = new mongoose.Schema({
   userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
@@ -545,146 +653,323 @@ async function persistTypingAnalytics({ accountUser, scoreDoc = null, scoreData,
   return { session, telemetrySummary, uniqueWordsTyped };
 }
 
-let supportedWPMs = [30, 50, 100, 101, 150, 200, 201, 250, 300, 350, 400];
-app.post("/score", scorePreAuthLimiter, authMiddleware, scoreLimiter, async (req, res) => {
-  const { keystrokes, timeElapsed, typos, mode, telemetry, ...scoreData } = req.body;
-
-  // Score submission is tied to the stable User._id, not the mutable display name.
-  const accountUser = await User.findById(req.user.sub).lean();
-  if (!accountUser) {
-    return res.status(401).send('User not found');
-  }
-  if (!accountUser.displayName) {
-    return res.status(403).send('Account setup required — set your display name first');
-  }
-
-  // Basic gameplay counter validation
-  if (typeof keystrokes !== 'number' || !Number.isInteger(keystrokes) || keystrokes <= 0 || keystrokes > 100000) {
-    return res.status(400).send('Invalid keystrokes');
-  }
-  if (typeof timeElapsed !== 'number' || !Number.isFinite(timeElapsed) || timeElapsed < 1000 || timeElapsed > 24 * 60 * 60 * 1000) {
-    return res.status(400).send('Invalid timeElapsed');
-  }
-  if (typeof typos !== 'number' || !Number.isInteger(typos) || typos < 0 || typos > keystrokes) {
-    return res.status(400).send('Invalid typos');
-  }
-
-// Mode validation
-if (typeof mode !== 'string' || !VALID_SCORE_MODES.has(mode)) {
-    return res.status(400).send('Invalid mode');
+function getClientIp(req) {
+  return req.headers['x-forwarded-for']?.split(',')[0].trim() || req.connection.remoteAddress;
 }
 
-// Calculate precision
-const precision = ((keystrokes - typos) / keystrokes) * 100;
-
-// Validate precision
-if (typeof precision !== 'number' || precision < 0 || precision > 100) {
-    return res.status(400).send('Invalid precision');
-}
-
-// Validate precision for 'fast' mode
-if (['fast', 'fast+N', 'fast+P', 'fast+N+P'].includes(mode) && precision < 90) {
-    return res.status(400).send('Invalid precision for fast mode. Precision must be above 90');
-}
-
-if (typeof scoreData.score !== 'number' || !Number.isInteger(scoreData.score) || scoreData.score < 0 || scoreData.score > 300000) {
-    return res.status(400).send('Invalid score');
-}
-
-if (!loadSupportedLanguages().some(l => l.code === scoreData.language)) {
-    return res.status(400).send('Invalid language');
-}
-
-if (!supportedWPMs.includes(scoreData.WPM)) {
-    return res.status(400).send('Invalid WPM');
-}
-
-  // Score plausibility validation (antiCheat.js)
-  const plausibility = validateScore(scoreData.score, keystrokes, typos, timeElapsed, scoreData.WPM, precision);
-  if (!plausibility.valid) {
-    console.warn(`Score rejected [${req.ip}]: ${plausibility.reason}`);
-    return res.status(400).send('Invalid score');
-  }
-
-  // New scores use userId as the stable identity. `name` remains a display snapshot/fallback only.
-  const newScoreData = {
-    userId: accountUser._id,
-    name: accountUser.displayName,
-    score: scoreData.score,
-    language: scoreData.language,
-    WPM: scoreData.WPM,
-    keystrokes,
-    timeElapsed,
-    typos,
-    mode,
-    precision,
-    ip: req.headers['x-forwarded-for']?.split(',')[0].trim() || req.connection.remoteAddress
+function publishedScoreFilter(extra = {}) {
+  return {
+    ...extra,
+    $or: [
+      { publicationStatus: PUBLICATION_STATES.PUBLISHED },
+      { publicationStatus: { $exists: false } },
+    ],
   };
+}
 
-  if (mongoose.connection.readyState !== 1) {
-    return res.status(202).send({ message: 'Score accepted locally, but MongoDB is unavailable so it was not persisted.' });
+function parseFrequencyLimit(value) {
+  if (value == null) return null;
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed < 1 || parsed > 1_000_000) return null;
+  return parsed;
+}
+
+function loadWordsForSession(session, telemetry = {}) {
+  if (session.semanticActive) {
+    const derived = new Map();
+    for (const word of Array.isArray(telemetry.completedWords) ? telemetry.completedWords : []) {
+      const sourceIndex = Number(word.sourceIndex);
+      if (Number.isInteger(sourceIndex) && sourceIndex >= 0 && !derived.has(sourceIndex)) {
+        derived.set(sourceIndex, String(word.word || '').trimEnd());
+      }
+    }
+    return { wordsBySourceIndex: derived, unverifiedSource: true };
   }
+  const wordsPath = path.join(__dirname, 'words', session.language, 'words.json');
+  const data = JSON.parse(fs.readFileSync(wordsPath, 'utf8'));
+  const words = Array.isArray(data.words) ? data.words.map(word => String(word || '').trimEnd()) : [];
+  const limit = Math.max(1, Math.min(words.length, session.frequencyLimit || words.length));
+  return { wordsBySourceIndex: words.slice(0, limit), unverifiedSource: false };
+}
+
+async function getAccountEligibility(accountUser) {
+  const stats = await UserTypingStats.findOne({ userId: accountUser._id }).lean();
+  return {
+    accountAgeMs: Date.now() - new Date(accountUser.createdAt || Date.now()).getTime(),
+    validFinishedGames: stats?.totalGames || 0,
+    totalPlayTimeMs: stats?.totalPlayTimeMs || 0,
+  };
+}
+
+async function bestPublishedScoreForUser(accountUser, WPM, language, mode) {
+  const best = await Score.findOne(publishedScoreFilter({ userId: accountUser._id, WPM, language, mode }))
+    .sort({ score: -1, precision: -1, timestamp: 1 })
+    .lean();
+  return best?.score || 0;
+}
+
+function normalizeRiskAssessment(assessment) {
+  const riskScore = Math.max(0, Math.min(100, Math.round(Number(assessment?.riskScore) || 0)));
+  const reasons = Array.isArray(assessment?.reasons) ? assessment.reasons.map(reason => String(reason).slice(0, 120)) : [];
+  return { riskScore, reasons };
+}
+
+let supportedWPMs = [30, 50, 100, 101, 150, 200, 201, 250, 300, 350, 400];
+
+app.post('/game/start', gameStartLimiter, authMiddleware, async (req, res) => {
+  const operatorCheck = rejectOperatorKeys(req.body || {});
+  if (!operatorCheck.valid) return res.status(400).json({ error: 'Invalid request' });
+
+  const { language, WPM, mode, semanticActive = false, clientMeta = {} } = req.body || {};
+  const cleanWpm = Number(WPM);
+  const frequencyLimit = parseFrequencyLimit(req.body?.frequencyLimit);
+  if (!isSupportedLanguage(language)) return res.status(400).json({ error: 'Unsupported language' });
+  if (!supportedWPMs.includes(cleanWpm)) return res.status(400).json({ error: 'Unsupported WPM' });
+  if (typeof mode !== 'string' || !VALID_SCORE_MODES.has(mode)) return res.status(400).json({ error: 'Unsupported mode' });
 
   try {
-    // Highest score check is per stable userId, not mutable display name.
-    const highestScoreEntry = await Score.findOne({
-      userId: accountUser._id, WPM: scoreData.WPM, language: scoreData.language,
-    }).sort({ score: -1 });
+    const accountUser = await User.findById(req.user.sub).lean();
+    if (!accountUser) return res.status(401).json({ error: 'User not found' });
+    if (!accountUser.displayName) return res.status(403).json({ error: 'Account setup required' });
+    if (mongoose.connection.readyState !== 1) return res.status(503).json({ error: 'Game session database unavailable' });
 
-    if (highestScoreEntry) {
-      const highestScore = highestScoreEntry.score;
+    const { token, tokenHash } = createFinishTokenPair();
+    const now = new Date();
+    const session = await GameSession.create({
+      userId: accountUser._id,
+      language,
+      WPM: cleanWpm,
+      mode,
+      frequencyLimit,
+      semanticActive: semanticActive === true,
+      tokenHash,
+      startedAt: now,
+      expiresAt: new Date(now.getTime() + 30 * 60 * 1000),
+      ip: getClientIp(req),
+      clientMeta: sanitizeClientMeta(clientMeta),
+    });
+    return res.status(201).json({ sessionId: session._id, finishToken: token, expiresAt: session.expiresAt });
+  } catch (err) {
+    console.error('Game start error:', err);
+    return res.status(500).json({ error: 'Server error' });
+  }
+});
 
-      if (scoreData.score <= highestScore) {
-        const analytics = await persistTypingAnalytics({
-          accountUser,
-          scoreData,
-          keystrokes,
-          typos,
-          timeElapsed,
-          mode,
-          precision,
-          telemetry,
-          ipAddress: newScoreData.ip,
-        });
-        return res.status(200).send({
-          message: 'Typing stats saved; leaderboard best unchanged.',
-          leaderboardUpdated: false,
-          telemetrySummary: analytics.telemetrySummary,
-          level: computeLevelProgress(analytics.uniqueWordsTyped, getTotalCorpusWordCount()),
-        });
-      }
+app.post('/game/finish', scorePreAuthLimiter, authMiddleware, scoreLimiter, async (req, res) => {
+  const operatorCheck = rejectOperatorKeys(req.body || {});
+  if (!operatorCheck.valid) return res.status(400).json({ error: 'Invalid score' });
 
-      await Score.deleteMany({
+  const { sessionId, finishToken, telemetry, clientScore } = req.body || {};
+  if (!mongoose.Types.ObjectId.isValid(sessionId)) return res.status(400).json({ error: 'Invalid score' });
+  if (typeof finishToken !== 'string' || finishToken.length < 32) return res.status(400).json({ error: 'Invalid score' });
+
+  let session;
+  let scoreDoc = null;
+  let attempt = null;
+  const finishedAt = new Date();
+  try {
+    session = await GameSession.findOneAndUpdate(
+      { _id: sessionId, userId: req.user.sub, status: 'active', expiresAt: { $gt: finishedAt } },
+      { $set: { status: 'finished', finishedAt } },
+      { new: true },
+    );
+    if (!session) return res.status(409).json({ error: 'Game session expired or already finished' });
+    if (!verifyFinishToken(finishToken, session.tokenHash)) {
+      session.status = 'rejected';
+      await session.save();
+      return res.status(400).json({ error: 'Invalid score' });
+    }
+
+    const accountUser = await User.findById(req.user.sub).lean();
+    if (!accountUser) return res.status(401).json({ error: 'User not found' });
+    if (!accountUser.displayName) return res.status(403).json({ error: 'Account setup required' });
+
+    const { wordsBySourceIndex, unverifiedSource } = loadWordsForSession(session, telemetry || {});
+    const computed = recomputeScoreFromTelemetry({
+      telemetry,
+      mode: session.mode,
+      wordsBySourceIndex,
+      serverStartedAt: session.startedAt,
+      serverFinishedAt: finishedAt,
+      clientScore,
+    });
+
+    if (!computed.valid) {
+      await ScoreAttempt.create({
         userId: accountUser._id,
-        WPM: scoreData.WPM,
-        language: scoreData.language,
-        score: { $lte: highestScore }
+        gameSessionId: session._id,
+        language: session.language,
+        WPM: session.WPM,
+        mode: session.mode,
+        score: 0,
+        precision: 0,
+        keystrokes: 0,
+        typos: 0,
+        timeElapsed: 0,
+        clientScore: Number.isFinite(Number(clientScore)) ? Number(clientScore) : null,
+        publicationStatus: PUBLICATION_STATES.REJECTED,
+        riskScore: 100,
+        riskReasons: ['invalid replay'],
+        validationReason: computed.reason || 'invalid replay',
+        ip: getClientIp(req),
+      });
+      session.status = 'rejected';
+      session.finishedAt = finishedAt;
+      await session.save();
+      return res.status(400).json({ error: 'Invalid score' });
+    }
+
+    const plausibility = validateScore(computed.score, computed.keystrokes, computed.typos, computed.timeElapsed, session.WPM, computed.precision);
+    if (!plausibility.valid) {
+      await ScoreAttempt.create({
+        userId: accountUser._id,
+        gameSessionId: session._id,
+        language: session.language,
+        WPM: session.WPM,
+        mode: session.mode,
+        score: computed.score,
+        precision: computed.precision,
+        keystrokes: computed.keystrokes,
+        typos: computed.typos,
+        timeElapsed: computed.timeElapsed,
+        clientScore: Number.isFinite(Number(clientScore)) ? Number(clientScore) : null,
+        publicationStatus: PUBLICATION_STATES.REJECTED,
+        riskScore: 100,
+        riskReasons: ['plausibility failure'],
+        validationReason: plausibility.reason || 'plausibility failure',
+        telemetrySummary: computed.telemetrySummary,
+        telemetryCompact: compactRawTelemetry(telemetry || {}),
+        clientMeta: sanitizeClientMeta(telemetry?.clientMeta),
+        ip: getClientIp(req),
+      });
+      session.status = 'rejected';
+      session.finishedAt = finishedAt;
+      await session.save();
+      console.warn(`Score replay rejected [${req.ip}]: ${plausibility.reason}`);
+      return res.status(400).json({ error: 'Invalid score' });
+    }
+
+    const eligibility = await getAccountEligibility(accountUser);
+    const privateAssessment = normalizeRiskAssessment(assessScoreAttempt({
+      computed,
+      telemetry,
+      session: session.toObject(),
+      account: accountUser,
+      eligibility,
+    }));
+    const riskReasons = [...privateAssessment.reasons];
+    const modeNeedsVariantReview = /(?:\+N|\+P)/.test(session.mode);
+    if (unverifiedSource) riskReasons.push('semantic/manual word stream');
+    if (modeNeedsVariantReview) riskReasons.push('client-random word variants');
+    const decision = decidePublicationStatus({
+      riskScore: privateAssessment.riskScore + (unverifiedSource ? 35 : 0) + (modeNeedsVariantReview ? 20 : 0),
+      ...eligibility,
+      score: computed.score,
+    });
+    const publicationStatus = decision.status === PUBLICATION_STATES.PUBLISHED && !unverifiedSource && !modeNeedsVariantReview
+      ? PUBLICATION_STATES.PUBLISHED
+      : PUBLICATION_STATES.PENDING_REVIEW;
+    riskReasons.push(...decision.reasons);
+
+    const ipAddress = getClientIp(req);
+    const bestPublished = await bestPublishedScoreForUser(accountUser, session.WPM, session.language, session.mode);
+    const leaderboardCandidate = computed.score > bestPublished;
+    scoreDoc = null;
+    if (leaderboardCandidate) {
+      scoreDoc = await Score.create({
+        userId: accountUser._id,
+        name: accountUser.displayName,
+        score: computed.score,
+        language: session.language,
+        WPM: session.WPM,
+        keystrokes: computed.keystrokes,
+        timeElapsed: computed.timeElapsed,
+        typos: computed.typos,
+        mode: session.mode,
+        precision: computed.precision,
+        gameSessionId: session._id,
+        publicationStatus,
+        riskScore: privateAssessment.riskScore,
+        ip: ipAddress,
       });
     }
 
-    const newScore = new Score(newScoreData);
-    const score = await newScore.save();
+    attempt = await ScoreAttempt.create({
+      userId: accountUser._id,
+      gameSessionId: session._id,
+      scoreId: scoreDoc?._id || null,
+      language: session.language,
+      WPM: session.WPM,
+      mode: session.mode,
+      score: computed.score,
+      precision: computed.precision,
+      keystrokes: computed.keystrokes,
+      typos: computed.typos,
+      timeElapsed: computed.timeElapsed,
+      clientScore: Number.isFinite(Number(clientScore)) ? Number(clientScore) : null,
+      publicationStatus: leaderboardCandidate ? publicationStatus : PUBLICATION_STATES.PRIVATE,
+      riskScore: privateAssessment.riskScore,
+      riskReasons: Array.from(new Set(riskReasons)).slice(0, 20),
+      telemetrySummary: computed.telemetrySummary,
+      telemetryCompact: compactRawTelemetry(telemetry || {}),
+      clientMeta: sanitizeClientMeta(telemetry?.clientMeta),
+      ip: ipAddress,
+    });
+    if (scoreDoc) {
+      scoreDoc.scoreAttemptId = attempt._id;
+      await scoreDoc.save();
+    }
+
     const analytics = await persistTypingAnalytics({
       accountUser,
-      scoreDoc: score,
-      scoreData,
-      keystrokes,
-      typos,
-      timeElapsed,
-      mode,
-      precision,
+      scoreDoc,
+      scoreData: { score: computed.score, language: session.language, WPM: session.WPM },
+      keystrokes: computed.keystrokes,
+      typos: computed.typos,
+      timeElapsed: computed.timeElapsed,
+      mode: session.mode,
+      precision: computed.precision,
       telemetry,
-      ipAddress: newScoreData.ip,
+      ipAddress,
     });
-    const payload = score.toObject();
-    payload.leaderboardUpdated = true;
-    payload.telemetrySummary = analytics.telemetrySummary;
-    payload.level = computeLevelProgress(analytics.uniqueWordsTyped, getTotalCorpusWordCount());
-    return res.status(200).send(payload);
+
+    return res.status(200).json({
+      message: 'Score saved',
+      leaderboardUpdated: Boolean(scoreDoc && publicationStatus === PUBLICATION_STATES.PUBLISHED),
+      verificationStatus: publicationStatus === PUBLICATION_STATES.PUBLISHED ? 'published' : 'saved',
+      level: computeLevelProgress(analytics.uniqueWordsTyped, getTotalCorpusWordCount()),
+    });
   } catch (err) {
-    console.error('Score save error:', err);
+    console.error('Game finish error:', err);
+    if (session) {
+      try {
+        session.status = 'rejected';
+        session.finishedAt = new Date();
+        await session.save();
+      } catch (_) { /* ignore */ }
+    }
+    if (scoreDoc) {
+      try {
+        scoreDoc.publicationStatus = PUBLICATION_STATES.REJECTED;
+        scoreDoc.reviewNote = 'Auto-hidden after finish pipeline failure';
+        scoreDoc.reviewedAt = new Date();
+        await scoreDoc.save();
+      } catch (_) { /* ignore */ }
+    }
+    if (attempt) {
+      try {
+        attempt.publicationStatus = PUBLICATION_STATES.REJECTED;
+        attempt.validationReason = 'finish pipeline failure';
+        attempt.reviewedAt = new Date();
+        await attempt.save();
+      } catch (_) { /* ignore */ }
+    }
     return res.status(500).json({ error: 'Server error' });
   }
+});
+
+app.post("/score", scorePreAuthLimiter, authMiddleware, scoreLimiter, async (req, res) => {
+  return res.status(410).json({ error: 'Game sessions are required for leaderboard scores.' });
 });
 
 app.get('/stats/me', authMiddleware, async (req, res) => {
@@ -763,17 +1048,105 @@ app.get('/stats/me', authMiddleware, async (req, res) => {
   }
 });
 
+// ── Local-only score review UI/API ────────────────────────────────
+app.get('/internal/score-review', localAdminOnly, (req, res) => {
+  if (scoreReviewUi?.html) return res.type('html').send(scoreReviewUi.html);
+  const filePath = path.join(PRIVATE_ADMIN_DIR, 'score-review.html');
+  if (!fs.existsSync(filePath)) return res.status(404).send('Score review UI is not installed on this host.');
+  return res.sendFile(filePath);
+});
+app.get('/internal/score-review/assets/:asset', localAdminOnly, (req, res, next) => {
+  const assets = scoreReviewUi?.assets || {};
+  const asset = assets[req.params.asset];
+  if (!asset) return next();
+  return res.type(asset.contentType || 'text/plain').send(asset.body || '');
+});
+app.use('/internal/score-review/assets', localAdminOnly, onlyPublicAssets, express.static(path.join(PRIVATE_ADMIN_DIR, 'assets'), staticOptions));
 
-try {
-    var validateScore = require('./antiCheat');
-} catch (err) {
-    if (process.env.NODE_ENV === 'production') {
-        console.error('FATAL: antiCheat.js missing in production. Refusing to accept scores unvalidated.');
-        process.exit(1);
+app.get('/internal/api/score-attempts', localAdminOnly, async (req, res) => {
+  if (mongoose.connection.readyState !== 1) return res.status(503).json({ error: 'Database unavailable' });
+  const status = readStringQuery(req.query.status) || PUBLICATION_STATES.PENDING_REVIEW;
+  if (!VALID_PUBLICATION_STATES.has(status)) return res.status(400).json({ error: 'Unsupported status' });
+  const limit = parseBoundedInteger(req.query.limit, 25, { min: 1, max: 100 });
+  try {
+    const attempts = await ScoreAttempt.find({ publicationStatus: status })
+      .sort({ riskScore: -1, timestamp: -1 })
+      .limit(limit)
+      .lean();
+    const userIds = [...new Set(attempts.map(attempt => String(attempt.userId)))];
+    const users = await User.find({ _id: { $in: userIds } }).select('displayName picture createdAt').lean();
+    const userById = new Map(users.map(user => [String(user._id), user]));
+    res.json({
+      attempts: attempts.map(attempt => ({
+        ...attempt,
+        user: userById.get(String(attempt.userId)) || null,
+      })),
+    });
+  } catch (err) {
+    console.error('Score review list error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.post('/internal/api/score-attempts/:id/decision', localAdminOnly, async (req, res) => {
+  if (mongoose.connection.readyState !== 1) return res.status(503).json({ error: 'Database unavailable' });
+  const id = req.params.id;
+  if (!mongoose.Types.ObjectId.isValid(id)) return res.status(400).json({ error: 'Invalid attempt' });
+  const decision = readStringQuery(req.body?.decision);
+  const note = String(req.body?.note || '').slice(0, 500);
+  const statusMap = {
+    publish: PUBLICATION_STATES.PUBLISHED,
+    reject: PUBLICATION_STATES.REJECTED,
+    shadow: PUBLICATION_STATES.SHADOW_HIDDEN,
+    private: PUBLICATION_STATES.PRIVATE,
+    pending: PUBLICATION_STATES.PENDING_REVIEW,
+  };
+  const publicationStatus = statusMap[decision];
+  if (!publicationStatus) return res.status(400).json({ error: 'Unsupported decision' });
+
+  try {
+    const attempt = await ScoreAttempt.findById(id);
+    if (!attempt) return res.status(404).json({ error: 'Attempt not found' });
+    let scoreDoc = attempt.scoreId ? await Score.findById(attempt.scoreId) : null;
+    if (!scoreDoc && publicationStatus === PUBLICATION_STATES.PUBLISHED) {
+      const user = await User.findById(attempt.userId).lean();
+      scoreDoc = await Score.create({
+        userId: attempt.userId,
+        name: user?.displayName || 'Player',
+        score: attempt.score,
+        language: attempt.language,
+        WPM: attempt.WPM,
+        keystrokes: attempt.keystrokes,
+        timeElapsed: attempt.timeElapsed,
+        typos: attempt.typos,
+        mode: attempt.mode,
+        precision: attempt.precision,
+        gameSessionId: attempt.gameSessionId,
+        scoreAttemptId: attempt._id,
+        publicationStatus,
+        riskScore: attempt.riskScore,
+        reviewNote: note,
+        reviewedAt: new Date(),
+        ip: attempt.ip,
+      });
+      attempt.scoreId = scoreDoc._id;
+    } else if (scoreDoc) {
+      scoreDoc.publicationStatus = publicationStatus;
+      scoreDoc.reviewNote = note;
+      scoreDoc.reviewedAt = new Date();
+      await scoreDoc.save();
     }
-    console.warn('antiCheat.js not found, score validation bypassed (dev only).', err.message);
-    validateScore = () => ({ valid: true });
-}
+
+    attempt.publicationStatus = publicationStatus;
+    attempt.reviewedAt = new Date();
+    attempt.reviewHistory.push({ publicationStatus, note, reviewedAt: new Date(), reviewer: 'local-admin' });
+    await attempt.save();
+    res.json({ ok: true, publicationStatus, scoreId: scoreDoc?._id || null });
+  } catch (err) {
+    console.error('Score review decision error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
 
 // import motivation.json
 let motivationalMessages = [
@@ -810,10 +1183,10 @@ app.get('/leaderboard/:language/:WPM', async (req, res) => {
   try {
     const scores = await Score.aggregate([
       {
-        $match: {
+        $match: publishedScoreFilter({
           language,
           WPM,
-        }
+        })
       },
       // Sort before grouping so $first is truly the best document.
       { $sort: { score: -1, precision: -1, timestamp: 1 } },
@@ -878,6 +1251,7 @@ app.get('/latest-scores', async (req, res) => {
 
   try {
     const scores = await Score.aggregate([
+      { $match: publishedScoreFilter() },
       { $sort: { timestamp: -1 } },
       { $skip: skip },
       { $limit: limit },
@@ -925,7 +1299,7 @@ app.get('/api/leaderboard', async (req, res) => {
   }
 
   try {
-    const match = { language: lang };
+    const match = publishedScoreFilter({ language: lang });
     if (rawWpm !== null) match.WPM = rawWpm;
     if (mode) match.mode = mode;
 

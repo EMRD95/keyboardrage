@@ -19,6 +19,8 @@ galaxy/**/*.json
 # Private runtime modules — kept in separate repo, deployed at build time
 antiCheat.js
 rateLimiter.js
+scoreReviewUi.js
+private-admin/
 start-mongo.js
 .mongo-dev-data/
 .jwt-secret
@@ -31,9 +33,9 @@ coverage/
 
 # TypeScript build outputs generated in-place by `npm run build` (`tsc`).
 # Keep the source .ts files tracked; these .js files are reproducible.
-/game.js
-/language-support.js
-/typing-input.js
+/public/game.js
+/public/language-support.js
+/public/typing-input.js
 /themes/*.js
 
 # Security-sensitive — kept in private repo

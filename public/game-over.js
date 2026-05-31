@@ -314,30 +314,10 @@ document.body.addEventListener('keydown', (event) => {
   }
 });
 
-// Submit pending score after login
-window.addEventListener('kr-auth-ready', ({ detail }) => {
-  if (!detail.loggedIn) return;
-  const pending = localStorage.getItem('kr_pending_score');
-  if (!pending) return;
-
-  const session = JSON.parse(sessionStorage.getItem('kr_session'));
-  if (!session?.token) return;
-
-  fetch('/score', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${session.token}`,
-    },
-    body: pending,
-  }).then(res => {
-    if (res.ok) {
-      localStorage.removeItem('kr_pending_score');
-      console.log('Pending score submitted');
-      fetchLeaderboard();
-      fetchLatestScores();
-    } else {
-      console.error('Pending score rejected:', res.status);
-    }
-  }).catch(err => console.error('Pending score error:', err));
+// Legacy client-authoritative pending scores are intentionally not replayed.
+// Current public leaderboard submissions require a server-owned game session
+// created before the first word drops, so logging in after the game cannot
+// retroactively publish a score.
+window.addEventListener('kr-auth-ready', () => {
+  localStorage.removeItem('kr_pending_score');
 });

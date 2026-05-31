@@ -34,6 +34,12 @@ type WordListEntry = {
   sourceIndex: number;
 };
 
+type ActiveGameSession = {
+  sessionId: string;
+  finishToken: string;
+  expiresAt?: string;
+};
+
 type TypingTelemetry = {
   gameStartedAt: number;
   gameEndedAt?: number;
@@ -200,6 +206,7 @@ class Game {
   private activeWordStartedAt = 0;
   private activeWordKeystrokes = 0;
   private activeWordTypos = 0;
+  private activeGameSession: ActiveGameSession | null = null;
 
   private constructor(container: HTMLElement, playerName: string, WPM: number = 60, language: string = DEFAULT_LANGUAGE) {
     this.container = container;
@@ -504,13 +511,65 @@ class Game {
     };
   }
 
-  private markGameplayStart() {
+  private currentScoreMode() {
+    return this.mode
+      + (this.addNumbersSetting ? '+N' : '')
+      + (this.applyGrammarSetting ? '+P' : '');
+  }
+
+  private getAuthToken(): string | null {
+    const sessionStr = sessionStorage.getItem('kr_session');
+    if (!sessionStr) return null;
+    try {
+      const session = JSON.parse(sessionStr) as { token?: string };
+      return typeof session.token === 'string' && session.token.length > 0 ? session.token : null;
+    } catch {
+      return null;
+    }
+  }
+
+  private async startGameSession() {
+    this.activeGameSession = null;
+    const token = this.getAuthToken();
+    if (!token) return;
+
+    try {
+      const response = await fetch('/game/start', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          language: this.language,
+          WPM: this.WPM,
+          mode: this.currentScoreMode(),
+          frequencyLimit: this.frequencyLimit,
+          semanticActive: this.semanticActive,
+          clientMeta: this.telemetry.clientMeta,
+        }),
+      });
+      if (!response.ok) {
+        console.warn('Leaderboard session unavailable:', response.status);
+        return;
+      }
+      const data = await response.json() as ActiveGameSession;
+      if (data.sessionId && data.finishToken) {
+        this.activeGameSession = data;
+      }
+    } catch (error) {
+      console.warn('Leaderboard session unavailable:', error);
+    }
+  }
+
+  private async markGameplayStart() {
     this.startTime = Date.now();
     this.timeElapsed = 0;
     this.telemetry = this.createTelemetry();
     this.activeWordStartedAt = 0;
     this.activeWordKeystrokes = 0;
     this.activeWordTypos = 0;
+    await this.startGameSession();
   }
 
   private updateFractalThemeColors() {
@@ -1019,7 +1078,8 @@ class Game {
     requestAnimationFrame(async () => {
       await this.waitForThemeBeforeWords(sequence);
       if (sequence !== this.startSequence || this.isGameOver || this.words.length > 0) return;
-      this.markGameplayStart();
+      await this.markGameplayStart();
+      if (sequence !== this.startSequence || this.isGameOver || this.words.length > 0) return;
       this.generateWords();
       if (!this.pause && this.animationFrame === null) {
         this.lastTimestamp = performance.now();
@@ -1100,7 +1160,8 @@ class Game {
       requestAnimationFrame(async () => {
         await this.waitForThemeBeforeWords(sequence);
         if (sequence !== this.startSequence || this.isGameOver || this.words.length > 0) return;
-        this.markGameplayStart();
+        await this.markGameplayStart();
+        if (sequence !== this.startSequence || this.isGameOver || this.words.length > 0) return;
         this.generateWords();
         if (!this.pause && this.animationFrame === null) {
           this.lastTimestamp = performance.now();
@@ -1111,9 +1172,10 @@ class Game {
     }
 
     Promise.all([this.fetchWords(), this.waitForThemeBeforeWords(sequence)]).then(() => {
-      requestAnimationFrame(() => {
+      requestAnimationFrame(async () => {
         if (sequence !== this.startSequence || this.isGameOver || this.words.length > 0) return;
-        this.markGameplayStart();
+        await this.markGameplayStart();
+        if (sequence !== this.startSequence || this.isGameOver || this.words.length > 0) return;
         this.generateWords();
         if (!this.pause && this.animationFrame === null) {
           this.lastTimestamp = performance.now();
@@ -1131,7 +1193,8 @@ class Game {
     requestAnimationFrame(async () => {
       await this.waitForThemeBeforeWords(sequence);
       if (sequence !== this.startSequence || this.isGameOver || this.words.length > 0) return;
-      this.markGameplayStart();
+      await this.markGameplayStart();
+      if (sequence !== this.startSequence || this.isGameOver || this.words.length > 0) return;
       this.generateWords();
       this.lastTimestamp = performance.now();
       this.animate(this.lastTimestamp);
@@ -1583,49 +1646,37 @@ class Game {
     localStorage.setItem('timeElapsed', this.timeElapsed.toString());
 
     try {
-      // Read JWT session for authenticated score submission
-      let authHeader = {};
-      let token = null;
-      const sessionStr = sessionStorage.getItem('kr_session');
-      if (sessionStr) {
-        try {
-          const session = JSON.parse(sessionStr);
-          if (session.token) {
-            authHeader = { 'Authorization': `Bearer ${session.token}` };
-            token = session.token;
-          }
-        } catch { /* ignore */ }
-      }
-
+      const token = this.getAuthToken();
       this.telemetry.gameEndedAt = endTime;
-      const scorePayload = {
-        score: this.score,
-        language: this.language,
-        WPM: this.WPM,
-        keystrokes: this.keystrokes,
-        timeElapsed,
-        typos: this.typos,
-        mode: this.mode
-          + (this.addNumbersSetting ? '+N' : '')
-          + (this.applyGrammarSetting ? '+P' : ''),
-        telemetry: this.telemetry
-      };
 
-      // Only POST if authenticated; otherwise stash for later
-      if (token) {
-        const response = await fetch('/score', {
+      // Public leaderboard scores require a server-owned game session.
+      // Anonymous games still work normally, but their scores stay local-only.
+      if (token && this.activeGameSession) {
+        const response = await fetch('/game/finish', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...authHeader },
-          body: JSON.stringify(scorePayload)
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            sessionId: this.activeGameSession.sessionId,
+            finishToken: this.activeGameSession.finishToken,
+            clientScore: this.score,
+            telemetry: this.telemetry,
+          })
         });
 
         if (!response.ok) {
-          console.error('Failed to send score to server', response.status);
+          console.error('Failed to verify score with server', response.status);
         } else {
+          const result = await response.json().catch(() => null) as { verificationStatus?: string } | null;
+          if (result?.verificationStatus) {
+            localStorage.setItem('kr_last_score_status', result.verificationStatus);
+          }
           localStorage.removeItem('kr_pending_score');
         }
       } else {
-        localStorage.setItem('kr_pending_score', JSON.stringify(scorePayload));
+        localStorage.removeItem('kr_pending_score');
       }
     } catch (error) {
       console.error('Failed to send score to server', error);
