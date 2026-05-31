@@ -16,13 +16,11 @@ const {
 } = require('./typing-stats');
 const {
   PUBLICATION_STATES,
-  VALID_PUBLICATION_STATES,
   createFinishTokenPair,
   verifyFinishToken,
   rejectOperatorKeys,
   recomputeScoreFromTelemetry,
   decidePublicationStatus,
-  isLocalAdminRequest,
 } = require('./game-session-security');
 
 const app = express();
@@ -32,7 +30,6 @@ app.use(bodyParser.json({ limit: '768kb' }));
 
 const PORT = Number(process.env.PORT || 3000);
 const IS_PRODUCTION = process.env.NODE_ENV === 'production';
-const PRIVATE_ADMIN_DIR = path.join(__dirname, 'private-admin');
 
 const CSP_DIRECTIVES = [
   "default-src 'self'",
@@ -319,10 +316,6 @@ function authMiddleware(req, res, next) {
   next();
 }
 
-function localAdminOnly(req, res, next) {
-  if (!isLocalAdminRequest(req)) return res.status(404).end();
-  next();
-}
 
 // ── Auth routes ─────────────────────────────────────────────────
 app.post('/auth/google', authGoogleLimiter, async (req, res) => {
@@ -440,7 +433,6 @@ const Score = mongoose.model('Score', ScoreSchema);
 const scoreLimiter = require('./rateLimiter');
 let validateScore;
 let assessScoreAttempt;
-let scoreReviewUi = null;
 try {
   const antiCheatModule = require('./antiCheat');
   validateScore = typeof antiCheatModule === 'function' ? antiCheatModule : antiCheatModule.validateScore;
@@ -455,12 +447,6 @@ try {
   validateScore = () => ({ valid: true });
   assessScoreAttempt = () => ({ riskScore: 0, reasons: [] });
 }
-try {
-  scoreReviewUi = require('./scoreReviewUi');
-} catch (err) {
-  if (!IS_PRODUCTION) console.warn('scoreReviewUi.js not found, local review UI disabled.', err.message);
-}
-
 const GameSessionSchema = new mongoose.Schema({
   userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
   language: { type: String, required: true, index: true },
@@ -1048,239 +1034,6 @@ app.get('/stats/me', authMiddleware, async (req, res) => {
   }
 });
 
-// ── Local-only score review UI/API ────────────────────────────────
-app.get('/internal/score-review', localAdminOnly, (req, res) => {
-  if (scoreReviewUi?.html) return res.type('html').send(scoreReviewUi.html);
-  const filePath = path.join(PRIVATE_ADMIN_DIR, 'score-review.html');
-  if (!fs.existsSync(filePath)) return res.status(404).send('Score review UI is not installed on this host.');
-  return res.sendFile(filePath);
-});
-app.get('/internal/score-review/assets/:asset', localAdminOnly, (req, res, next) => {
-  const assets = scoreReviewUi?.assets || {};
-  const asset = assets[req.params.asset];
-  if (!asset) return next();
-  return res.type(asset.contentType || 'text/plain').send(asset.body || '');
-});
-app.use('/internal/score-review/assets', localAdminOnly, onlyPublicAssets, express.static(path.join(PRIVATE_ADMIN_DIR, 'assets'), staticOptions));
-
-app.get('/internal/api/score-attempts', localAdminOnly, async (req, res) => {
-  if (mongoose.connection.readyState !== 1) return res.status(503).json({ error: 'Database unavailable' });
-  const status = readStringQuery(req.query.status) || PUBLICATION_STATES.PENDING_REVIEW;
-  if (!VALID_PUBLICATION_STATES.has(status)) return res.status(400).json({ error: 'Unsupported status' });
-  const limit = parseBoundedInteger(req.query.limit, 25, { min: 1, max: 100 });
-  try {
-    const attempts = await ScoreAttempt.find({ publicationStatus: status })
-      .sort({ riskScore: -1, timestamp: -1 })
-      .limit(limit)
-      .lean();
-    const userIds = [...new Set(attempts.map(attempt => String(attempt.userId)))];
-    const users = await User.find({ _id: { $in: userIds } }).select('displayName picture createdAt').lean();
-    const userById = new Map(users.map(user => [String(user._id), user]));
-    res.json({
-      attempts: attempts.map(attempt => ({
-        ...attempt,
-        user: userById.get(String(attempt.userId)) || null,
-      })),
-    });
-  } catch (err) {
-    console.error('Score review list error:', err);
-    res.status(500).json({ error: 'Server error' });
-  }
-});
-
-app.post('/internal/api/score-attempts/:id/decision', localAdminOnly, async (req, res) => {
-  if (mongoose.connection.readyState !== 1) return res.status(503).json({ error: 'Database unavailable' });
-  const id = req.params.id;
-  if (!mongoose.Types.ObjectId.isValid(id)) return res.status(400).json({ error: 'Invalid attempt' });
-  const decision = readStringQuery(req.body?.decision);
-  const note = String(req.body?.note || '').slice(0, 500);
-  const statusMap = {
-    publish: PUBLICATION_STATES.PUBLISHED,
-    reject: PUBLICATION_STATES.REJECTED,
-    shadow: PUBLICATION_STATES.SHADOW_HIDDEN,
-    private: PUBLICATION_STATES.PRIVATE,
-    pending: PUBLICATION_STATES.PENDING_REVIEW,
-  };
-  const publicationStatus = statusMap[decision];
-  if (!publicationStatus) return res.status(400).json({ error: 'Unsupported decision' });
-
-  try {
-    const attempt = await ScoreAttempt.findById(id);
-    if (!attempt) return res.status(404).json({ error: 'Attempt not found' });
-    let scoreDoc = attempt.scoreId ? await Score.findById(attempt.scoreId) : null;
-    if (!scoreDoc && publicationStatus === PUBLICATION_STATES.PUBLISHED) {
-      const user = await User.findById(attempt.userId).lean();
-      scoreDoc = await Score.create({
-        userId: attempt.userId,
-        name: user?.displayName || 'Player',
-        score: attempt.score,
-        language: attempt.language,
-        WPM: attempt.WPM,
-        keystrokes: attempt.keystrokes,
-        timeElapsed: attempt.timeElapsed,
-        typos: attempt.typos,
-        mode: attempt.mode,
-        precision: attempt.precision,
-        gameSessionId: attempt.gameSessionId,
-        scoreAttemptId: attempt._id,
-        publicationStatus,
-        riskScore: attempt.riskScore,
-        reviewNote: note,
-        reviewedAt: new Date(),
-        ip: attempt.ip,
-      });
-      attempt.scoreId = scoreDoc._id;
-    } else if (scoreDoc) {
-      scoreDoc.publicationStatus = publicationStatus;
-      scoreDoc.reviewNote = note;
-      scoreDoc.reviewedAt = new Date();
-      await scoreDoc.save();
-    }
-
-    attempt.publicationStatus = publicationStatus;
-    attempt.reviewedAt = new Date();
-    attempt.reviewHistory.push({ publicationStatus, note, reviewedAt: new Date(), reviewer: 'local-admin' });
-    await attempt.save();
-    res.json({ ok: true, publicationStatus, scoreId: scoreDoc?._id || null });
-  } catch (err) {
-    console.error('Score review decision error:', err);
-    res.status(500).json({ error: 'Server error' });
-  }
-});
-
-// import motivation.json
-let motivationalMessages = [
-  'Keep typing — the leaderboard is only available for supported WPM values.'
-];
-try {
-  const loadedMessages = JSON.parse(fs.readFileSync('./words/motivation.json', 'utf8'));
-  if (Array.isArray(loadedMessages) && loadedMessages.length > 0) {
-    motivationalMessages = loadedMessages;
-  }
-} catch (err) {
-  console.warn('Failed to load motivation.json, using fallback motivation message.', err);
-}
-
-// Leaderboard endpoint: one best score per stable account identity.
-app.get('/leaderboard/:language/:WPM', async (req, res) => {
-  const language = req.params.language;
-  if (!isSupportedLanguage(language)) {
-    return res.status(400).json({ error: 'Unsupported language' });
-  }
-  const WPM = Number(req.params.WPM);
-  if (!supportedWPMs.includes(WPM)) {
-    const randomIndex = Math.floor(Math.random() * motivationalMessages.length);
-    return res.status(200).send({ message: motivationalMessages[randomIndex] });
-  }
-  const page = parseBoundedInteger(req.query.page, 1, { min: 1, max: 10000 });
-  const limit = parseBoundedInteger(req.query.limit, 10, { min: 1, max: 50 });
-  const skip = (page - 1) * limit;
-
-  if (mongoose.connection.readyState !== 1) {
-    return res.status(200).send([]);
-  }
-
-  try {
-    const scores = await Score.aggregate([
-      {
-        $match: publishedScoreFilter({
-          language,
-          WPM,
-        })
-      },
-      // Sort before grouping so $first is truly the best document.
-      { $sort: { score: -1, precision: -1, timestamp: 1 } },
-      {
-        $group: {
-          _id: {
-            $cond: [
-              { $ifNull: ['$userId', false] },
-              { $concat: ['user:', { $toString: '$userId' }] },
-              { $concat: ['legacy:', '$name'] }
-            ]
-          },
-          doc: { $first: '$$ROOT' }
-        }
-      },
-      { $replaceRoot: { newRoot: '$doc' } },
-      {
-        $lookup: {
-          from: 'users',
-          localField: 'userId',
-          foreignField: '_id',
-          as: 'user'
-        }
-      },
-      { $unwind: { path: '$user', preserveNullAndEmptyArrays: true } },
-      {
-        $addFields: {
-          name: { $ifNull: ['$user.displayName', '$name'] },
-          userPicture: '$user.picture'
-        }
-      },
-      { $sort: { score: -1, precision: -1, timestamp: 1 } },
-      { $skip: skip },
-      { $limit: limit },
-      {
-        $project: {
-          user: 0,
-          googleId: 0,
-          ip: 0,
-          userId: 0,
-          __v: 0,
-        }
-      }
-    ]);
-
-    return res.status(200).send(scores);
-  } catch (err) {
-    console.error('Leaderboard error:', err);
-    return res.status(500).json({ error: 'Server error' });
-  }
-});
-
-// Endpoint for the latest scores
-app.get('/latest-scores', async (req, res) => {
-  const page = parseBoundedInteger(req.query.page, 1, { min: 1, max: 10000 });
-  const limit = parseBoundedInteger(req.query.limit, 10, { min: 1, max: 50 });
-  const skip = (page - 1) * limit;
-
-  if (mongoose.connection.readyState !== 1) {
-    return res.status(200).send([]);
-  }
-
-  try {
-    const scores = await Score.aggregate([
-      { $match: publishedScoreFilter() },
-      { $sort: { timestamp: -1 } },
-      { $skip: skip },
-      { $limit: limit },
-      {
-        $lookup: {
-          from: 'users',
-          localField: 'userId',
-          foreignField: '_id',
-          as: 'user'
-        }
-      },
-      { $unwind: { path: '$user', preserveNullAndEmptyArrays: true } },
-      {
-        $addFields: {
-          name: { $ifNull: ['$user.displayName', '$name'] },
-          userPicture: '$user.picture'
-        }
-      },
-      { $project: { user: 0, googleId: 0, ip: 0, userId: 0, __v: 0 } }
-    ]);
-
-    return res.status(200).send(scores);
-  } catch (err) {
-    console.error('Latest scores error:', err);
-    return res.status(500).json({ error: 'Server error' });
-  }
-});
-
-// ── Unified leaderboard API ─────────────────────────────────────
 app.get('/api/leaderboard', async (req, res) => {
   const lang = readStringQuery(req.query.lang);
   const rawWpm = req.query.wpm == null ? null : parseStrictNumberQuery(req.query.wpm);
