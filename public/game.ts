@@ -1791,6 +1791,9 @@ function makeCustomDropdown(
       onChange(value);
     }
     menu.style.display = 'none';
+    if (!silent) {
+      onClose();
+    }
   };
 
   renderMenu();
